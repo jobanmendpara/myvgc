@@ -20,6 +20,20 @@ export default defineNuxtConfig({
   },
   vite: {
     plugins: [tailwindcss()],
+    // Pre-bundle what Vite would otherwise discover on the first page visit in `pnpm dev`,
+    // which reloads the page and can swallow the first click.
+    optimizeDeps: {
+      include: [
+        '@tanstack/vue-query',
+        'better-auth/client/plugins',
+        'better-auth/vue',
+        'class-variance-authority',
+        '@vueuse/core',
+        'cn',
+        'reka-ui',
+        '@lucide/vue',
+      ],
+    },
   },
   nitro: {
     // In development the API runs separately (see apps/api `dev`); forward /api to it.
