@@ -9,7 +9,7 @@ Each Tournament has a Teamsheet. A user may create it in the app or upload their
 ## Decision
 - Teamsheets the app creates are generated on demand from a Team and are not stored.
 - Image storage is out of scope for now.
-- How uploaded teamsheet PDFs are handled is still open (see the interview).
+- Uploaded teamsheet PDFs are first stored as reference attachments only. Later they are read into a Team through the same pipeline as replica-team screenshots (see ADR 10).
 
 ## Consequences
 File storage is not on the critical path for the first slice. When uploads arrive, they go behind a single storage interface: a disk volume for self-hosting, and S3-compatible storage for the hosted service.
