@@ -15,7 +15,9 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "pnpm -r test"
+    "test": "pnpm -r test",
+    "smoke": "pnpm --filter @myvgc/e2e smoke",
+    "up:local": "docker compose -f compose.yaml -f compose.build.yaml up -d --build --wait"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

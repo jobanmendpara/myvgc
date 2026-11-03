@@ -24,3 +24,7 @@ dist/
 .output/
 .data/
 coverage/
+
+# Playwright output
+test-results/
+playwright-report/
