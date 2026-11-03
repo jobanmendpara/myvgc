@@ -17,4 +17,4 @@ MyVGC is a hub where a competitive player tracks their Pokémon VGC experience i
 - **Round**: one pairing against one Opponent in a Tournament. Never called "Match". It has a phase (Swiss or Top cut) and a round number, and is best of 1 or best of 3 (defaulting to the Tournament's setting), and the User records the result, the Opponent and notes (for example leads).
 - **Game**: a single battle within a Round. Tracking individual Games is planned, not in the first slice.
 - **Team snapshot**: a frozen copy of a Team attached to a Tournament (the User's Team) or to a Round (the Opponent's Team). It links back to the original Team.
-- **Note**: free text the User attaches to an Opponent, Team, Tournament or Round.
+- **Notes**: one Markdown notes field on each Opponent, Team, Tournament and Round. An Opponent's page also shows the notes from every Round against them.
