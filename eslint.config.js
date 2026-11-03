@@ -23,6 +23,34 @@ export default tseslint.config(
     },
   },
   {
+    // packages/core holds domain logic only: no I/O and no app frameworks (CLAUDE.md, ADR 8).
+    files: ['packages/core/src/**/*.ts'],
+    languageOptions: { globals: { ...globals['shared-node-browser'] } },
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            { regex: '^node:', message: 'packages/core does no I/O; keep Node APIs in apps/api.' },
+            {
+              regex: '^(fs|path|os|http|https|net|child_process|crypto)(/|$)',
+              message: 'packages/core does no I/O; keep Node APIs in apps/api.',
+            },
+            {
+              regex: '^(hono|@hono/|nuxt|#app|drizzle-orm|drizzle-kit|postgres$|@electric-sql/)',
+              message: 'packages/core must not depend on Hono, Nuxt or Drizzle.',
+            },
+          ],
+        },
+      ],
+      'no-restricted-globals': [
+        'error',
+        { name: 'fetch', message: 'packages/core does no I/O.' },
+        { name: 'process', message: 'packages/core does no I/O.' },
+      ],
+    },
+  },
+  {
     // Nuxt auto-imports components, so single-word names like <Card> are fine.
     files: ['apps/web/**/*.vue'],
     rules: { 'vue/multi-word-component-names': 'off' },

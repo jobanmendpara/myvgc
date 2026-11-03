@@ -134,7 +134,24 @@ importers:
         specifier: ^3.3.14
         version: 3.3.14(typescript@5.9.3)
 
-  packages/core: {}
+  packages/core:
+    dependencies:
+      '@pkmn/dex':
+        specifier: 0.10.13
+        version: 0.10.13
+      '@pkmn/mods':
+        specifier: 0.10.13
+        version: 0.10.13
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
+    devDependencies:
+      '@types/node':
+        specifier: ^24.19.2
+        version: 24.19.2
+      vitest:
+        specifier: ^5.1.0
+        version: 5.1.0(@types/node@24.19.2)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15))
 
 packages:
 
@@ -1155,6 +1172,18 @@ packages:
     engines: {node: '>= 10.0.0'}
     bundledDependencies:
       - napi-wasm
+
+  '@pkmn/dex-types@0.10.13':
+    resolution: {integrity: sha512-zqPFUvD5AqskzTY3wIT1xAU9bRc/y6/ukngS6Sfl562/Laps8EAJWn/iu6ZgCdepUHwcnxslpCV4I+UXPvP5cg==}
+
+  '@pkmn/dex@0.10.13':
+    resolution: {integrity: sha512-M04rp7Hwfglw8rCCkM2lf1NyqrAsDFbRdtdPRo9zixbNjyO9Cx0T3RNm4MlWndGZ8iPKrJEC8cLpSRdPwYdbXg==}
+
+  '@pkmn/mods@0.10.13':
+    resolution: {integrity: sha512-GEVy/UeLoxLPYV2MURXBR7/YhYxU69tFZ4REuBHdtfsbjfRi8YpodBNpjqdhUMt8YNneNcBib59+iy4NqZdmfg==}
+
+  '@pkmn/types@5.0.0':
+    resolution: {integrity: sha512-kO/o0SfNBwFrsS3IkWJUlTpCBD+2ydVlvGeARbJ5pzZ3YABVXhDbqJCQUX5gRUp9uaWWQoa4gUqQT4LAqCE8Ng==}
 
   '@polka/url@1.0.0-next.29':
     resolution: {integrity: sha512-wwQAWhWSuHaag8c4q/KN/vCoeOJYshAIvMQwD4GpSb3OiZklFfvAgmj0VCBBImRpuF/aFgIRzllXlVX93Jevww==}
@@ -5333,6 +5362,20 @@ snapshots:
     dependencies:
       is-glob: 4.0.3
       picomatch: 4.0.7
+
+  '@pkmn/dex-types@0.10.13':
+    dependencies:
+      '@pkmn/types': 5.0.0
+
+  '@pkmn/dex@0.10.13':
+    dependencies:
+      '@pkmn/dex-types': 0.10.13
+
+  '@pkmn/mods@0.10.13':
+    dependencies:
+      '@pkmn/dex-types': 0.10.13
+
+  '@pkmn/types@5.0.0': {}
 
   '@polka/url@1.0.0-next.29': {}
 

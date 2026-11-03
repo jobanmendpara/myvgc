@@ -1,0 +1,59 @@
+Charizard @ Charizardite Y  
+Ability: Solar Power  
+Level: 50  
+EVs: 2 HP / 32 SpA / 32 Spe  
+Timid Nature  
+- Heat Wave  
+- Solar Beam  
+- Protect  
+- Will-O-Wisp  
+
+Venusaur (M) @ Focus Sash  
+Ability: Chlorophyll  
+Level: 50  
+EVs: 2 HP / 32 SpA / 32 Spe  
+Modest Nature  
+- Earth Power  
+- Giga Drain  
+- Sludge Bomb  
+- Protect  
+
+Incineroar (F) @ Sitrus Berry  
+Ability: Intimidate  
+Level: 50  
+EVs: 32 HP / 2 Atk / 32 SpD  
+Careful Nature  
+- Fake Out  
+- Parting Shot  
+- Flare Blitz  
+- Knock Off  
+
+Rotom-Wash @ Leftovers  
+Ability: Levitate  
+Level: 50  
+EVs: 32 HP / 18 Def / 16 SpA  
+Bold Nature  
+- Hydro Pump  
+- Thunderbolt  
+- Will-O-Wisp  
+- Protect  
+
+Whimsicott @ Mental Herb  
+Ability: Prankster  
+Level: 50  
+EVs: 32 HP / 2 Def / 32 Spe  
+Timid Nature  
+- Tailwind  
+- Moonblast  
+- Encore  
+- Light Screen  
+
+Garchomp @ Life Orb  
+Ability: Rough Skin  
+Level: 50  
+EVs: 2 HP / 32 Atk / 32 Spe  
+Jolly Nature  
+- Earthquake  
+- Rock Slide  
+- Dragon Claw  
+- Protect  

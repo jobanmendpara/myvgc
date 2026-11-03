@@ -1,0 +1,53 @@
+Chompy (Garchomp) (F) @ Garchompite Z
+Ability: Rough Skin
+EVs: 32 Atk / 2 Def / 32 Spe
+Jolly Nature
+- Earthquake
+- Dragon Claw
+- Rock Slide
+- Protect
+
+Floette-Eternal @ Sitrus Berry
+Ability: Flower Veil
+EVs: 32 HP / 32 SpA / 2 SpD
+Modest Nature
+- Light of Ruin
+- Moonblast
+- Calm Mind
+- Protect
+
+Sinistcha @ Rocky Helmet
+Ability: Hospitality
+EVs: 32 HP / 32 Def / 2 SpD
+Bold Nature
+- Matcha Gotcha
+- Strength Sap
+- Rage Powder
+- Trick Room
+
+Kingambit @ Black Glasses
+Ability: Supreme Overlord
+EVs: 32 HP / 32 Atk / 2 Spe
+Adamant Nature
+- Kowtow Cleave
+- Sucker Punch
+- Iron Head
+- Protect
+
+Lucy (Basculegion-F) @ Mystic Water
+Ability: Adaptability
+EVs: 2 HP / 32 Atk / 32 Spe
+Adamant Nature
+- Wave Crash
+- Last Respects
+- Aqua Jet
+- Protect
+
+Ninetales-Alola @ Light Clay
+Ability: Snow Warning
+EVs: 2 HP / 32 SpA / 32 Spe
+Timid Nature
+- Blizzard
+- Aurora Veil
+- Freeze-Dry
+- Protect

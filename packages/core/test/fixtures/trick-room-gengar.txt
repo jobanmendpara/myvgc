@@ -1,0 +1,54 @@
+=== [gen9championsvgc2026regmc] Trick Room ===
+
+Gengar @ Gengarite
+Ability: Cursed Body
+EVs: 32 HP / 32 SpA / 2 SpD
+Quiet Nature
+- Shadow Ball
+- Sludge Bomb
+- Icy Wind
+- Protect
+
+Hatterene (F) @ Life Orb
+Ability: Magic Bounce
+EVs: 32 HP / 2 Def / 32 SpA
+Quiet Nature
+- Trick Room
+- Dazzling Gleam
+- Psychic
+- Mystical Fire
+
+Tauros-Paldea-Aqua (M) @ Wide Lens
+Ability: Intimidate
+EVs: 32 HP / 32 Atk / 2 SpD
+Brave Nature
+- Wave Crash
+- Close Combat
+- Rock Slide
+- Protect
+
+Maushold-Four @ Focus Sash
+Ability: Friend Guard
+EVs: 32 HP / 32 Def / 2 SpD
+Impish Nature
+- Follow Me
+- Beat Up
+- Taunt
+
+Arcanine-Hisui @ Shuca Berry
+Ability: Intimidate
+EVs: 32 HP / 32 Atk / 2 Def
+Adamant Nature
+- Flare Blitz
+- Rock Slide
+- Extreme Speed
+- Protect
+
+Aegislash @ Leftovers
+Ability: Stance Change
+EVs: 32 HP / 32 SpA / 2 SpD
+Quiet Nature
+- Shadow Ball
+- Flash Cannon
+- King's Shield
+- Shadow Sneak
