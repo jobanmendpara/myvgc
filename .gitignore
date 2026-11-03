@@ -16,3 +16,11 @@
 
 # Logs
 *.log
+
+# Dependencies and build output
+node_modules/
+dist/
+.nuxt/
+.output/
+.data/
+coverage/
