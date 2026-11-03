@@ -1,0 +1,64 @@
+# Builds the Docker image, starts it with Compose and Postgres, and runs the Playwright smoke
+# test against it. Called by ci.yml and, before publishing, by release.yml.
+name: Smoke test
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - name: Write .env from the example, with a fresh secret
+        run: |
+          cp .env.example .env
+          sed -i "s#^BETTER_AUTH_SECRET=.*#BETTER_AUTH_SECRET=$(openssl rand -base64 32)#" .env
+
+      - uses: docker/setup-buildx-action@v4
+      - name: Build the image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          load: true
+          tags: myvgc:local
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Start the app and Postgres
+        run: docker compose -f compose.yaml -f compose.build.yaml up -d --no-build --wait --wait-timeout 120
+
+      - name: Install Chromium for Playwright
+        run: pnpm --filter @myvgc/e2e exec playwright install --with-deps chromium
+
+      - name: Run the smoke test
+        run: pnpm smoke
+        env:
+          CI: 'true'
+
+      - name: Show app logs
+        if: failure()
+        run: docker compose -f compose.yaml -f compose.build.yaml logs
+
+      - name: Upload the Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: e2e/playwright-report
+          retention-days: 7
+
+      - name: Stop the app
+        if: always()
+        run: docker compose -f compose.yaml -f compose.build.yaml down -v

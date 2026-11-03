@@ -1,0 +1,6 @@
+# Development only: exposes Postgres on localhost so `pnpm dev` can reach it.
+# Used by `pnpm db:up`.
+services:
+  db:
+    ports:
+      - '5432:5432'

@@ -1,0 +1,12 @@
+**/node_modules
+**/dist
+**/.nuxt
+**/.output
+**/.data
+.git
+.github
+.scratch
+docs
+.env
+.env.*
+!.env.example

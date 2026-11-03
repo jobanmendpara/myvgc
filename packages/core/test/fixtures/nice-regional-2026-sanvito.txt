@@ -1,0 +1,53 @@
+Tyranitar @ Tyranitarite
+Ability: Sand Stream
+EVs: 18 hp / 16 atk / 32 spe
+Jolly Nature
+- Rock Slide
+- Knock Off
+- Dragon Dance
+- Protect
+
+Excadrill @ Focus Sash
+Ability: Sand Rush
+EVs: 32 atk / 1 def / 1 spd / 32 spe
+Adamant Nature
+- High Horsepower
+- Iron Head
+- Rock Slide
+- Protect
+
+Gholdengo @ Life Orb
+Ability: Good as Gold
+EVs: 27 hp / 12 def / 17 spd / 10 spe
+Modest Nature
+- Shadow Ball
+- Make It Rain
+- Nasty Plot
+- Protect
+
+Milotic @ Sitrus Berry
+Ability: Competitive
+EVs: 32 hp / 17 def / 8 spa / 5 spd / 4 spe
+Calm Nature
+- Scald
+- Ice Beam
+- Icy Wind
+- Protect
+
+Sinistcha @ Rocky Helmet
+Ability: Hospitality
+EVs: 29 hp / 14 def / 23 spd
+Bold Nature
+- Matcha Gotcha
+- Strength Sap
+- Rage Powder
+- Protect
+
+Staraptor @ Staraptite
+Ability: Intimidate
+EVs: 29 hp / 1 atk / 4 spd / 32 spe
+Jolly Nature
+- Close Combat
+- Brave Bird
+- Tailwind
+- Protect

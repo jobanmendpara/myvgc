@@ -1,0 +1,6 @@
+# Builds the app image from this checkout instead of pulling the published one.
+# Used by CI's smoke test and by anyone running unreleased code.
+services:
+  app:
+    image: myvgc:local
+    build: .

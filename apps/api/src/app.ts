@@ -1,0 +1,62 @@
+import { sql } from 'drizzle-orm'
+import { Hono } from 'hono'
+import { type AuthOptions, type SessionUser, createAuth } from './auth'
+import type { Database } from './db/types'
+import { teamRoutes } from './routes/teams'
+import { mountWeb } from './static'
+
+export interface AppOptions {
+  db: Database
+  auth: Omit<AuthOptions, 'db'>
+  /** Folder holding the generated web app. Leave out to serve only the API. */
+  webDir?: string
+}
+
+export type AppEnv = { Variables: { user: SessionUser } }
+
+// Routes under /api that work without a session.
+const PUBLIC_API = ['/api/health', '/api/auth']
+
+export function createApp({ db, auth: authOptions, webDir }: AppOptions): Hono<AppEnv> {
+  const auth = createAuth({ db, ...authOptions })
+  const app = new Hono<AppEnv>()
+
+  app.get('/api/health', async (c) => {
+    try {
+      await db.execute(sql`select 1`)
+      return c.json({ status: 'ok' })
+    } catch (error) {
+      console.error('Health check failed:', error)
+      return c.json({ status: 'error' }, 503)
+    }
+  })
+
+  app.on(['GET', 'POST'], '/api/auth/*', (c) => auth.handler(c.req.raw))
+
+  // Everything else under /api needs a session. Unknown /api routes also answer 401 to
+  // logged-out callers, so they can't probe which routes exist.
+  app.use('/api/*', async (c, next) => {
+    if (PUBLIC_API.some((path) => c.req.path === path || c.req.path.startsWith(`${path}/`))) {
+      return next()
+    }
+    const session = await auth.api.getSession({ headers: c.req.raw.headers })
+    if (!session) return c.json({ error: 'Not logged in' }, 401)
+    c.set('user', session.user)
+    return next()
+  })
+
+  app.get('/api/me', (c) => {
+    const { id, name, email, role } = c.get('user')
+    return c.json({ id, name, email, role })
+  })
+
+  app.route('/api/teams', teamRoutes(db))
+
+  app.notFound((c) =>
+    c.req.path.startsWith('/api') ? c.json({ error: 'Not found' }, 404) : c.text('Not found', 404),
+  )
+
+  if (webDir) mountWeb(app, webDir)
+
+  return app
+}
