@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { createApp } from '../src/app'
-import { createTestDb } from './db'
+import { createTestApp } from './app'
 
 describe('GET /api/health', () => {
   let closeDb: (() => Promise<void>) | undefined
@@ -10,18 +9,18 @@ describe('GET /api/health', () => {
   })
 
   it('reports ok when the database answers', async () => {
-    const { db, client } = await createTestDb()
+    const { app, client } = await createTestApp()
     closeDb = () => client.close()
-    const res = await createApp({ db }).request('/api/health')
+    const res = await app.request('/api/health')
 
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ status: 'ok' })
   })
 
   it('reports an error when the database does not answer', async () => {
-    const { db, client } = await createTestDb()
+    const { app, client } = await createTestApp()
     await client.close()
-    const res = await createApp({ db }).request('/api/health')
+    const res = await app.request('/api/health')
 
     expect(res.status).toBe(503)
     expect(await res.json()).toEqual({ status: 'error' })

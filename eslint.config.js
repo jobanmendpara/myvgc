@@ -56,6 +56,11 @@ export default tseslint.config(
     rules: { 'vue/multi-word-component-names': 'off' },
   },
   {
+    // shadcn-vue registry code: kept as generated so it can be re-added from the registry.
+    files: ['apps/web/app/components/ui/**/*.vue'],
+    rules: { 'vue/require-default-prop': 'off' },
+  },
+  {
     // Nuxt auto-imports (defineNuxtConfig, $fetch, ...) are checked by `nuxt typecheck`.
     files: ['apps/web/**/*.{ts,vue}'],
     rules: { 'no-undef': 'off' },

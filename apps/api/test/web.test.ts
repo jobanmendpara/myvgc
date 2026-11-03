@@ -2,13 +2,13 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { createApp } from '../src/app'
-import type { Database } from '../src/db/types'
-import { createTestDb } from './db'
+import type { Hono } from 'hono'
+import type { AppEnv } from '../src/app'
+import { createTestApp } from './app'
 
 describe('serving the web app', () => {
   let webDir: string
-  let db: Database
+  let app: Hono<AppEnv>
   let closeDb: () => Promise<void>
 
   beforeAll(async () => {
@@ -16,9 +16,9 @@ describe('serving the web app', () => {
     writeFileSync(join(webDir, 'index.html'), '<!doctype html><title>MyVGC</title>')
     mkdirSync(join(webDir, '_nuxt'))
     writeFileSync(join(webDir, '_nuxt', 'entry.js'), 'console.log("hi")')
-    const testDb = await createTestDb()
-    db = testDb.db
-    closeDb = () => testDb.client.close()
+    const testApp = await createTestApp({ webDir })
+    app = testApp.app
+    closeDb = () => testApp.client.close()
   })
 
   afterAll(async () => {
@@ -27,13 +27,13 @@ describe('serving the web app', () => {
   })
 
   it('serves index.html at the root', async () => {
-    const res = await createApp({ db, webDir }).request('/')
+    const res = await app.request('/')
     expect(res.status).toBe(200)
     expect(await res.text()).toContain('<title>MyVGC</title>')
   })
 
   it('serves built files as they are', async () => {
-    const res = await createApp({ db, webDir }).request('/_nuxt/entry.js')
+    const res = await app.request('/_nuxt/entry.js')
     expect(res.status).toBe(200)
     expect(res.headers.get('content-type')).toMatch(/javascript/)
     expect(await res.text()).toBe('console.log("hi")')
@@ -42,21 +42,21 @@ describe('serving the web app', () => {
   it.each(['/teams', '/teams/123', '/login'])(
     'serves index.html for the front-end route %s',
     async (path) => {
-      const res = await createApp({ db, webDir }).request(path)
+      const res = await app.request(path)
       expect(res.status).toBe(200)
       expect(res.headers.get('content-type')).toMatch(/text\/html/)
       expect(await res.text()).toContain('<title>MyVGC</title>')
     },
   )
 
-  it('still answers unknown API routes with a JSON 404', async () => {
-    const res = await createApp({ db, webDir }).request('/api/nope')
-    expect(res.status).toBe(404)
-    expect(await res.json()).toEqual({ error: 'Not found' })
+  it('never answers an API route with index.html', async () => {
+    const res = await app.request('/api/nope')
+    expect(res.headers.get('content-type')).toMatch(/application\/json/)
+    expect(await res.json()).toEqual({ error: 'Not logged in' })
   })
 
   it('still serves the API', async () => {
-    const res = await createApp({ db, webDir }).request('/api/health')
+    const res = await app.request('/api/health')
     expect(await res.json()).toEqual({ status: 'ok' })
   })
 })

@@ -1,39 +1,28 @@
 <script setup lang="ts">
 import { useQuery } from '@tanstack/vue-query'
 
-interface Health {
-  status: 'ok' | 'error'
+interface Me {
+  id: string
+  name: string
+  email: string
+  role: string | null
 }
 
-const health = useQuery({
-  queryKey: ['health'],
-  queryFn: () => $fetch<Health>('/api/health').catch((): Health => ({ status: 'error' })),
-})
+// A placeholder home page until the Teams list arrives (ticket 05).
+const me = useQuery({ queryKey: ['me'], queryFn: () => $fetch<Me>('/api/me') })
 </script>
 
 <template>
-  <main class="mx-auto flex min-h-dvh max-w-md flex-col justify-center gap-6 p-4">
-    <Card>
-      <CardHeader>
-        <CardTitle class="text-2xl">MyVGC</CardTitle>
-        <CardDescription
-          >Track your Pokémon Champions teams, tournaments and opponents.</CardDescription
-        >
-      </CardHeader>
-      <CardContent class="flex items-center justify-between gap-4">
-        <span class="text-sm">Database</span>
-        <Badge v-if="health.isPending.value" variant="outline" data-testid="db-status"
-          >Checking…</Badge
-        >
-        <Badge
-          v-else-if="health.data.value?.status === 'ok'"
-          variant="secondary"
-          data-testid="db-status"
-        >
-          Healthy
-        </Badge>
-        <Badge v-else variant="destructive" data-testid="db-status">Unavailable</Badge>
-      </CardContent>
-    </Card>
-  </main>
+  <Card>
+    <CardHeader>
+      <CardTitle class="text-2xl">Your Teams</CardTitle>
+      <CardDescription>Importing Teams comes next. For now, you're signed in.</CardDescription>
+    </CardHeader>
+    <CardContent class="flex flex-wrap items-center justify-between gap-2">
+      <span class="min-w-0 truncate text-sm" data-testid="signed-in-as">{{
+        me.data.value?.email
+      }}</span>
+      <Badge v-if="me.data.value?.role === 'admin'" variant="secondary">Admin</Badge>
+    </CardContent>
+  </Card>
 </template>

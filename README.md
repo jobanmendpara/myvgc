@@ -10,13 +10,19 @@ MyVGC is not affiliated with Nintendo, Creatures, Game Freak or The Pokémon Com
 
 ## Running it
 
-Copy `.env.example` to `.env`, change the values marked "change me", then:
+Copy `.env.example` to `.env` and change the values marked "change me". In particular, set `BETTER_AUTH_SECRET` (the app won't start with the example value):
+
+```bash
+openssl rand -base64 32
+```
+
+Then start it:
 
 ```bash
 docker compose up --build
 ```
 
-The app is served at `http://localhost:3000`, and database migrations run when it starts.
+The app is served at `http://localhost:3000`, and database migrations run when it starts. The first account to sign up becomes the admin. To stop anyone else signing up, set `ALLOW_SIGNUPS=false`.
 
 ## Development
 
