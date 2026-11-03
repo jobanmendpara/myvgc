@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { type AuthOptions, type SessionUser, createAuth } from './auth'
 import type { Database } from './db/types'
+import { teamRoutes } from './routes/teams'
 import { mountWeb } from './static'
 
 export interface AppOptions {
@@ -48,6 +49,8 @@ export function createApp({ db, auth: authOptions, webDir }: AppOptions): Hono<A
     const { id, name, email, role } = c.get('user')
     return c.json({ id, name, email, role })
   })
+
+  app.route('/api/teams', teamRoutes(db))
 
   app.notFound((c) =>
     c.req.path.startsWith('/api') ? c.json({ error: 'Not found' }, 404) : c.text('Not found', 404),

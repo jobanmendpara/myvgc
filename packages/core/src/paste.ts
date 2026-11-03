@@ -70,12 +70,13 @@ const IGNORED_LINES: { label: string; message: string }[] = [
   },
 ]
 
+// Each kind with its article, for messages like "is not an item in Pokémon Champions".
 const KIND_NOUNS: Record<ChampionsKind, string> = {
-  species: 'Pokémon',
-  item: 'item',
-  ability: 'ability',
-  move: 'move',
-  nature: 'nature',
+  species: 'a Pokémon',
+  item: 'an item',
+  ability: 'an ability',
+  move: 'a move',
+  nature: 'a nature',
 }
 
 /**
@@ -132,7 +133,7 @@ function readBuild(
     if (!found) {
       errors.push({
         line: line.number,
-        message: `"${name}" is not a ${KIND_NOUNS[kind]} in Pokémon Champions.`,
+        message: `"${name}" is not ${KIND_NOUNS[kind]} in Pokémon Champions.`,
       })
     }
     return found?.id

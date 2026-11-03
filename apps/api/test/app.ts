@@ -62,3 +62,9 @@ export async function signUp(app: Hono<AppEnv>, email: string, password = 'corre
 export async function me(app: Hono<AppEnv>, cookie: string) {
   return app.request('/api/me', { headers: { cookie } })
 }
+
+/** A response's JSON body, untyped, for reading fields in assertions. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function json(res: Response): Promise<any> {
+  return res.json()
+}

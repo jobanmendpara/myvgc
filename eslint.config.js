@@ -56,6 +56,25 @@ export default tseslint.config(
     rules: { 'vue/multi-word-component-names': 'off' },
   },
   {
+    // `@myvgc/core` loads Showdown's data (about 900 KB gzipped). The web app gets display
+    // names from the API and imports only the light entry point.
+    files: ['apps/web/**/*.{ts,vue}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '@myvgc/core',
+              message:
+                "Import from '@myvgc/core/schema'; the full entry point is too heavy for the browser.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     // shadcn-vue registry code: kept as generated so it can be re-added from the registry.
     files: ['apps/web/app/components/ui/**/*.vue'],
     rules: { 'vue/require-default-prop': 'off' },

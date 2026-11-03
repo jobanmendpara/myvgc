@@ -170,24 +170,24 @@ describe('rejecting pastes', () => {
   })
 
   it.each([
-    ['Pokémon', 'Flutter Mane', 'Flutter Mane'],
-    ['Pokémon', 'Notamon @ Leftovers', 'Notamon'],
-    ['item', 'Incineroar @ Choice Specs', 'Choice Specs'],
-    ['item', 'Incineroar @ Shiny Rock', 'Shiny Rock'],
-  ])('rejects a %s that Champions does not have (%s)', (kind, line, name) => {
+    ['a Pokémon', 'Flutter Mane', 'Flutter Mane'],
+    ['a Pokémon', 'Notamon @ Leftovers', 'Notamon'],
+    ['an item', 'Incineroar @ Choice Specs', 'Choice Specs'],
+    ['an item', 'Incineroar @ Shiny Rock', 'Shiny Rock'],
+  ])('rejects %s that Champions does not have (%s)', (kind, line, name) => {
     expect(expectErrors(line)).toEqual([
-      { line: 1, message: `"${name}" is not a ${kind} in Pokémon Champions.` },
+      { line: 1, message: `"${name}" is not ${kind} in Pokémon Champions.` },
     ])
   })
 
   it.each([
-    ['ability', 'Ability: Totally Real', 'Totally Real'],
-    ['move', '- Tera Blast', 'Tera Blast'],
-    ['move', '- Protect / Detect', 'Protect / Detect'],
-    ['nature', 'Grumpy Nature', 'Grumpy'],
-  ])('rejects a %s that Champions does not have (%s)', (kind, line, name) => {
+    ['an ability', 'Ability: Totally Real', 'Totally Real'],
+    ['a move', '- Tera Blast', 'Tera Blast'],
+    ['a move', '- Protect / Detect', 'Protect / Detect'],
+    ['a nature', 'Grumpy Nature', 'Grumpy'],
+  ])('rejects %s that Champions does not have (%s)', (kind, line, name) => {
     expect(expectErrors(`Incineroar\n${line}`)).toEqual([
-      { line: 2, message: `"${name}" is not a ${kind} in Pokémon Champions.` },
+      { line: 2, message: `"${name}" is not ${kind} in Pokémon Champions.` },
     ])
   })
 

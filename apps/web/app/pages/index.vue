@@ -16,7 +16,9 @@ const me = useQuery({ queryKey: ['me'], queryFn: () => $fetch<Me>('/api/me') })
   <Card>
     <CardHeader>
       <CardTitle class="text-2xl">Your Teams</CardTitle>
-      <CardDescription>Importing Teams comes next. For now, you're signed in.</CardDescription>
+      <CardDescription
+        >The list of your Teams comes next. You can already import one.</CardDescription
+      >
     </CardHeader>
     <CardContent class="flex flex-wrap items-center justify-between gap-2">
       <span class="min-w-0 truncate text-sm" data-testid="signed-in-as">{{
@@ -24,5 +26,10 @@ const me = useQuery({ queryKey: ['me'], queryFn: () => $fetch<Me>('/api/me') })
       }}</span>
       <Badge v-if="me.data.value?.role === 'admin'" variant="secondary">Admin</Badge>
     </CardContent>
+    <CardFooter>
+      <Button as-child size="lg" class="w-full sm:w-auto"
+        ><NuxtLink to="/teams/new">Import a Team</NuxtLink></Button
+      >
+    </CardFooter>
   </Card>
 </template>
