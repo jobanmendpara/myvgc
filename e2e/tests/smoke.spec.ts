@@ -10,16 +10,23 @@ const PASTE = readFileSync(
 const SPECIES = ['Floette-Eternal', 'Basculegion', 'Kingambit', 'Dragonite', 'Garchomp', 'Sneasler']
 
 test('sign up, import a Team and see its six Pokémon', async ({ page }) => {
+  // Each step waits for its page's heading before using the form: the route guard checks the
+  // session before every page change, so the previous page can still be on screen.
   await page.goto('/')
   await expect(page).toHaveURL(/\/login/)
+  await expect(page.getByRole('heading', { name: 'Log in' })).toBeVisible()
 
   await page.getByRole('link', { name: 'Create an account' }).click()
+  await expect(page).toHaveURL(/\/signup$/)
+  await expect(page.getByRole('heading', { name: 'Create an account' })).toBeVisible()
   await page.getByLabel('Email').fill(`smoke-${Date.now()}@example.com`)
   await page.getByLabel('Password').fill('smoke-test-password')
   await page.getByRole('button', { name: 'Create account' }).click()
   await expect(page).toHaveURL(/\/teams$/)
+  await expect(page.getByRole('heading', { name: 'Your Teams' })).toBeVisible()
 
   await page.goto('/teams/new')
+  await expect(page.getByRole('heading', { name: 'Import a Team' })).toBeVisible()
   await page.getByLabel('Name', { exact: true }).fill('Smoke test Team')
   await page.getByLabel('Regulation').selectOption('M-B')
   await page.getByLabel('Paste', { exact: true }).fill(PASTE)
