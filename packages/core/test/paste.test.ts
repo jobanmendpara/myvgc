@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { type ReadPasteResult, readPaste, teamPokemonSchema, writePaste } from '../src'
+import {
+  type PokemonBuild,
+  type ReadPasteResult,
+  readPaste,
+  teamPokemonSchema,
+  writePaste,
+} from '../src'
 import { fixture, fixtures } from './fixtures'
 
 function expectRead(result: ReadPasteResult) {
@@ -21,9 +27,33 @@ describe('reading Champions pastes', () => {
     expect(teamPokemonSchema.parse(result.pokemon)).toEqual(pokemon)
   })
 
-  it.each(fixtures)('warns only about ignored Level lines in $file', ({ file, levelLines }) => {
+  it.each(fixtures)('warns only about ignored lines in $file', ({ file, warningLines }) => {
     const result = expectRead(readPaste(fixture(file)))
-    expect(result.warnings.map((w) => w.line)).toEqual(levelLines)
+    expect(result.warnings.map((w) => w.line)).toEqual(warningLines)
+  })
+
+  it('reads a Showdown export, with its trailing spaces and Level lines', () => {
+    const paste = [
+      'Incineroar @ Sitrus Berry  ',
+      'Ability: Intimidate  ',
+      'Level: 50  ',
+      'EVs: 32 HP / 2 Atk / 32 SpD  ',
+      'Careful Nature  ',
+      '- Fake Out  ',
+      '',
+    ].join('\n')
+    const result = expectRead(readPaste(paste))
+    expect(result.pokemon).toEqual([
+      {
+        species: 'incineroar',
+        item: 'sitrusberry',
+        ability: 'intimidate',
+        nature: 'careful',
+        moves: ['fakeout'],
+        statPoints: { hp: 32, atk: 2, def: 0, spa: 0, spd: 32, spe: 0 },
+      },
+    ])
+    expect(result.warnings.map((w) => w.line)).toEqual([3])
   })
 
   it('looks names up ignoring case and punctuation', () => {
@@ -187,16 +217,25 @@ describe('rejecting pastes', () => {
 
 describe('writing Champions pastes', () => {
   it('writes display names in Showdown export order', () => {
-    const [build] = fixtures[1]!.pokemon
-    expect(writePaste([build!])).toBe(
+    const build: PokemonBuild = {
+      species: 'basculegionf',
+      nickname: 'Lucy',
+      gender: 'F',
+      item: 'mysticwater',
+      ability: 'adaptability',
+      nature: 'adamant',
+      moves: ['wavecrash', 'lastrespects', 'aquajet', 'protect'],
+      statPoints: { hp: 4, atk: 23, def: 13, spa: 0, spd: 0, spe: 26 },
+    }
+    expect(writePaste([build])).toBe(
       [
-        'Chompy (Garchomp) (F) @ Garchompite Z',
-        'Ability: Rough Skin',
-        'EVs: 32 Atk / 2 Def / 32 Spe',
-        'Jolly Nature',
-        '- Earthquake',
-        '- Dragon Claw',
-        '- Rock Slide',
+        'Lucy (Basculegion-F) (F) @ Mystic Water',
+        'Ability: Adaptability',
+        'EVs: 4 HP / 23 Atk / 13 Def / 26 Spe',
+        'Adamant Nature',
+        '- Wave Crash',
+        '- Last Respects',
+        '- Aqua Jet',
         '- Protect',
         '',
       ].join('\n'),
@@ -216,10 +255,10 @@ describe('writing Champions pastes', () => {
   })
 
   it('separates Pokémon with a blank line', () => {
-    const paste = writePaste(fixtures[0]!.pokemon)
+    const paste = writePaste(fixtures[1]!.pokemon)
     expect(paste.split('\n\n')).toHaveLength(6)
     expect(paste).toContain(
-      'Rotom-Wash @ Leftovers\nAbility: Levitate\nEVs: 32 HP / 18 Def / 16 SpA\nBold Nature',
+      'BIG MAN (Snorlax) @ Leftovers\nAbility: Thick Fat\nEVs: 21 HP / 31 Def / 14 SpD\nRelaxed Nature',
     )
   })
 

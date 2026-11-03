@@ -11,8 +11,8 @@ Test-first, the Team and Pokémon build Zod schemas and a reader and writer for 
 - Look up names case- and punctuation-insensitively, the way Showdown turns names into IDs.
 
 ## Acceptance criteria
-- [ ] Real Champions team pastes (at least 3 fixtures, including Megas and forms) read into the expected builds.
-  - Three fixtures exist and pass, with Megas (Charizardite Y, Garchompite Z, Gengarite) and forms (Rotom-Wash, Floette-Eternal, Basculegion-F, Ninetales-Alola, Tauros-Paldea-Aqua, Maushold-Four, Arcanine-Hisui). They were written by hand in Showdown's export format, with every name checked against the pinned data, because paste sites were unreachable. Swap in real tournament pastes to close this.
+- [x] Real Champions team pastes (at least 3 fixtures, including Megas and forms) read into the expected builds.
+  - Four real Reg M-C and M-B pastes from pokepast.es and vrpastes.com (sources in `packages/core/test/fixtures.ts`). Expected builds come from Showdown's own `Teams.import`, not from MyVGC's reader.
 - [x] Each rejection rule in the spec has a test that checks the line number and message.
 - [x] `Level:`, `IVs:`, `Tera Type:`, `Shiny:` and `Happiness:` lines produce warnings, not errors.
 - [x] Writing and then reading a Team gives back the same Team, for every fixture.
@@ -21,4 +21,5 @@ Test-first, the Team and Pokémon build Zod schemas and a reader and writer for 
 ## Notes
 - The Champions data is `@pkmn/mods/champions` (`championsregmb` only adds M-B restrictions). `@pkmn/dex` and `@pkmn/mods` are pinned to `0.10.13`.
 - "Recognised" means the entry exists in the mod and Showdown doesn't mark it non-standard (`Past`, `Future`, `CAP`, ...). That is game membership, not Regulation legality.
+- 24 real Reg M-C pastes linked from MetaVGC were also checked by hand: all read and round-trip. Real pastes sometimes name a Mega form as the species (`Garchomp-Mega-Z`); the reader accepts it, since rejecting it would be a legality check.
 - Bundled, core is about 10 MB because `@pkmn/dex` carries every generation's data. Fine for the API; worth checking before the web app imports it.
