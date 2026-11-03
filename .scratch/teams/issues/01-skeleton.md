@@ -14,8 +14,8 @@ The thinnest end-to-end path: a pnpm workspace whose Hono API reports database h
 - Add the agreed working rules to `CLAUDE.md`: all API code lives in Hono, not Nuxt's `server/`; domain logic lives in `packages/core`; use the glossary in `CONTEXT.md`.
 
 ## Acceptance criteria
-- [ ] `docker compose up` with a copied `.env.example` serves the placeholder page at `http://localhost:3000`, showing that the database is healthy.
-- [ ] `GET /api/health` returns `200 {"status":"ok"}`, tested with `app.request()` against PGlite.
-- [ ] Reloading the browser on any front-end route serves `index.html`.
-- [ ] `pnpm dev` runs the API and the web app together.
-- [ ] CI passes on the branch.
+- [x] `docker compose up` with a copied `.env.example` serves the placeholder page at `http://localhost:3000`, showing that the database is healthy.
+- [x] `GET /api/health` returns `200 {"status":"ok"}`, tested with `app.request()` against PGlite.
+- [x] Reloading the browser on any front-end route serves `index.html`.
+- [x] `pnpm dev` runs the API and the web app together.
+- [x] CI passes on the branch.
