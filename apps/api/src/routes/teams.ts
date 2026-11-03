@@ -1,5 +1,12 @@
-import { type TeamView, nameBuild, newTeamSchema, readPaste, teamPokemonSchema } from '@myvgc/core'
-import { and, eq } from 'drizzle-orm'
+import {
+  type TeamView,
+  nameBuild,
+  newTeamSchema,
+  readPaste,
+  teamPokemonSchema,
+  writePaste,
+} from '@myvgc/core'
+import { and, desc, eq } from 'drizzle-orm'
 import { Hono } from 'hono'
 import type { AppEnv } from '../app'
 import { team } from '../db/schema'
@@ -23,7 +30,20 @@ function toView(row: TeamRow): TeamView {
 
 /** Team routes, mounted at /api/teams behind the session middleware. */
 export function teamRoutes(db: Database) {
+  // The only way routes look up a single Team: by ID and owner together, so another User's
+  // Team answers exactly like a missing one.
+  const ownTeam = (id: string, ownerId: string) => and(eq(team.id, id), eq(team.ownerId, ownerId))
+  const notFound = { error: 'Not found' } as const
+
   return new Hono<AppEnv>()
+    .get('/', async (c) => {
+      const rows = await db
+        .select()
+        .from(team)
+        .where(eq(team.ownerId, c.get('user').id))
+        .orderBy(desc(team.createdAt), desc(team.id))
+      return c.json(rows.map(toView))
+    })
     .post('/', async (c) => {
       const body = await c.req.json().catch(() => undefined)
       const input = newTeamSchema.safeParse(body)
@@ -54,13 +74,32 @@ export function teamRoutes(db: Database) {
     })
     .get('/:id', async (c) => {
       const id = c.req.param('id')
-      if (!UUID.test(id)) return c.json({ error: 'Not found' }, 404)
-      // Another User's Team answers exactly like a missing one.
+      if (!UUID.test(id)) return c.json(notFound, 404)
       const [row] = await db
         .select()
         .from(team)
-        .where(and(eq(team.id, id), eq(team.ownerId, c.get('user').id)))
-      if (!row) return c.json({ error: 'Not found' }, 404)
+        .where(ownTeam(id, c.get('user').id))
+      if (!row) return c.json(notFound, 404)
       return c.json(toView(row))
+    })
+    .get('/:id/paste', async (c) => {
+      const id = c.req.param('id')
+      if (!UUID.test(id)) return c.json(notFound, 404)
+      const [row] = await db
+        .select({ pokemon: team.pokemon })
+        .from(team)
+        .where(ownTeam(id, c.get('user').id))
+      if (!row) return c.json(notFound, 404)
+      return c.text(writePaste(row.pokemon))
+    })
+    .delete('/:id', async (c) => {
+      const id = c.req.param('id')
+      if (!UUID.test(id)) return c.json(notFound, 404)
+      const deleted = await db
+        .delete(team)
+        .where(ownTeam(id, c.get('user').id))
+        .returning({ id: team.id })
+      if (deleted.length === 0) return c.json(notFound, 404)
+      return c.body(null, 204)
     })
 }

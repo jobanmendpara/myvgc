@@ -17,7 +17,7 @@ async function logOut() {
   <div class="flex min-h-dvh flex-col">
     <header class="border-b">
       <div class="mx-auto flex w-full max-w-3xl items-center justify-between gap-4 px-4 py-3">
-        <NuxtLink to="/" class="text-lg font-semibold">MyVGC</NuxtLink>
+        <NuxtLink to="/teams" class="text-lg font-semibold">MyVGC</NuxtLink>
         <div class="flex min-w-0 items-center gap-3">
           <span
             v-if="session.data"

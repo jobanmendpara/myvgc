@@ -160,7 +160,6 @@ function showLine(line: number) {
           rows="4"
           placeholder="Leads, game plans, things to remember…"
         />
-        <p class="text-muted-foreground text-sm">Markdown works here.</p>
       </div>
 
       <Alert v-if="problem?.kind === 'other'" variant="destructive" role="alert">
@@ -168,7 +167,9 @@ function showLine(line: number) {
       </Alert>
 
       <div class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-        <Button as-child variant="outline" size="lg"><NuxtLink to="/">Cancel</NuxtLink></Button>
+        <Button as-child variant="outline" size="lg"
+          ><NuxtLink to="/teams">Cancel</NuxtLink></Button
+        >
         <Button type="submit" size="lg" :disabled="save.isPending.value">
           {{ save.isPending.value ? 'Saving…' : 'Save Team' }}
         </Button>
