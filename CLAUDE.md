@@ -6,6 +6,12 @@
 - **Decisions are in `docs/adr/`.** Follow them; if a change goes against one, record a new ADR rather than drifting silently.
 - **Test behaviour through public interfaces** (ADR 13): Vitest unit tests in `packages/core`; API tests through `app.request()` against PGlite with migrations applied.
 
+## Tracking
+
+- **Issues live in Linear**: team DEV, project MyVGC. Use the labels Feature, Bug, Improvement, Refactor, Chore and Decision. GitHub Issues are mirrors synced from Linear: create and edit issues in Linear, never in GitHub.
+- **Link work to its issue.** Put the Linear identifier (such as `DEV-31`) in the branch name (Linear's suggested `gitBranchName` works) or the PR title, so the Linear–GitHub integration links them.
+- **Decisions**: the ADR in `docs/adr/` is the source of truth. When you add or change one, mirror it as a document in the MyVGC project titled "ADR N: <title>", starting with a line naming the repo file. A decision still to be made is an issue labelled Decision.
+
 ## Layout
 
 - `apps/api`: Hono API. `src/app.ts` builds the app (tests call it directly); `src/server.ts` runs migrations and starts the Node server. Migrations live in `apps/api/drizzle` (generate with `pnpm --filter @myvgc/api db:generate`) and run on start-up.
