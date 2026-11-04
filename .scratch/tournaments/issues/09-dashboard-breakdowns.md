@@ -4,7 +4,7 @@
 
 **Blocked by:** 04, 06, 08
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Core unit tests cover the Game win rate using only scored Rounds, the Top cut rate out of Tournaments with Rounds, grouping by original Team with a fallback for snapshots whose Team was deleted, the top 10 Opponents, and best Placements with ties broken by the more recent Tournament.
-- [ ] The dashboard shows each breakdown and works at 375 px wide.
+- [x] Core unit tests cover the Game win rate using only scored Rounds, the Top cut rate out of Tournaments with Rounds, grouping by original Team with a fallback for snapshots whose Team was deleted, the top 10 Opponents, and best Placements with ties broken by the more recent Tournament.
+- [x] The dashboard shows each breakdown and works at 375 px wide.

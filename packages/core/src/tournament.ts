@@ -255,12 +255,19 @@ export interface TeamSnapshotView {
 
 export const linkTeamSchema = z.object({ teamId: z.uuid('Choose one of your Teams.') })
 
+/** Whether the Tournament's last day (its end date, or start date for a one-day event) has passed. */
+export const isOver = (t: { startDate: string; endDate: string | null }, today: string) =>
+  (t.endDate ?? t.startDate) < today
+
 /**
- * Whether the Team snapshot can still be replaced on `today`: until the Tournament's last day
- * (its end date, or its start date for a one-day event) has passed.
+ * Whether the Team snapshot can be refreshed from its Team on `today`. Until the Tournament is
+ * over, so last-minute changes are captured; after that it stays as brought. Linking a Team for
+ * the first time, or a different Team to fix a wrong choice, is always allowed.
  */
-export const canSnapshotTeam = (t: { startDate: string; endDate: string | null }, today: string) =>
-  (t.endDate ?? t.startDate) >= today
+export const canRefreshSnapshot = (
+  t: { startDate: string; endDate: string | null },
+  today: string,
+) => !isOver(t, today)
 
 /** Warnings about a Tournament as it stands. */
 export function tournamentWarnings(t: {

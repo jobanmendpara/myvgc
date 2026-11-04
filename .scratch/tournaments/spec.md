@@ -63,7 +63,7 @@ It can be filtered by Regulation (defaulting to the current one), Season or date
 28. As a User, I want linking to save a Team snapshot, so that later edits to the Team don't rewrite history (ADR 9).
 29. As a User, I want to log a Tournament with no Team linked, so that I can record events for Teams I never imported.
 30. As a User, I want a warning, though not a block, when the Team's Regulation differs from the Tournament's, so that I catch mistakes without being stopped.
-31. As a User, I want to re-snapshot the Team until the Tournament's end date has passed, so that last-minute changes I made after linking it are captured.
+31. As a User, I want to re-snapshot the Team until the Tournament's end date has passed, so that last-minute changes I made after linking it are captured, while still being able to link a Team to a Tournament I log afterwards.
 32. As a User, I want to unlink or replace the Team on a Tournament, so that I can fix a wrong choice.
 33. As a User, I want a Tournament's snapshot to survive when I delete the original Team, so that past Tournaments stay complete.
 34. As a User, I want to see the snapshot's Pokémon builds on the Tournament page, so that I can review exactly what I brought.
@@ -179,7 +179,7 @@ Routes follow the Teams conventions:
 - `DELETE /api/tournaments/:id` returns 204 and deletes its Rounds.
 
 **Team snapshot**
-- `PUT /api/tournaments/:id/team` with a Team ID links or replaces the Team snapshot. It also re-snapshots, and is refused with 409 once the end date (or start date) is in the past.
+- `PUT /api/tournaments/:id/team` with a Team ID links or replaces the Team snapshot. Sending the Team already linked re-snapshots it; that refresh is refused with 409 once the end date (or start date) is in the past. Linking a Team for the first time, or a different Team, is always allowed, so past Tournaments can be logged with their Team.
 - `DELETE /api/tournaments/:id/team` unlinks the Team.
 - The response includes a warning when the Regulations differ.
 

@@ -108,15 +108,22 @@ describe('A Tournament’s Team snapshot', () => {
     expect((await json(res)).team).toBeNull()
   })
 
-  it('refuses a new snapshot once the Tournament is over', async () => {
+  it('links a Team to a Tournament that is already over, but never refreshes it afterwards', async () => {
     const { teamId, tournamentId } = await setUp({
       name: 'Old locals',
       startDate: '2026-05-01',
       eventTier: 'grassroots',
     })
-    const res = await put(t.app, `/api/tournaments/${tournamentId}/team`, { teamId }, ash)
-    expect(res.status).toBe(409)
-    expect((await json(res)).error).toMatch(/over/)
+    const url = `/api/tournaments/${tournamentId}/team`
+    expect((await put(t.app, url, { teamId }, ash)).status).toBe(200)
+
+    const again = await put(t.app, url, { teamId }, ash)
+    expect(again.status).toBe(409)
+    expect((await json(again)).error).toMatch(/over/)
+
+    // A wrong choice can still be fixed by linking a different Team.
+    const other = await json(await post(t.app, '/api/teams', { name: 'Sun', paste: PASTE }, ash))
+    expect((await put(t.app, url, { teamId: other.team.id }, ash)).status).toBe(200)
   })
 
   it('only links the User’s own Teams to their own Tournaments', async () => {

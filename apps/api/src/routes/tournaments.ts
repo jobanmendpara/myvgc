@@ -2,7 +2,7 @@ import {
   type RoundView,
   type TeamSnapshotView,
   type TournamentView,
-  canSnapshotTeam,
+  canRefreshSnapshot,
   isUpcoming,
   linkTeamSchema,
   recordOf,
@@ -184,7 +184,7 @@ export function tournamentRoutes(db: Database) {
         const where = ownTournament(id, ownerId)
         const [saved] = await db.select().from(tournament).where(where)
         if (!saved) return notFound(c)
-        if (!canSnapshotTeam(saved, today()))
+        if (saved.teamId === input.data.teamId && !canRefreshSnapshot(saved, today()))
           return c.json(
             { error: 'This Tournament is over, so its Team snapshot stays as it is.' },
             409,

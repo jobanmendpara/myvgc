@@ -4,8 +4,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 import { saveFailureMessage } from '@/lib/api'
 
 // The Team snapshot on a Tournament (ADR 9): link one of the User's Teams, replace or refresh
-// it while the Tournament is on, or unlink it.
-const props = defineProps<{ tournament: TournamentView; canSnapshot: boolean }>()
+// it, or unlink it. Refreshing it from the same Team only works until the Tournament is over.
+const props = defineProps<{ tournament: TournamentView; canRefresh: boolean }>()
 
 const queryClient = useQueryClient()
 const teams = useQuery({ queryKey: ['teams'], queryFn: () => $fetch<TeamView[]>('/api/teams') })
@@ -97,9 +97,9 @@ const snapshotDate = computed(() =>
           :build="build"
         />
       </div>
-      <div v-if="canSnapshot" class="flex flex-wrap gap-2">
+      <div class="flex flex-wrap gap-2">
         <Button
-          v-if="tournament.team.teamId"
+          v-if="tournament.team.teamId && canRefresh"
           variant="outline"
           size="sm"
           :disabled="link.isPending.value"
@@ -153,9 +153,7 @@ const snapshotDate = computed(() =>
 
     <div v-else class="flex flex-col items-start gap-2 rounded-lg border border-dashed p-4">
       <p class="text-muted-foreground text-sm">No Team linked.</p>
-      <Button v-if="canSnapshot" variant="outline" size="sm" @click="startChoosing"
-        >Link a Team</Button
-      >
+      <Button variant="outline" size="sm" @click="startChoosing">Link a Team</Button>
     </div>
   </section>
 </template>
