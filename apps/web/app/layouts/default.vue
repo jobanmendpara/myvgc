@@ -26,9 +26,12 @@ async function logOut() {
 <template>
   <div class="flex min-h-dvh flex-col">
     <header class="border-b">
-      <div class="mx-auto flex w-full max-w-3xl items-center justify-between gap-4 px-4 py-3">
+      <div
+        class="mx-auto flex w-full max-w-3xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3"
+      >
         <NuxtLink to="/teams" class="text-lg font-semibold">MyVGC</NuxtLink>
-        <div class="flex min-w-0 items-center gap-3">
+        <div class="flex min-w-0 flex-wrap items-center gap-3">
+          <ThemePicker />
           <span
             v-if="session.data"
             class="text-muted-foreground hidden truncate text-sm sm:inline"

@@ -63,11 +63,28 @@ test('log a Tournament and a Round against a new Opponent', async ({ page }) => 
 
   await page.getByRole('link', { name: 'Log Round' }).click()
   await expect(page.getByRole('heading', { name: 'Log a Round' })).toBeVisible()
-  await page.getByRole('combobox').fill('Smoke Opponent')
+  await page.getByRole('combobox', { name: 'Opponent' }).fill('Smoke Opponent')
   await page.getByRole('option', { name: /Add “Smoke Opponent”/ }).click()
   await page.getByText('Win', { exact: true }).click()
   await page.getByRole('button', { name: 'Log Round' }).click()
 
   await expect(page.getByTestId('record')).toContainText('Swiss 1-0-0')
   await expect(page.getByTestId('round')).toContainText('Smoke Opponent')
+})
+
+test('the chosen palette and mode survive a reload, also before logging in', async ({ page }) => {
+  await page.goto('/login')
+  await expect(page.getByRole('heading', { name: 'Log in' })).toBeVisible()
+  await page.getByRole('combobox', { name: 'Palette' }).click()
+  await page.getByRole('option', { name: 'Lapras' }).click()
+  await page.getByRole('radiogroup', { name: 'Mode' }).getByText('Dark').click()
+  const html = page.locator('html')
+  await expect(html).toHaveAttribute('data-palette', 'lapras')
+  await expect(html).toHaveAttribute('data-mode', 'dark')
+
+  await page.reload()
+  await expect(html).toHaveAttribute('data-palette', 'lapras')
+  await expect(html).toHaveAttribute('data-mode', 'dark')
+  await expect(page.getByRole('combobox', { name: 'Palette' })).toContainText('Lapras')
+  await expect(page.getByRole('radio', { name: 'Dark' })).toBeChecked()
 })
