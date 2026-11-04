@@ -4,9 +4,9 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Every existing Teams test still passes, unchanged.
-- [ ] The Teams routes use the shared helpers; no route copies the ID check or the field-error formatting.
-- [ ] The header links to Teams, Tournaments, Opponents and Dashboard and fits at 375 px wide.
-- [ ] Typecheck, lint and format checks pass.
+- [x] Every existing Teams test still passes, unchanged.
+- [x] The Teams routes use the shared helpers; no route copies the ID check or the field-error formatting.
+- [x] The header links to Teams, Tournaments, Opponents and Dashboard and fits at 375 px wide.
+- [x] Typecheck, lint and format checks pass.

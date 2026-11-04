@@ -11,8 +11,7 @@ import { Hono } from 'hono'
 import type { AppEnv } from '../app'
 import { team } from '../db/schema'
 import type { Database } from '../db/types'
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+import { isId, notFound, readBody } from './helpers'
 
 type TeamRow = typeof team.$inferSelect
 
@@ -33,7 +32,6 @@ export function teamRoutes(db: Database) {
   // The only way routes look up a single Team: by ID and owner together, so another User's
   // Team answers exactly like a missing one.
   const ownTeam = (id: string, ownerId: string) => and(eq(team.id, id), eq(team.ownerId, ownerId))
-  const notFound = { error: 'Not found' } as const
 
   return new Hono<AppEnv>()
     .get('/', async (c) => {
@@ -45,16 +43,8 @@ export function teamRoutes(db: Database) {
       return c.json(rows.map(toView))
     })
     .post('/', async (c) => {
-      const body = await c.req.json().catch(() => undefined)
-      const input = newTeamSchema.safeParse(body)
-      if (!input.success) {
-        const fields: Record<string, string> = {}
-        for (const issue of input.error.issues) {
-          const field = String(issue.path[0] ?? 'body')
-          fields[field] ??= issue.message
-        }
-        return c.json({ error: 'Invalid request', fields }, 400)
-      }
+      const input = await readBody(c, newTeamSchema)
+      if (!input.ok) return input.response
 
       const read = readPaste(input.data.paste)
       if (!read.ok) return c.json({ errors: read.errors, warnings: read.warnings }, 422)
@@ -74,32 +64,32 @@ export function teamRoutes(db: Database) {
     })
     .get('/:id', async (c) => {
       const id = c.req.param('id')
-      if (!UUID.test(id)) return c.json(notFound, 404)
+      if (!isId(id)) return notFound(c)
       const [row] = await db
         .select()
         .from(team)
         .where(ownTeam(id, c.get('user').id))
-      if (!row) return c.json(notFound, 404)
+      if (!row) return notFound(c)
       return c.json(toView(row))
     })
     .get('/:id/paste', async (c) => {
       const id = c.req.param('id')
-      if (!UUID.test(id)) return c.json(notFound, 404)
+      if (!isId(id)) return notFound(c)
       const [row] = await db
         .select({ pokemon: team.pokemon })
         .from(team)
         .where(ownTeam(id, c.get('user').id))
-      if (!row) return c.json(notFound, 404)
+      if (!row) return notFound(c)
       return c.text(writePaste(row.pokemon))
     })
     .delete('/:id', async (c) => {
       const id = c.req.param('id')
-      if (!UUID.test(id)) return c.json(notFound, 404)
+      if (!isId(id)) return notFound(c)
       const deleted = await db
         .delete(team)
         .where(ownTeam(id, c.get('user').id))
         .returning({ id: team.id })
-      if (deleted.length === 0) return c.json(notFound, 404)
+      if (deleted.length === 0) return notFound(c)
       return c.body(null, 204)
     })
 }
