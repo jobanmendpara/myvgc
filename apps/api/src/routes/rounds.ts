@@ -13,13 +13,13 @@ import type { z } from 'zod'
 import type { AppEnv } from '../app'
 import { opponent, round, tournament } from '../db/schema'
 import type { Database } from '../db/types'
-import { alreadyGone, idTaken, invalid, isId, notFound, readBody } from './helpers'
+import { deleted, idTaken, invalid, isId, notFound, readBody } from './helpers'
 import { ownOpponent } from './opponents'
 import { loadRounds } from './round-data'
 import { ownTournament } from './tournaments'
 
 // A PATCH has no `id`; it only names the Round to create.
-type RoundInput = z.output<typeof newRoundSchema>
+type RoundSave = z.output<typeof newRoundSchema>
 type Issue = { path: string[]; message: string }
 
 /** Thrown inside a save's transaction when a client-chosen ID belongs to another User. */
@@ -52,8 +52,9 @@ export function roundRoutes(db: Database) {
    */
   async function save(
     t: typeof tournament.$inferSelect,
-    input: RoundInput,
+    input: RoundSave,
     existingId?: string,
+    attempt = 1,
   ): Promise<{ issues: Issue[] } | { saved: SavedRound } | { taken: true }> {
     const others = await db
       .select({ id: round.id, roundNumber: round.roundNumber, stage: round.stage })
@@ -72,6 +73,8 @@ export function roundRoutes(db: Database) {
       gameScore: input.gameScore ?? null,
       hasOpponent: Boolean(input.opponentId || input.newOpponentName),
     }
+    // The User didn't type the number, so any free one will do.
+    const numberIsFree = input.phase === 'swiss' && input.roundNumber == null && !existingId
     const issues: Issue[] = roundIssues(facts)
     if (input.opponentId && input.newOpponentName)
       issues.push({ path: ['opponent'], message: 'Choose an Opponent or add one, not both.' })
@@ -94,11 +97,13 @@ export function roundRoutes(db: Database) {
     // The checks above read before writing, so two saves at once can both pass them; the unique
     // constraints catch that, and the loser gets the same answer as a plain duplicate.
     const id = await insertOrUpdate().catch(
-      (error: unknown): { issues: Issue[] } | { taken: true } => {
+      (error: unknown): { issues: Issue[] } | { taken: true } | { retry: true } => {
         if (error instanceof IdTaken) return { taken: true }
         const constraint = uniqueViolation(error)
         // The same new Round sent twice at once: the other send saved it.
         if (constraint === 'round_pkey') return { taken: true }
+        if (constraint === 'round_tournament_number_key' && numberIsFree && attempt < 3)
+          return { retry: true }
         if (constraint === 'round_tournament_number_key')
           return {
             issues: [
@@ -110,7 +115,8 @@ export function roundRoutes(db: Database) {
         throw error
       },
     )
-    if (typeof id !== 'string') return id
+    // Another save took the number this one was given; it takes the next free one instead.
+    if (typeof id !== 'string') return 'retry' in id ? save(t, input, existingId, attempt + 1) : id
     return { saved: await standing(t, id) }
 
     function insertOrUpdate() {
@@ -225,7 +231,7 @@ export function roundRoutes(db: Database) {
         if (!isId(roundId)) return notFound(c)
         const t = await ownedTournament(c.req.param('tournamentId'), c.get('user').id)
         // The Tournament, and so the Round, is gone, or was never the User's.
-        if (!t) return alreadyGone(c)
+        if (!t) return deleted(c)
         await db.delete(round).where(and(eq(round.id, roundId), eq(round.tournamentId, t.id)))
         const rounds = (await loadRounds(db, [t.id])).get(t.id)!
         return c.json({ record: recordOf(rounds) })

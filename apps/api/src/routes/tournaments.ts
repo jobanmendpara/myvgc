@@ -21,7 +21,7 @@ import { Hono } from 'hono'
 import type { AppEnv } from '../app'
 import { team, tournament } from '../db/schema'
 import type { Database } from '../db/types'
-import { alreadyGone, escapeLike, idTaken, invalid, isId, notFound, readBody } from './helpers'
+import { deleted, escapeLike, idTaken, invalid, isId, notFound, readBody } from './helpers'
 import { loadRounds } from './round-data'
 
 type TournamentRow = typeof tournament.$inferSelect
@@ -242,7 +242,7 @@ export function tournamentRoutes(db: Database) {
         const id = c.req.param('id')
         if (!isId(id)) return notFound(c)
         await db.delete(tournament).where(ownTournament(id, c.get('user').id))
-        return alreadyGone(c)
+        return deleted(c)
       })
   )
 }

@@ -11,7 +11,7 @@ import { Hono } from 'hono'
 import type { AppEnv } from '../app'
 import { opponent, opponentAlias, round, tournament } from '../db/schema'
 import type { Database } from '../db/types'
-import { alreadyGone, escapeLike, idTaken, isId, notFound, readBody } from './helpers'
+import { deleted, escapeLike, idTaken, isId, notFound, readBody } from './helpers'
 import { toRoundView } from './round-data'
 
 type OpponentRow = typeof opponent.$inferSelect
@@ -187,7 +187,7 @@ export function opponentRoutes(db: Database) {
         if (!isId(id)) return notFound(c)
         const where = ownOpponent(id, c.get('user').id)
         const [row] = await db.select({ id: opponent.id }).from(opponent).where(where)
-        if (!row) return alreadyGone(c)
+        if (!row) return deleted(c)
         const [played] = await db
           .select({ id: round.id })
           .from(round)
