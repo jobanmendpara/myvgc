@@ -2,8 +2,9 @@
 @import 'tw-animate-css';
 
 /* shadcn-vue theme tokens (neutral base colour). */
-/* Dark mode follows the system setting. */
-@custom-variant dark (@media (prefers-color-scheme: dark));
+/* The theme is a palette plus a mode, both set on <html> (see app/lib/theme.ts):
+   data-palette is neutral, pikachu or lapras; data-mode is the resolved light or dark. */
+@custom-variant dark (&:where([data-mode='dark'], [data-mode='dark'] *));
 
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
@@ -52,27 +53,117 @@
   --ring: oklch(0.708 0 0);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: oklch(0.145 0 0);
-    --foreground: oklch(0.985 0 0);
-    --card: oklch(0.205 0 0);
-    --card-foreground: oklch(0.985 0 0);
-    --popover: oklch(0.205 0 0);
-    --popover-foreground: oklch(0.985 0 0);
-    --primary: oklch(0.922 0 0);
-    --primary-foreground: oklch(0.205 0 0);
-    --secondary: oklch(0.269 0 0);
-    --secondary-foreground: oklch(0.985 0 0);
-    --muted: oklch(0.269 0 0);
-    --muted-foreground: oklch(0.708 0 0);
-    --accent: oklch(0.269 0 0);
-    --accent-foreground: oklch(0.985 0 0);
-    --destructive: oklch(0.704 0.191 22.216);
-    --border: oklch(1 0 0 / 10%);
-    --input: oklch(1 0 0 / 15%);
-    --ring: oklch(0.556 0 0);
-  }
+/* Native controls, such as date pickers and scrollbars, follow the chosen mode. */
+:root[data-mode='light'] {
+  color-scheme: light;
+}
+
+:root[data-mode='dark'] {
+  color-scheme: dark;
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+}
+
+/* Pikachu: warm yellow. */
+:root[data-palette='pikachu'][data-mode='light'] {
+  --background: oklch(0.995 0.008 95);
+  --foreground: oklch(0.2 0.02 85);
+  --card: oklch(1 0.004 95);
+  --card-foreground: oklch(0.2 0.02 85);
+  --popover: oklch(1 0.004 95);
+  --popover-foreground: oklch(0.2 0.02 85);
+  --primary: oklch(0.85 0.17 90);
+  --primary-foreground: oklch(0.25 0.05 85);
+  --secondary: oklch(0.96 0.04 95);
+  --secondary-foreground: oklch(0.25 0.05 85);
+  --muted: oklch(0.96 0.025 95);
+  --muted-foreground: oklch(0.5 0.04 85);
+  --accent: oklch(0.95 0.06 95);
+  --accent-foreground: oklch(0.25 0.05 85);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.91 0.04 95);
+  --input: oklch(0.91 0.04 95);
+  --ring: oklch(0.75 0.15 90);
+}
+
+:root[data-palette='pikachu'][data-mode='dark'] {
+  --background: oklch(0.17 0.012 85);
+  --foreground: oklch(0.97 0.015 95);
+  --card: oklch(0.22 0.015 85);
+  --card-foreground: oklch(0.97 0.015 95);
+  --popover: oklch(0.22 0.015 85);
+  --popover-foreground: oklch(0.97 0.015 95);
+  --primary: oklch(0.82 0.16 90);
+  --primary-foreground: oklch(0.22 0.04 85);
+  --secondary: oklch(0.28 0.03 85);
+  --secondary-foreground: oklch(0.97 0.015 95);
+  --muted: oklch(0.28 0.025 85);
+  --muted-foreground: oklch(0.72 0.04 90);
+  --accent: oklch(0.32 0.05 90);
+  --accent-foreground: oklch(0.97 0.015 95);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(0.95 0.1 95 / 12%);
+  --input: oklch(0.95 0.1 95 / 16%);
+  --ring: oklch(0.7 0.13 90);
+}
+
+/* Lapras: cool blue and teal. */
+:root[data-palette='lapras'][data-mode='light'] {
+  --background: oklch(0.99 0.006 225);
+  --foreground: oklch(0.2 0.03 235);
+  --card: oklch(1 0.003 225);
+  --card-foreground: oklch(0.2 0.03 235);
+  --popover: oklch(1 0.003 225);
+  --popover-foreground: oklch(0.2 0.03 235);
+  --primary: oklch(0.5 0.12 225);
+  --primary-foreground: oklch(0.98 0.01 225);
+  --secondary: oklch(0.96 0.02 220);
+  --secondary-foreground: oklch(0.25 0.06 235);
+  --muted: oklch(0.96 0.015 220);
+  --muted-foreground: oklch(0.5 0.04 230);
+  --accent: oklch(0.94 0.035 200);
+  --accent-foreground: oklch(0.25 0.06 235);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.91 0.025 225);
+  --input: oklch(0.91 0.025 225);
+  --ring: oklch(0.65 0.1 220);
+}
+
+:root[data-palette='lapras'][data-mode='dark'] {
+  --background: oklch(0.17 0.025 240);
+  --foreground: oklch(0.97 0.01 220);
+  --card: oklch(0.22 0.03 240);
+  --card-foreground: oklch(0.97 0.01 220);
+  --popover: oklch(0.22 0.03 240);
+  --popover-foreground: oklch(0.97 0.01 220);
+  --primary: oklch(0.76 0.11 215);
+  --primary-foreground: oklch(0.2 0.04 240);
+  --secondary: oklch(0.28 0.04 235);
+  --secondary-foreground: oklch(0.97 0.01 220);
+  --muted: oklch(0.28 0.035 235);
+  --muted-foreground: oklch(0.72 0.04 225);
+  --accent: oklch(0.32 0.06 210);
+  --accent-foreground: oklch(0.97 0.01 220);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(0.9 0.05 220 / 12%);
+  --input: oklch(0.9 0.05 220 / 16%);
+  --ring: oklch(0.6 0.09 215);
 }
 
 @layer base {

@@ -71,3 +71,19 @@ test('log a Tournament and a Round against a new Opponent', async ({ page }) => 
   await expect(page.getByTestId('record')).toContainText('Swiss 1-0-0')
   await expect(page.getByTestId('round')).toContainText('Smoke Opponent')
 })
+
+test('the chosen palette and mode survive a reload, also before logging in', async ({ page }) => {
+  await page.goto('/login')
+  await expect(page.getByRole('heading', { name: 'Log in' })).toBeVisible()
+  await page.getByLabel('Palette').selectOption('lapras')
+  await page.getByLabel('Mode').selectOption('dark')
+  const html = page.locator('html')
+  await expect(html).toHaveAttribute('data-palette', 'lapras')
+  await expect(html).toHaveAttribute('data-mode', 'dark')
+
+  await page.reload()
+  await expect(html).toHaveAttribute('data-palette', 'lapras')
+  await expect(html).toHaveAttribute('data-mode', 'dark')
+  await expect(page.getByLabel('Palette')).toHaveValue('lapras')
+  await expect(page.getByLabel('Mode')).toHaveValue('dark')
+})
