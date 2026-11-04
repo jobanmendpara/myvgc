@@ -12,6 +12,9 @@ import {
   type Regulation,
   regulationOn,
 } from '@myvgc/core/schema'
+import { useQuery } from '@tanstack/vue-query'
+import { refDebounced } from '@vueuse/core'
+import { type TournamentBody, formToBody } from '@/lib/tournament-form'
 
 export interface TournamentFormValues {
   name: string
@@ -22,6 +25,15 @@ export interface TournamentFormValues {
   regulation: Regulation
   defaultBestOf: BestOf
   location: string
+  organizer: string
+  /** As typed, such as `35.00`. */
+  entryFeeAmount: string
+  entryFeeCurrency: string
+  championshipPoints: string
+  playerCount: string
+  link: string
+  placement: string
+  dropped: boolean
   notes: string
 }
 
@@ -35,9 +47,26 @@ const props = defineProps<{
   submitLabel: string
   cancelTo: string
 }>()
-const emit = defineEmits<{ submit: [values: TournamentFormValues] }>()
+const emit = defineEmits<{ submit: [body: TournamentBody] }>()
 
 const form = reactive<TournamentFormValues>({ ...props.initial })
+
+// Amounts and counts are checked here first, since the API only sees them as numbers.
+const localErrors = ref<Record<string, string>>({})
+function submit() {
+  const result = formToBody(form)
+  localErrors.value = result.ok ? {} : result.errors
+  if (result.ok) emit('submit', result.body)
+}
+
+// Organizers the User has entered before, as suggestions while typing.
+const organizerSearch = refDebounced(toRef(form, 'organizer'), 250)
+const organizers = useQuery({
+  queryKey: computed(() => ['organizers', organizerSearch.value.trim()]),
+  queryFn: () =>
+    $fetch<string[]>('/api/tournaments/organizers', { query: { q: organizerSearch.value.trim() } }),
+  placeholderData: (previous) => previous,
+})
 
 // The Regulation follows the start date until the User picks one themselves.
 const regulationTouched = ref(props.regulationChosen ?? false)
@@ -49,17 +78,19 @@ watch(
   },
 )
 
+const COMMON_CURRENCIES = ['USD', 'CAD', 'EUR', 'GBP', 'AUD', 'JPY', 'MXN', 'BRL', 'NZD']
+
 const settings = [
   { value: false, label: 'In person' },
   { value: true, label: 'Online' },
 ] as const
 const bestOfOptions = BEST_OF.map((value) => ({ value, label: `Best of ${value}` }))
 
-const error = (field: string) => props.fieldErrors?.[field]
+const error = (field: string) => localErrors.value[field] ?? props.fieldErrors?.[field]
 </script>
 
 <template>
-  <form class="flex flex-col gap-5" novalidate @submit.prevent="emit('submit', { ...form })">
+  <form class="flex flex-col gap-5" novalidate @submit.prevent="submit">
     <div class="flex flex-col gap-2">
       <Label for="name">Name</Label>
       <Input
@@ -155,7 +186,139 @@ const error = (field: string) => props.fieldErrors?.[field]
       />
     </div>
 
-    <slot name="more" :form="form" :error="error" />
+    <div class="flex flex-col gap-2">
+      <Label for="organizer"
+        >Organizer <span class="text-muted-foreground font-normal">(optional)</span></Label
+      >
+      <Input
+        id="organizer"
+        v-model="form.organizer"
+        autocomplete="off"
+        list="organizer-suggestions"
+        :maxlength="MAX_SHORT_TEXT_LENGTH"
+        placeholder="Store, league or community"
+      />
+      <datalist id="organizer-suggestions">
+        <option v-for="name in organizers.data.value ?? []" :key="name" :value="name" />
+      </datalist>
+    </div>
+
+    <div class="grid grid-cols-[1fr_6rem] gap-3">
+      <div class="flex flex-col gap-2">
+        <Label for="entry-fee"
+          >Entry fee <span class="text-muted-foreground font-normal">(optional)</span></Label
+        >
+        <Input
+          id="entry-fee"
+          v-model="form.entryFeeAmount"
+          inputmode="decimal"
+          autocomplete="off"
+          placeholder="0.00"
+          :aria-invalid="error('entryFee.amount') ? true : undefined"
+          aria-describedby="entry-fee-error"
+        />
+      </div>
+      <div class="flex flex-col gap-2">
+        <Label for="currency">Currency</Label>
+        <Input
+          id="currency"
+          v-model="form.entryFeeCurrency"
+          autocomplete="off"
+          autocapitalize="characters"
+          list="currency-suggestions"
+          maxlength="3"
+          class="uppercase"
+          :aria-invalid="error('entryFee.currency') ? true : undefined"
+          aria-describedby="entry-fee-error"
+        />
+        <datalist id="currency-suggestions">
+          <option v-for="code in COMMON_CURRENCIES" :key="code" :value="code" />
+        </datalist>
+      </div>
+      <p
+        v-if="error('entryFee.amount') || error('entryFee.currency')"
+        id="entry-fee-error"
+        class="text-destructive col-span-2 text-sm"
+      >
+        {{ error('entryFee.amount') ?? error('entryFee.currency') }}
+      </p>
+    </div>
+
+    <div class="grid grid-cols-2 gap-3">
+      <div class="flex flex-col gap-2">
+        <Label for="player-count">Players</Label>
+        <Input
+          id="player-count"
+          v-model="form.playerCount"
+          inputmode="numeric"
+          autocomplete="off"
+          :aria-invalid="error('playerCount') ? true : undefined"
+          aria-describedby="player-count-error"
+        />
+        <p v-if="error('playerCount')" id="player-count-error" class="text-destructive text-sm">
+          {{ error('playerCount') }}
+        </p>
+      </div>
+      <div class="flex flex-col gap-2">
+        <Label for="championship-points">Championship Points</Label>
+        <Input
+          id="championship-points"
+          v-model="form.championshipPoints"
+          inputmode="numeric"
+          autocomplete="off"
+          :aria-invalid="error('championshipPoints') ? true : undefined"
+          aria-describedby="championship-points-error"
+        />
+        <p
+          v-if="error('championshipPoints')"
+          id="championship-points-error"
+          class="text-destructive text-sm"
+        >
+          {{ error('championshipPoints') }}
+        </p>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-2 items-end gap-3">
+      <div class="flex flex-col gap-2">
+        <Label for="placement">Placement</Label>
+        <Input
+          id="placement"
+          v-model="form.placement"
+          inputmode="numeric"
+          autocomplete="off"
+          placeholder="e.g. 9"
+          :aria-invalid="error('placement') ? true : undefined"
+          aria-describedby="placement-error"
+        />
+      </div>
+      <label class="flex min-h-9 items-center gap-2 text-sm font-medium">
+        <input v-model="form.dropped" type="checkbox" class="size-5" />
+        I Dropped
+      </label>
+      <p v-if="error('placement')" id="placement-error" class="text-destructive col-span-2 text-sm">
+        {{ error('placement') }}
+      </p>
+    </div>
+
+    <div class="flex flex-col gap-2">
+      <Label for="link"
+        >Link <span class="text-muted-foreground font-normal">(optional)</span></Label
+      >
+      <Input
+        id="link"
+        v-model="form.link"
+        type="url"
+        inputmode="url"
+        autocomplete="off"
+        placeholder="RK9, Limitless or start.gg page"
+        :aria-invalid="error('link') ? true : undefined"
+        aria-describedby="link-error"
+      />
+      <p v-if="error('link')" id="link-error" class="text-destructive text-sm">
+        {{ error('link') }}
+      </p>
+    </div>
 
     <div class="flex flex-col gap-2">
       <Label for="notes"

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { type TestApp, createTestApp, get, json, post, signUp } from './app'
+import { type TestApp, createTestApp, del, get, json, patch, post, signUp } from './app'
 
 const REGIONAL = {
   name: 'Toronto Regional',
@@ -131,5 +131,140 @@ describe('GET /api/calendar', () => {
     expect(body.seasons).toContainEqual(expect.objectContaining({ id: '2026', partial: true }))
     expect(body.currentRegulation).toMatch(/^M-/)
     expect(body.today).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+  })
+})
+
+describe('Tournament details', () => {
+  let t: TestApp
+  let ash: string
+  afterEach(async () => {
+    await t?.client.close()
+  })
+
+  async function setUp() {
+    t = await createTestApp()
+    ash = (await signUp(t.app, 'ash@example.com')).cookie
+  }
+
+  const DETAILS = {
+    organizer: 'Pokémon Toronto',
+    entryFee: { amount: 3500, currency: 'CAD' },
+    championshipPoints: 50,
+    playerCount: 128,
+    link: 'https://rk9.gg/tournament/abc',
+    placement: 9,
+    dropped: false,
+  }
+
+  it('records the Organizer, Entry fee, Championship Points, player count, link and Placement', async () => {
+    await setUp()
+    const res = await post(t.app, '/api/tournaments', { ...REGIONAL, ...DETAILS }, ash)
+    expect(res.status).toBe(201)
+    expect(await json(res)).toMatchObject(DETAILS)
+  })
+
+  it('leaves the optional details out by default', async () => {
+    await setUp()
+    expect(await json(await post(t.app, '/api/tournaments', REGIONAL, ash))).toMatchObject({
+      organizer: null,
+      entryFee: null,
+      championshipPoints: null,
+      playerCount: null,
+      link: null,
+      placement: null,
+      dropped: false,
+    })
+  })
+
+  it.each([
+    [{ entryFee: { amount: -1, currency: 'CAD' } }, 'entryFee.amount'],
+    [{ entryFee: { amount: 3500, currency: 'dollars' } }, 'entryFee.currency'],
+    [{ championshipPoints: -5 }, 'championshipPoints'],
+    [{ playerCount: 1 }, 'playerCount'],
+    [{ placement: 0 }, 'placement'],
+    [{ playerCount: 16, placement: 17 }, 'placement'],
+    [{ link: 'javascript:alert(1)' }, 'link'],
+    [{ link: 'not a link' }, 'link'],
+  ])('refuses invalid details (%j)', async (details, field) => {
+    await setUp()
+    const res = await post(t.app, '/api/tournaments', { ...REGIONAL, ...details }, ash)
+    expect(res.status).toBe(400)
+    expect((await json(res)).fields).toHaveProperty([field])
+  })
+
+  it('changes only the fields sent', async () => {
+    await setUp()
+    const { id } = await json(
+      await post(t.app, '/api/tournaments', { ...REGIONAL, ...DETAILS }, ash),
+    )
+
+    const res = await patch(
+      t.app,
+      `/api/tournaments/${id}`,
+      { placement: 3, dropped: true, link: null },
+      ash,
+    )
+    expect(res.status).toBe(200)
+    expect(await json(res)).toMatchObject({
+      ...DETAILS,
+      placement: 3,
+      dropped: true,
+      link: null,
+      name: REGIONAL.name,
+    })
+    expect(await json(await get(t.app, `/api/tournaments/${id}`, ash))).toMatchObject({
+      placement: 3,
+    })
+  })
+
+  it('checks changes against the fields already saved', async () => {
+    await setUp()
+    const { id } = await json(
+      await post(t.app, '/api/tournaments', { ...REGIONAL, playerCount: 16 }, ash),
+    )
+
+    const tooLow = await patch(t.app, `/api/tournaments/${id}`, { placement: 20 }, ash)
+    expect(tooLow.status).toBe(400)
+    expect((await json(tooLow)).fields).toHaveProperty('placement')
+
+    const backwards = await patch(t.app, `/api/tournaments/${id}`, { endDate: '2026-09-01' }, ash)
+    expect(backwards.status).toBe(400)
+    expect((await json(backwards)).fields).toHaveProperty('endDate')
+  })
+
+  it('deletes a Tournament', async () => {
+    await setUp()
+    const { id } = await json(await post(t.app, '/api/tournaments', REGIONAL, ash))
+    expect((await del(t.app, `/api/tournaments/${id}`, ash)).status).toBe(204)
+    expect((await get(t.app, `/api/tournaments/${id}`, ash)).status).toBe(404)
+  })
+
+  it('never changes or deletes another User’s Tournament', async () => {
+    await setUp()
+    const misty = (await signUp(t.app, 'misty@example.com')).cookie
+    const { id } = await json(await post(t.app, '/api/tournaments', REGIONAL, ash))
+
+    expect((await patch(t.app, `/api/tournaments/${id}`, { name: 'Mine now' }, misty)).status).toBe(
+      404,
+    )
+    expect((await del(t.app, `/api/tournaments/${id}`, misty)).status).toBe(404)
+    expect(await json(await get(t.app, `/api/tournaments/${id}`, ash))).toMatchObject({
+      name: REGIONAL.name,
+    })
+  })
+
+  it('suggests the User’s own Organizers', async () => {
+    await setUp()
+    const misty = (await signUp(t.app, 'misty@example.com')).cookie
+    await post(t.app, '/api/tournaments', { ...REGIONAL, organizer: 'Pokémon Toronto' }, ash)
+    await post(t.app, '/api/tournaments', { ...REGIONAL, organizer: 'Pokémon Toronto' }, ash)
+    await post(t.app, '/api/tournaments', { ...REGIONAL, organizer: 'Game Kastle' }, ash)
+    await post(t.app, '/api/tournaments', { ...REGIONAL, organizer: 'Toronto Secret Club' }, misty)
+
+    const all = await json(await get(t.app, '/api/tournaments/organizers', ash))
+    expect(all.sort()).toEqual(['Game Kastle', 'Pokémon Toronto'])
+    expect(await json(await get(t.app, '/api/tournaments/organizers?q=toron', ash))).toEqual([
+      'Pokémon Toronto',
+    ])
   })
 })

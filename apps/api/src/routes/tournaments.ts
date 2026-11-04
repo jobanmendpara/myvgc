@@ -4,13 +4,16 @@ import {
   newTournamentSchema,
   regulationOn,
   today,
+  tournamentChangesSchema,
+  tournamentIssues,
 } from '@myvgc/core'
-import { and, desc, eq } from 'drizzle-orm'
+import type { z } from 'zod'
+import { and, asc, desc, eq, ilike, isNotNull } from 'drizzle-orm'
 import { Hono } from 'hono'
 import type { AppEnv } from '../app'
 import { tournament } from '../db/schema'
 import type { Database } from '../db/types'
-import { isId, notFound, readBody } from './helpers'
+import { invalid, isId, notFound, readBody } from './helpers'
 
 type TournamentRow = typeof tournament.$inferSelect
 
@@ -25,10 +28,32 @@ export function toTournamentView(row: TournamentRow, on = today()): TournamentVi
     regulation: row.regulation,
     defaultBestOf: row.defaultBestOf,
     location: row.location,
+    organizer: row.organizer,
+    entryFee:
+      row.entryFeeAmount !== null && row.entryFeeCurrency !== null
+        ? { amount: row.entryFeeAmount, currency: row.entryFeeCurrency }
+        : null,
+    championshipPoints: row.championshipPoints,
+    playerCount: row.playerCount,
+    link: row.link,
+    placement: row.placement,
+    dropped: row.dropped,
     notes: row.notes,
     upcoming: isUpcoming(row.startDate, on),
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
+  }
+}
+
+type Fields = z.output<typeof tournamentChangesSchema>
+
+/** Turns API fields into table columns, splitting the Entry fee in two. */
+function toColumns({ entryFee, ...fields }: Fields): Partial<typeof tournament.$inferInsert> {
+  if (entryFee === undefined) return fields
+  return {
+    ...fields,
+    entryFeeAmount: entryFee?.amount ?? null,
+    entryFeeCurrency: entryFee?.currency ?? null,
   }
 }
 
@@ -38,38 +63,95 @@ export const ownTournament = (id: string, ownerId: string) =>
 
 /** Tournament routes, mounted at /api/tournaments behind the session middleware. */
 export function tournamentRoutes(db: Database) {
-  return new Hono<AppEnv>()
-    .get('/', async (c) => {
-      const rows = await db
-        .select()
-        .from(tournament)
-        .where(eq(tournament.ownerId, c.get('user').id))
-        .orderBy(desc(tournament.startDate), desc(tournament.createdAt))
-      const on = today()
-      return c.json(rows.map((row) => toTournamentView(row, on)))
-    })
-    .post('/', async (c) => {
-      const input = await readBody(c, newTournamentSchema)
-      if (!input.ok) return input.response
-      const { regulation, ...fields } = input.data
-      const [row] = await db
-        .insert(tournament)
-        .values({
-          ...fields,
-          ownerId: c.get('user').id,
-          regulation: regulation ?? regulationOn(fields.startDate),
-        })
-        .returning()
-      return c.json(toTournamentView(row!), 201)
-    })
-    .get('/:id', async (c) => {
-      const id = c.req.param('id')
-      if (!isId(id)) return notFound(c)
-      const [row] = await db
-        .select()
-        .from(tournament)
-        .where(ownTournament(id, c.get('user').id))
-      if (!row) return notFound(c)
-      return c.json(toTournamentView(row))
-    })
+  return (
+    new Hono<AppEnv>()
+      // Organizers the User has entered before, for suggestions. Before /:id so it isn't an ID.
+      .get('/organizers', async (c) => {
+        const q = c.req.query('q')?.trim()
+        const rows = await db
+          .selectDistinct({ organizer: tournament.organizer })
+          .from(tournament)
+          .where(
+            and(
+              eq(tournament.ownerId, c.get('user').id),
+              isNotNull(tournament.organizer),
+              q ? ilike(tournament.organizer, `%${escapeLike(q)}%`) : undefined,
+            ),
+          )
+          .orderBy(asc(tournament.organizer))
+          .limit(10)
+        return c.json(rows.map((row) => row.organizer))
+      })
+      .get('/', async (c) => {
+        const rows = await db
+          .select()
+          .from(tournament)
+          .where(eq(tournament.ownerId, c.get('user').id))
+          .orderBy(desc(tournament.startDate), desc(tournament.createdAt))
+        const on = today()
+        return c.json(rows.map((row) => toTournamentView(row, on)))
+      })
+      .post('/', async (c) => {
+        const input = await readBody(c, newTournamentSchema)
+        if (!input.ok) return input.response
+        const { regulation, ...fields } = input.data
+        const [row] = await db
+          .insert(tournament)
+          .values({
+            ...toColumns(fields),
+            name: fields.name,
+            startDate: fields.startDate,
+            eventTier: fields.eventTier,
+            ownerId: c.get('user').id,
+            regulation: regulation ?? regulationOn(fields.startDate),
+          })
+          .returning()
+        return c.json(toTournamentView(row!), 201)
+      })
+      .get('/:id', async (c) => {
+        const id = c.req.param('id')
+        if (!isId(id)) return notFound(c)
+        const [row] = await db
+          .select()
+          .from(tournament)
+          .where(ownTournament(id, c.get('user').id))
+        if (!row) return notFound(c)
+        return c.json(toTournamentView(row))
+      })
+      .patch('/:id', async (c) => {
+        const id = c.req.param('id')
+        if (!isId(id)) return notFound(c)
+        const input = await readBody(c, tournamentChangesSchema)
+        if (!input.ok) return input.response
+        const where = ownTournament(id, c.get('user').id)
+        const [saved] = await db.select().from(tournament).where(where)
+        if (!saved) return notFound(c)
+
+        // Rules between fields are checked against the Tournament as it will be saved.
+        const view = toTournamentView(saved)
+        const issues = tournamentIssues({ ...view, ...input.data })
+        if (issues.length) return invalid(c, issues)
+        if (Object.keys(input.data).length === 0) return c.json(view)
+
+        const [row] = await db
+          .update(tournament)
+          .set(toColumns(input.data))
+          .where(where)
+          .returning()
+        return c.json(toTournamentView(row!))
+      })
+      .delete('/:id', async (c) => {
+        const id = c.req.param('id')
+        if (!isId(id)) return notFound(c)
+        const deleted = await db
+          .delete(tournament)
+          .where(ownTournament(id, c.get('user').id))
+          .returning({ id: tournament.id })
+        if (deleted.length === 0) return notFound(c)
+        return c.body(null, 204)
+      })
+  )
 }
+
+/** Makes `%`, `_` and `\\` in a search match themselves. */
+const escapeLike = (text: string) => text.replace(/[\\%_]/g, (char) => `\\${char}`)

@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { EVENT_TIER_LABELS, type TournamentView } from '@myvgc/core/schema'
-import { useQuery } from '@tanstack/vue-query'
+import { EVENT_TIER_LABELS, type TournamentView, formatMoney } from '@myvgc/core/schema'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 import { FetchError } from 'ofetch'
-import { formatDates } from '@/lib/format'
+import { formatDates, ordinal } from '@/lib/format'
 
 const route = useRoute()
 const id = computed(() => String(route.params.id))
@@ -16,6 +16,29 @@ const tournament = query.data
 const notFound = computed(
   () => query.error.value instanceof FetchError && query.error.value.statusCode === 404,
 )
+
+const queryClient = useQueryClient()
+const confirmingDelete = ref(false)
+const remove = useMutation({
+  mutationFn: () => {
+    // A plain string URL keeps Nuxt's route-typed $fetch from recursing through every route.
+    const url: string = `/api/tournaments/${id.value}`
+    return $fetch<null>(url, { method: 'DELETE' })
+  },
+  onSuccess: async () => {
+    confirmingDelete.value = false
+    queryClient.removeQueries({ queryKey: ['tournament', id.value] })
+    await queryClient.invalidateQueries({ queryKey: ['tournaments'] })
+    await navigateTo('/tournaments')
+  },
+})
+
+/** "9th of 128", "9th", or nothing. */
+const placement = computed(() => {
+  const t = tournament.value
+  if (!t?.placement) return ''
+  return t.playerCount ? `${ordinal(t.placement)} of ${t.playerCount}` : ordinal(t.placement)
+})
 
 useHead({
   title: computed(() =>
@@ -80,10 +103,79 @@ useHead({
         </dl>
       </header>
 
+      <dl class="grid grid-cols-2 gap-3 sm:grid-cols-4" data-testid="tournament-results">
+        <div class="rounded-lg border p-3">
+          <dt class="text-muted-foreground text-xs">Placement</dt>
+          <dd class="font-semibold" data-testid="placement">
+            {{ placement || (tournament.dropped ? 'Dropped' : '—') }}
+          </dd>
+          <dd v-if="placement && tournament.dropped" class="text-muted-foreground text-xs">
+            Dropped
+          </dd>
+        </div>
+        <div class="rounded-lg border p-3">
+          <dt class="text-muted-foreground text-xs">Championship Points</dt>
+          <dd class="font-semibold">{{ tournament.championshipPoints ?? '—' }}</dd>
+        </div>
+        <div class="rounded-lg border p-3">
+          <dt class="text-muted-foreground text-xs">Entry fee</dt>
+          <dd class="font-semibold">
+            {{ tournament.entryFee ? formatMoney(tournament.entryFee) : '—' }}
+          </dd>
+        </div>
+        <div class="rounded-lg border p-3">
+          <dt class="text-muted-foreground text-xs">Organizer</dt>
+          <dd class="font-semibold break-words">{{ tournament.organizer ?? '—' }}</dd>
+        </div>
+      </dl>
+
+      <p v-if="tournament.link" class="text-sm">
+        <a
+          :href="tournament.link"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="text-primary break-all underline"
+          >Standings and pairings ↗</a
+        >
+      </p>
+
       <section v-if="tournament.notes" aria-labelledby="notes-title" class="flex flex-col gap-2">
         <h2 id="notes-title" class="font-semibold">Notes</h2>
         <p class="text-sm whitespace-pre-wrap">{{ tournament.notes }}</p>
       </section>
+
+      <div class="flex flex-col gap-3 border-t pt-6 sm:flex-row">
+        <Button as-child variant="outline"
+          ><NuxtLink :to="`/tournaments/${tournament.id}/edit`">Edit details</NuxtLink></Button
+        >
+        <Button variant="ghost" class="text-destructive" @click="confirmingDelete = true">
+          Delete Tournament
+        </Button>
+      </div>
+
+      <AlertDialog v-model:open="confirmingDelete">
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {{ tournament.name }}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This removes the Tournament and its notes. It can't be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <Alert v-if="remove.isError.value" variant="destructive" role="alert">
+            <AlertDescription>Couldn't delete the Tournament. Try again.</AlertDescription>
+          </Alert>
+          <AlertDialogFooter>
+            <AlertDialogCancel :disabled="remove.isPending.value">Keep it</AlertDialogCancel>
+            <Button
+              variant="destructive"
+              :disabled="remove.isPending.value"
+              @click="remove.mutate()"
+            >
+              {{ remove.isPending.value ? 'Deleting…' : 'Delete Tournament' }}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </template>
   </div>
 </template>

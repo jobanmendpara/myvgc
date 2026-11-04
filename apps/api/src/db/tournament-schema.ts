@@ -1,8 +1,12 @@
 import { EVENT_TIERS } from '@myvgc/core'
+import { sql } from 'drizzle-orm'
 import {
   boolean,
+  char,
+  check,
   date,
   index,
+  integer,
   pgEnum,
   pgTable,
   smallint,
@@ -30,6 +34,15 @@ export const tournament = pgTable(
     regulation: regulation('regulation').notNull(),
     defaultBestOf: smallint('default_best_of').$type<1 | 3>().notNull().default(1),
     location: text('location'),
+    organizer: text('organizer'),
+    // In the currency's minor units (cents for USD). Amount and currency are set together.
+    entryFeeAmount: integer('entry_fee_amount'),
+    entryFeeCurrency: char('entry_fee_currency', { length: 3 }),
+    championshipPoints: integer('championship_points'),
+    playerCount: integer('player_count'),
+    link: text('link'),
+    placement: integer('placement'),
+    dropped: boolean('dropped').notNull().default(false),
     notes: text('notes').notNull().default(''),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true })
@@ -37,5 +50,11 @@ export const tournament = pgTable(
       .defaultNow()
       .$onUpdate(() => new Date()),
   },
-  (table) => [index('tournament_owner_start_idx').on(table.ownerId, table.startDate)],
+  (table) => [
+    index('tournament_owner_start_idx').on(table.ownerId, table.startDate),
+    check(
+      'tournament_entry_fee_complete',
+      sql`(${table.entryFeeAmount} is null) = (${table.entryFeeCurrency} is null)`,
+    ),
+  ],
 )

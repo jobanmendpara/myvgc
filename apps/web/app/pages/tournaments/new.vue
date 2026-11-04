@@ -1,16 +1,22 @@
 <script setup lang="ts">
 import type { TournamentView } from '@myvgc/core/schema'
-import { useMutation, useQueryClient } from '@tanstack/vue-query'
-import type { TournamentFormValues } from '@/components/TournamentForm.vue'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 import { fieldErrorsOf, saveFailureMessage } from '@/lib/api'
-import { blankTournament, formToBody } from '@/lib/tournament-form'
+import { type TournamentBody, blankTournament, lastCurrency } from '@/lib/tournament-form'
 
 useHead({ title: 'New Tournament · MyVGC' })
 
+// The list is usually cached already; it gives the currency to start the Entry fee with.
+const tournaments = useQuery({
+  queryKey: ['tournaments'],
+  queryFn: () => $fetch<TournamentView[]>('/api/tournaments'),
+})
+const initial = computed(() => blankTournament(lastCurrency(tournaments.data.value)))
+
 const queryClient = useQueryClient()
 const save = useMutation({
-  mutationFn: (values: TournamentFormValues) =>
-    $fetch<TournamentView>('/api/tournaments', { method: 'POST', body: formToBody(values) }),
+  mutationFn: (body: TournamentBody) =>
+    $fetch<TournamentView>('/api/tournaments', { method: 'POST', body }),
   onSuccess: async (tournament) => {
     await queryClient.invalidateQueries({ queryKey: ['tournaments'] })
     await navigateTo(`/tournaments/${tournament.id}`)
@@ -25,8 +31,10 @@ const failure = computed(() =>
 <template>
   <div class="flex flex-col gap-6">
     <h1 class="text-2xl font-semibold">New Tournament</h1>
+    <p v-if="tournaments.isPending.value" class="text-muted-foreground">Loading…</p>
     <TournamentForm
-      :initial="blankTournament()"
+      v-else
+      :initial="initial"
       :field-errors="fieldErrors"
       :pending="save.isPending.value"
       submit-label="Save Tournament"
