@@ -38,3 +38,6 @@ export function invalid(c: Context, issues: readonly { path: PropertyKey[]; mess
   }
   return c.json({ error: 'Invalid request', fields }, 400)
 }
+
+/** Makes `%`, `_` and `\\` in a search match themselves in a LIKE pattern. */
+export const escapeLike = (text: string) => text.replace(/[\\%_]/g, (char) => `\\${char}`)

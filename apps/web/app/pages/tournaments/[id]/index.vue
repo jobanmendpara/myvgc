@@ -1,27 +1,13 @@
 <script setup lang="ts">
-import {
-  EVENT_TIER_LABELS,
-  type TournamentView,
-  canSnapshotTeam,
-  formatMoney,
-} from '@myvgc/core/schema'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
-import { FetchError } from 'ofetch'
+import { EVENT_TIER_LABELS, canSnapshotTeam, formatMoney } from '@myvgc/core/schema'
+import { useMutation, useQueryClient } from '@tanstack/vue-query'
 import { formatDates, ordinal } from '@/lib/format'
 import { localToday } from '@/lib/tournament-form'
 
 const route = useRoute()
 const id = computed(() => String(route.params.id))
 
-const query = useQuery({
-  queryKey: computed(() => ['tournament', id.value]),
-  queryFn: () => $fetch<TournamentView>(`/api/tournaments/${id.value}`),
-  retry: (count, error) => !(error instanceof FetchError && error.statusCode === 404) && count < 1,
-})
-const tournament = query.data
-const notFound = computed(
-  () => query.error.value instanceof FetchError && query.error.value.statusCode === 404,
-)
+const { query, tournament, notFound } = useTournament(id)
 
 const calendar = useCalendar()
 // The server has the final say; this only decides which buttons to show.
@@ -44,6 +30,25 @@ const remove = useMutation({
     queryClient.removeQueries({ queryKey: ['tournament', id.value] })
     await queryClient.invalidateQueries({ queryKey: ['tournaments'] })
     await navigateTo('/tournaments')
+  },
+})
+
+// After a Top cut Round, the Round form passes on the Placement it implies.
+const suggested = computed(() => {
+  const n = Number(route.query.placement)
+  return Number.isInteger(n) && n >= 1 && tournament.value && !tournament.value.placement
+    ? n
+    : undefined
+})
+const applyPlacement = useMutation({
+  mutationFn: (placement: number) => {
+    const url: string = `/api/tournaments/${id.value}`
+    return $fetch<unknown>(url, { method: 'PATCH', body: { placement } })
+  },
+  onSuccess: async () => {
+    await queryClient.invalidateQueries({ queryKey: ['tournament', id.value] })
+    await queryClient.invalidateQueries({ queryKey: ['tournaments'] })
+    await navigateTo({ path: route.path, query: {} }, { replace: true })
   },
 })
 
@@ -117,6 +122,28 @@ useHead({
         </dl>
       </header>
 
+      <Alert v-if="suggested" data-testid="placement-suggestion">
+        <AlertDescription class="flex flex-wrap items-center justify-between gap-3">
+          <span>That puts you at {{ ordinal(suggested) }}. Set it as your Placement?</span>
+          <span class="flex gap-2">
+            <Button
+              size="sm"
+              :disabled="applyPlacement.isPending.value"
+              @click="applyPlacement.mutate(suggested)"
+              >Set {{ ordinal(suggested) }}</Button
+            >
+            <Button
+              size="sm"
+              variant="ghost"
+              @click="navigateTo({ path: route.path, query: {} }, { replace: true })"
+              >Not now</Button
+            >
+          </span>
+        </AlertDescription>
+      </Alert>
+
+      <TournamentRounds :tournament="tournament" />
+
       <dl class="grid grid-cols-2 gap-3 sm:grid-cols-4" data-testid="tournament-results">
         <div class="rounded-lg border p-3">
           <dt class="text-muted-foreground text-xs">Placement</dt>
@@ -174,7 +201,10 @@ useHead({
           <AlertDialogHeader>
             <AlertDialogTitle>Delete {{ tournament.name }}?</AlertDialogTitle>
             <AlertDialogDescription>
-              This removes the Tournament and its notes. It can't be undone.
+              This removes the Tournament, its notes and
+              {{
+                tournament.rounds.length === 1 ? '1 Round' : `${tournament.rounds.length} Rounds`
+              }}. Your Opponents stay. It can't be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <Alert v-if="remove.isError.value" variant="destructive" role="alert">

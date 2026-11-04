@@ -4,11 +4,11 @@
 
 **Blocked by:** 02
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Core works out a Record from Rounds (Byes count as wins) and applies the Round rules (a Bye has no Opponent and is always a Win; every other Round has an Opponent).
-- [ ] `POST /api/tournaments/:id/rounds` takes an existing Opponent ID or a new Opponent's display name (created in the same transaction); the next free Swiss round number is the default; a duplicate round number is refused.
-- [ ] `PATCH` and `DELETE` on a Round work, and answer 404 for another User's Round.
-- [ ] `GET /api/opponents?q=` finds the User's Opponents by display name or Alias.
-- [ ] Deleting a Tournament deletes its Rounds but keeps its Opponents.
-- [ ] The smoke test creates a Tournament, logs a Round against a new Opponent and sees the Record.
+- [x] Core works out a Record from Rounds (Byes count as wins) and applies the Round rules (a Bye has no Opponent and is always a Win; every other Round has an Opponent).
+- [x] `POST /api/tournaments/:id/rounds` takes an existing Opponent ID or a new Opponent's display name (created in the same transaction); the next free Swiss round number is the default; a duplicate round number is refused.
+- [x] `PATCH` and `DELETE` on a Round work, and answer 404 for another User's Round.
+- [x] `GET /api/opponents?q=` finds the User's Opponents by display name or Alias.
+- [x] Deleting a Tournament deletes its Rounds but keeps its Opponents.
+- [x] The smoke test creates a Tournament, logs a Round against a new Opponent and sees the Record.

@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { EVENT_TIER_LABELS, type TournamentView } from '@myvgc/core/schema'
+import { EVENT_TIER_LABELS, type TournamentView, formatRecord } from '@myvgc/core/schema'
 import { useQuery } from '@tanstack/vue-query'
-import { formatDates } from '@/lib/format'
+import { formatDates, ordinal } from '@/lib/format'
 
 useHead({ title: 'Your Tournaments · MyVGC' })
 
@@ -54,6 +54,16 @@ const tournaments = useQuery({
             <span>{{ formatDates(t.startDate, t.endDate) }}</span>
             <span>{{ EVENT_TIER_LABELS[t.eventTier] }}</span>
             <span>Reg {{ t.regulation }}</span>
+          </div>
+          <div v-if="t.rounds.length || t.placement" class="flex flex-wrap gap-x-3 text-sm">
+            <span v-if="t.rounds.length">{{ formatRecord(t.record.swiss) }}</span>
+            <span v-if="t.record.topCut.wins + t.record.topCut.losses + t.record.topCut.ties"
+              >Top cut {{ formatRecord(t.record.topCut) }}</span
+            >
+            <span v-if="t.placement" class="font-medium"
+              >{{ ordinal(t.placement)
+              }}<template v-if="t.playerCount"> of {{ t.playerCount }}</template></span
+            >
           </div>
         </NuxtLink>
       </li>

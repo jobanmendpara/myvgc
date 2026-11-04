@@ -4,8 +4,8 @@
 
 **Blocked by:** 03, 05
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Core: a Game score decides the Round result; a Game score on a best-of-1 Round, or an impossible score, is refused; a Top cut Round has a stage and no round number; the Placement suggestion matches the spec (losing in Top 4 suggests 3rd, and so on).
-- [ ] Each Top cut stage can be logged only once per Tournament.
-- [ ] Saving a Top cut Round returns the suggested Placement; the page offers to apply it.
+- [x] Core: a Game score decides the Round result; a Game score on a best-of-1 Round, or an impossible score, is refused; a Top cut Round has a stage and no round number; the Placement suggestion matches the spec (losing in Top 4 suggests 3rd, and so on).
+- [x] Each Top cut stage can be logged only once per Tournament.
+- [x] Saving a Top cut Round returns the suggested Placement; the page offers to apply it.

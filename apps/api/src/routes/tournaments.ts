@@ -1,9 +1,11 @@
 import {
+  type RoundView,
   type TeamSnapshotView,
   type TournamentView,
   canSnapshotTeam,
   isUpcoming,
   linkTeamSchema,
+  recordOf,
   nameBuild,
   tournamentWarnings,
   newTournamentSchema,
@@ -18,7 +20,8 @@ import { Hono } from 'hono'
 import type { AppEnv } from '../app'
 import { team, tournament } from '../db/schema'
 import type { Database } from '../db/types'
-import { invalid, isId, notFound, readBody } from './helpers'
+import { escapeLike, invalid, isId, notFound, readBody } from './helpers'
+import { loadRounds } from './round-data'
 
 type TournamentRow = typeof tournament.$inferSelect
 
@@ -33,7 +36,11 @@ function toSnapshotView(row: TournamentRow): TeamSnapshotView | null {
   }
 }
 
-export function toTournamentView(row: TournamentRow, on = today()): TournamentView {
+export function toTournamentView(
+  row: TournamentRow,
+  rounds: RoundView[],
+  on = today(),
+): TournamentView {
   const snapshot = toSnapshotView(row)
   return {
     id: row.id,
@@ -58,6 +65,8 @@ export function toTournamentView(row: TournamentRow, on = today()): TournamentVi
     notes: row.notes,
     upcoming: isUpcoming(row.startDate, on),
     team: snapshot,
+    rounds,
+    record: recordOf(rounds),
     warnings: tournamentWarnings({ regulation: row.regulation, team: snapshot }),
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -82,6 +91,9 @@ export const ownTournament = (id: string, ownerId: string) =>
 
 /** Tournament routes, mounted at /api/tournaments behind the session middleware. */
 export function tournamentRoutes(db: Database) {
+  const viewWithRounds = async (row: TournamentRow) =>
+    toTournamentView(row, (await loadRounds(db, [row.id])).get(row.id)!)
+
   return (
     new Hono<AppEnv>()
       // Organizers the User has entered before, for suggestions. Before /:id so it isn't an ID.
@@ -108,7 +120,11 @@ export function tournamentRoutes(db: Database) {
           .where(eq(tournament.ownerId, c.get('user').id))
           .orderBy(desc(tournament.startDate), desc(tournament.createdAt))
         const on = today()
-        return c.json(rows.map((row) => toTournamentView(row, on)))
+        const rounds = await loadRounds(
+          db,
+          rows.map((row) => row.id),
+        )
+        return c.json(rows.map((row) => toTournamentView(row, rounds.get(row.id)!, on)))
       })
       .post('/', async (c) => {
         const input = await readBody(c, newTournamentSchema)
@@ -125,7 +141,7 @@ export function tournamentRoutes(db: Database) {
             regulation: regulation ?? regulationOn(fields.startDate),
           })
           .returning()
-        return c.json(toTournamentView(row!), 201)
+        return c.json(toTournamentView(row!, []), 201)
       })
       .get('/:id', async (c) => {
         const id = c.req.param('id')
@@ -135,7 +151,7 @@ export function tournamentRoutes(db: Database) {
           .from(tournament)
           .where(ownTournament(id, c.get('user').id))
         if (!row) return notFound(c)
-        return c.json(toTournamentView(row))
+        return c.json(await viewWithRounds(row))
       })
       .patch('/:id', async (c) => {
         const id = c.req.param('id')
@@ -147,7 +163,7 @@ export function tournamentRoutes(db: Database) {
         if (!saved) return notFound(c)
 
         // Rules between fields are checked against the Tournament as it will be saved.
-        const view = toTournamentView(saved)
+        const view = await viewWithRounds(saved)
         const issues = tournamentIssues({ ...view, ...input.data })
         if (issues.length) return invalid(c, issues)
         if (Object.keys(input.data).length === 0) return c.json(view)
@@ -157,7 +173,7 @@ export function tournamentRoutes(db: Database) {
           .set(toColumns(input.data))
           .where(where)
           .returning()
-        return c.json(toTournamentView(row!))
+        return c.json(toTournamentView(row!, view.rounds))
       })
       .put('/:id/team', async (c) => {
         const id = c.req.param('id')
@@ -191,7 +207,7 @@ export function tournamentRoutes(db: Database) {
           })
           .where(where)
           .returning()
-        return c.json(toTournamentView(row!))
+        return c.json(await viewWithRounds(row!))
       })
       .delete('/:id/team', async (c) => {
         const id = c.req.param('id')
@@ -208,7 +224,7 @@ export function tournamentRoutes(db: Database) {
           .where(ownTournament(id, c.get('user').id))
           .returning()
         if (!row) return notFound(c)
-        return c.json(toTournamentView(row))
+        return c.json(await viewWithRounds(row))
       })
       .delete('/:id', async (c) => {
         const id = c.req.param('id')
@@ -222,6 +238,3 @@ export function tournamentRoutes(db: Database) {
       })
   )
 }
-
-/** Makes `%`, `_` and `\\` in a search match themselves. */
-const escapeLike = (text: string) => text.replace(/[\\%_]/g, (char) => `\\${char}`)

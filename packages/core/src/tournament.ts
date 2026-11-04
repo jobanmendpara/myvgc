@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import type { RoundView, TournamentRecord } from './round'
 import { MAX_NOTES_LENGTH, type NamedPokemonBuild, REGULATIONS, type Regulation } from './team'
 
 /** The kinds of Tournament, in the order the User picks from. */
@@ -230,6 +231,9 @@ export interface TournamentView {
   upcoming: boolean
   /** The snapshot of the User's Team for this Tournament (ADR 9). */
   team: TeamSnapshotView | null
+  /** Its Rounds as they were played: Swiss by number, then Top cut by stage. */
+  rounds: RoundView[]
+  record: TournamentRecord
   /** Things worth a second look that don't stop a save, such as a Regulation mismatch. */
   warnings: string[]
   createdAt: string
