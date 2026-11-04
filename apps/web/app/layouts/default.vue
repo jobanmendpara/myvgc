@@ -45,7 +45,7 @@ async function logOut() {
             <NuxtLink
               :to="area.to"
               :aria-current="isCurrent(area.to) ? 'page' : undefined"
-              class="text-muted-foreground hover:text-foreground aria-[current=page]:border-primary aria-[current=page]:text-foreground focus-visible:ring-ring/50 block border-b-2 border-transparent px-3 py-2 text-sm font-medium whitespace-nowrap outline-none focus-visible:ring-3"
+              class="text-muted-foreground hover:text-foreground aria-[current=page]:border-primary aria-[current=page]:text-foreground focus-visible:ring-ring/50 block border-b-2 border-transparent px-2 py-2 sm:px-3 text-sm font-medium whitespace-nowrap outline-none focus-visible:ring-3"
             >
               {{ area.label }}
             </NuxtLink>

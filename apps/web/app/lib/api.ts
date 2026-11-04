@@ -32,3 +32,17 @@ export function toCreateTeamError(error: unknown): CreateTeamError {
   }
   return { kind: 'other', message: "Couldn't save the Team. Check your connection and try again." }
 }
+
+/** The errors per field from a 400 answer, or nothing for any other failure. */
+export function fieldErrorsOf(error: unknown): Record<string, string> | undefined {
+  return error instanceof FetchError && error.statusCode === 400 ? error.data?.fields : undefined
+}
+
+/** A message for a failed save that isn't about a particular field. */
+export function saveFailureMessage(error: unknown, what: string): string {
+  if (error instanceof FetchError && error.statusCode === 401)
+    return `Your session has ended. Log in again to save this ${what}.`
+  if (error instanceof FetchError && error.statusCode === 409 && error.data?.error)
+    return error.data.error
+  return `Couldn't save the ${what}. Check your connection and try again.`
+}

@@ -4,10 +4,10 @@
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Core answers which Regulation is in force on a date, which is current for a given today, which Season a date falls in and whether that Season is partial. Unit tests cover the boundary days, dates before Champions and the open-ended 2027 Season.
-- [ ] `GET /api/calendar` returns the Regulations and Seasons with their dates and which Regulation is current.
-- [ ] `POST /api/tournaments` creates a Tournament; a missing Regulation is taken from the start date; an end date before the start date is a 400.
-- [ ] `GET /api/tournaments` lists only the User's Tournaments, newest start date first, each marked Upcoming or not; `GET /api/tournaments/:id` returns 404 for another User's Tournament.
-- [ ] The Tournaments list, New Tournament and Tournament pages work at 375 px wide.
+- [x] Core answers which Regulation is in force on a date, which is current for a given today, which Season a date falls in and whether that Season is partial. Unit tests cover the boundary days, dates before Champions and the open-ended 2027 Season.
+- [x] `GET /api/calendar` returns the Regulations and Seasons with their dates and which Regulation is current.
+- [x] `POST /api/tournaments` creates a Tournament; a missing Regulation is taken from the start date; an end date before the start date is a 400.
+- [x] `GET /api/tournaments` lists only the User's Tournaments, newest start date first, each marked Upcoming or not; `GET /api/tournaments/:id` returns 404 for another User's Tournament.
+- [x] The Tournaments list, New Tournament and Tournament pages work at 375 px wide.
