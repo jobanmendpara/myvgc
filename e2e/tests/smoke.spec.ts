@@ -63,7 +63,7 @@ test('log a Tournament and a Round against a new Opponent', async ({ page }) => 
 
   await page.getByRole('link', { name: 'Log Round' }).click()
   await expect(page.getByRole('heading', { name: 'Log a Round' })).toBeVisible()
-  await page.getByRole('combobox').fill('Smoke Opponent')
+  await page.getByRole('combobox', { name: 'Opponent' }).fill('Smoke Opponent')
   await page.getByRole('option', { name: /Add “Smoke Opponent”/ }).click()
   await page.getByText('Win', { exact: true }).click()
   await page.getByRole('button', { name: 'Log Round' }).click()
