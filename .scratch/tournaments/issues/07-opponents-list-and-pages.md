@@ -4,8 +4,8 @@
 
 **Blocked by:** 05
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] `GET /api/opponents/:id` returns the Opponent with Aliases, notes, Head-to-head record (without Byes) and Rounds; another User's Opponent is a 404.
-- [ ] `POST /api/opponents` creates one; `PATCH` replaces the display name, notes and Aliases.
-- [ ] `DELETE /api/opponents/:id` answers 409 when the Opponent has Rounds, and 204 otherwise.
+- [x] `GET /api/opponents/:id` returns the Opponent with Aliases, notes, Head-to-head record (without Byes) and Rounds; another User's Opponent is a 404.
+- [x] `POST /api/opponents` creates one; `PATCH` replaces the display name, notes and Aliases.
+- [x] `DELETE /api/opponents/:id` answers 409 when the Opponent has Rounds, and 204 otherwise.

@@ -30,7 +30,7 @@ async function opponentFacts(db: Database, ids: string[]) {
     .select()
     .from(opponentAlias)
     .where(inArray(opponentAlias.opponentId, ids))
-    .orderBy(asc(opponentAlias.name))
+    .orderBy(asc(sql`lower(${opponentAlias.name})`))
   for (const row of aliasRows) aliases.get(row.opponentId)!.push(row.name)
 
   const resultRows = await db

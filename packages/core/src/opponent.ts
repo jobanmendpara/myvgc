@@ -16,8 +16,14 @@ const opponentFields = {
   aliases: z
     .array(name('Alias'))
     .max(MAX_ALIASES, `An Opponent can have at most ${MAX_ALIASES} Aliases.`)
-    // The same name twice, or the display name again, adds nothing.
-    .transform((aliases) => [...new Map(aliases.map((a) => [a.toLowerCase(), a])).values()]),
+    // The same name twice, in any case, adds nothing: the first spelling is kept.
+    .transform((aliases) => {
+      const seen = new Set<string>()
+      return aliases.filter((alias) => {
+        const key = alias.toLowerCase()
+        return !seen.has(key) && Boolean(seen.add(key))
+      })
+    }),
   notes: z.string().max(MAX_NOTES_LENGTH, `Notes can be at most ${MAX_NOTES_LENGTH} characters.`),
 }
 
