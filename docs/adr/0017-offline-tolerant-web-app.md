@@ -1,7 +1,7 @@
 # 17. Offline-tolerant web app with a queued-write outbox
 
 Date: 2026-11-04
-Status: Proposed
+Status: Accepted
 
 ## Context
 Roadmap principle: phone first. A User logs a Round between Rounds at an event, in venues that tend to lack a signal (the project owner's experience). Today the web app cannot start without the server: the auth middleware aborts every navigation with a 503 when the session check can't be reached. A failed save also loses the Round.
