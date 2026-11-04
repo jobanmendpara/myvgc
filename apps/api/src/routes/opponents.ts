@@ -71,9 +71,11 @@ export function opponentRoutes(db: Database) {
   return (
     new Hono<AppEnv>()
       // The User's Opponents, or those whose display name or an Alias contains `q`. Exact
-      // matches come first, then the rest by name.
+      // matches come first, then the rest by name. `limit` caps how many come back.
       .get('/', async (c) => {
         const q = c.req.query('q')?.trim()
+        // The Round form asks for a few suggestions; the Opponents list asks for everyone.
+        const limit = Math.min(Math.max(Number(c.req.query('limit')) || 1000, 1), 1000)
         const pattern = q ? `%${escapeLike(q)}%` : undefined
         const aliasMatches = (p: string) =>
           exists(
@@ -97,7 +99,7 @@ export function opponentRoutes(db: Database) {
               : []),
             asc(sql`lower(${opponent.displayName})`),
           )
-          .limit(q ? 20 : 1000)
+          .limit(limit)
         return c.json(await views(rows))
       })
       .post('/', async (c) => {

@@ -10,14 +10,17 @@ export type OpponentChoice =
 const props = defineProps<{ error?: string }>()
 const choice = defineModel<OpponentChoice | null>({ required: true })
 
+const SUGGESTIONS = 8
 const text = ref('')
 const open = ref(false)
 const active = ref(0)
 const search = refDebounced(text, 200)
 const matches = useQuery({
-  queryKey: computed(() => ['opponents', 'search', search.value.trim()]),
+  queryKey: computed(() => ['opponents', 'suggestions', search.value.trim()]),
   queryFn: () =>
-    $fetch<OpponentView[]>('/api/opponents', { query: { q: search.value.trim() || undefined } }),
+    $fetch<OpponentView[]>('/api/opponents', {
+      query: { q: search.value.trim() || undefined, limit: SUGGESTIONS },
+    }),
   enabled: computed(() => open.value),
   placeholderData: (previous) => previous,
 })

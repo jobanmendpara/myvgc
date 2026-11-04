@@ -4,18 +4,13 @@ import {
   fromMinorUnits,
   regulationOn,
   toMinorUnits,
+  today,
 } from '@myvgc/core/schema'
 import type { TournamentFormValues } from '@/components/TournamentForm.vue'
 
-/** Today on this device, as a calendar day. */
-export function localToday(now = new Date()): string {
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
-}
-
 /** A blank form for a Tournament starting today, with the currency the User used last. */
 export function blankTournament(lastCurrency = ''): TournamentFormValues {
-  const startDate = localToday()
+  const startDate = today()
   return {
     name: '',
     startDate,

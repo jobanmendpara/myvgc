@@ -1,5 +1,6 @@
 import {
   type DashboardView,
+  type SummaryTournament,
   SEASONS,
   currentRegulation,
   dashboardFiltersSchema,
@@ -13,7 +14,26 @@ import { tournament } from '../db/schema'
 import type { Database } from '../db/types'
 import { invalid } from './helpers'
 import { loadRounds } from './round-data'
-import { toTournamentView } from './tournaments'
+import { entryFeeOf } from './tournaments'
+
+/** Only what the summary reads, so Team snapshots aren't named build by build. */
+function toSummaryTournament(
+  row: typeof tournament.$inferSelect,
+  rounds: SummaryTournament['rounds'],
+): SummaryTournament {
+  return {
+    id: row.id,
+    name: row.name,
+    startDate: row.startDate,
+    createdAt: row.createdAt.toISOString(),
+    playerCount: row.playerCount,
+    placement: row.placement,
+    championshipPoints: row.championshipPoints,
+    entryFee: entryFeeOf(row),
+    team: row.teamName ? { teamId: row.teamId, name: row.teamName } : null,
+    rounds,
+  }
+}
 
 /** The dashboard, mounted at /api/dashboard behind the session middleware. */
 export function dashboardRoutes(db: Database) {
@@ -55,7 +75,7 @@ export function dashboardRoutes(db: Database) {
       db,
       rows.map((row) => row.id),
     )
-    const tournaments = rows.map((row) => toTournamentView(row, rounds.get(row.id)!, on))
+    const tournaments = rows.map((row) => toSummaryTournament(row, rounds.get(row.id)!))
     const view: DashboardView = { filters, summary: summarize(tournaments) }
     return c.json(view)
   })

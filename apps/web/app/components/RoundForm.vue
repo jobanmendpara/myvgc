@@ -28,16 +28,17 @@ const emit = defineEmits<{ submit: [body: RoundInput] }>()
 
 const logged = computed(() => props.tournament.rounds.filter((r) => r.id !== props.round?.id))
 const nextNumber = computed(() => Math.max(0, ...logged.value.map((r) => r.roundNumber ?? 0)) + 1)
-const nextStage = computed(
-  () =>
-    TOP_CUT_STAGES.find(
-      (stage, index) =>
-        !logged.value.some((r) => r.stage === stage) &&
-        // The stage after the latest one logged, or the first free one.
-        (logged.value.some((r) => r.stage === TOP_CUT_STAGES[index - 1]) ||
-          !logged.value.some((r) => r.stage)),
-    ) ?? 'top-8',
-)
+// The stage after the latest one logged. The first Top cut Round defaults to Top 8, the most
+// common cut, and the User picks another if theirs was bigger.
+const nextStage = computed((): TopCutStage => {
+  const latest = Math.max(
+    -1,
+    ...logged.value.map((r) => (r.stage ? TOP_CUT_STAGES.indexOf(r.stage) : -1)),
+  )
+  return latest === -1
+    ? 'top-8'
+    : (TOP_CUT_STAGES[Math.min(latest + 1, TOP_CUT_STAGES.length - 1)] ?? 'finals')
+})
 
 // A Game score, as one of the choices below. "none" means only the result is recorded.
 type ScoreChoice = 'none' | '2-0' | '2-1' | '1-2' | '0-2' | '1-1'

@@ -152,6 +152,15 @@ describe('Rounds', () => {
     expect((await json(stage)).fields).toHaveProperty('stage')
   })
 
+  it('answers 400, not a server error, when the same Round is logged twice at once', async () => {
+    await setUp()
+    const results = await Promise.all([
+      logRound({ roundNumber: 1, result: 'win', newOpponentName: 'A' }),
+      logRound({ roundNumber: 1, result: 'win', newOpponentName: 'A' }),
+    ])
+    expect(results.map((r) => r.status).sort()).toEqual([201, 400])
+  })
+
   it('shows the Tournament’s Rounds in order with its Record', async () => {
     await setUp()
     await logRound({ phase: 'top-cut', stage: 'top-8', result: 'loss', newOpponentName: 'C' })
@@ -245,5 +254,14 @@ describe('Finding Opponents', () => {
     expect(await names('WOLFEY')).toEqual(['Wolfe Glick'])
     expect(await names('cyber')).toEqual(['Aaron Zheng'])
     expect(await names('100%')).toEqual([])
+  })
+
+  it('returns only as many as asked for, so the Round form loads just its suggestions', async () => {
+    t = await createTestApp()
+    const ash = (await signUp(t.app, 'ash@example.com')).cookie
+    for (const name of ['A', 'B', 'C'])
+      await post(t.app, '/api/opponents', { displayName: name }, ash)
+    expect(await json(await get(t.app, '/api/opponents?limit=2', ash))).toHaveLength(2)
+    expect(await json(await get(t.app, '/api/opponents', ash))).toHaveLength(3)
   })
 })

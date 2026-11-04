@@ -1,4 +1,5 @@
 import {
+  type EntryFee,
   type RoundView,
   type TeamSnapshotView,
   type TournamentView,
@@ -36,6 +37,12 @@ function toSnapshotView(row: TournamentRow): TeamSnapshotView | null {
   }
 }
 
+/** The Entry fee, stored as two columns that are set together. */
+export const entryFeeOf = (row: TournamentRow): EntryFee | null =>
+  row.entryFeeAmount !== null && row.entryFeeCurrency !== null
+    ? { amount: row.entryFeeAmount, currency: row.entryFeeCurrency }
+    : null
+
 export function toTournamentView(
   row: TournamentRow,
   rounds: RoundView[],
@@ -53,10 +60,7 @@ export function toTournamentView(
     defaultBestOf: row.defaultBestOf,
     location: row.location,
     organizer: row.organizer,
-    entryFee:
-      row.entryFeeAmount !== null && row.entryFeeCurrency !== null
-        ? { amount: row.entryFeeAmount, currency: row.entryFeeCurrency }
-        : null,
+    entryFee: entryFeeOf(row),
     championshipPoints: row.championshipPoints,
     playerCount: row.playerCount,
     link: row.link,

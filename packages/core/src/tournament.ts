@@ -33,6 +33,10 @@ export const MAX_LINK_LENGTH = 500
 /** The largest Entry fee in minor units. */
 export const MAX_ENTRY_FEE = 100_000_000
 
+// Intl echoes back any well-formed code, so only the codes it actually supports count.
+const CURRENCIES = new Set(Intl.supportedValuesOf('currency'))
+const isCurrency = (code: string) => CURRENCIES.has(code)
+
 const calendarDate = z.iso.date('Use a date such as 2026-09-19.')
 const bestOf = z.union([z.literal(1), z.literal(3)], 'Rounds are best of 1 or best of 3.')
 
@@ -115,17 +119,6 @@ function isWebLink(text: string): boolean {
   try {
     const url = new URL(text)
     return url.protocol === 'https:' || url.protocol === 'http:'
-  } catch {
-    return false
-  }
-}
-
-function isCurrency(code: string): boolean {
-  try {
-    return (
-      new Intl.NumberFormat('en', { style: 'currency', currency: code }).resolvedOptions()
-        .currency === code
-    )
   } catch {
     return false
   }

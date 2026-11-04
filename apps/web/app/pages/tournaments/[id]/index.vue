@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import { EVENT_TIER_LABELS, canRefreshSnapshot, formatMoney } from '@myvgc/core/schema'
+import { EVENT_TIER_LABELS, canRefreshSnapshot, formatMoney, today } from '@myvgc/core/schema'
 import { useMutation, useQueryClient } from '@tanstack/vue-query'
 import { formatDates, ordinal } from '@/lib/format'
-import { localToday } from '@/lib/tournament-form'
 
 const route = useRoute()
 const id = computed(() => String(route.params.id))
@@ -13,7 +12,7 @@ const calendar = useCalendar()
 // The server has the final say; this only decides which buttons to show.
 const canRefresh = computed(() =>
   tournament.value
-    ? canRefreshSnapshot(tournament.value, calendar.data.value?.today ?? localToday())
+    ? canRefreshSnapshot(tournament.value, calendar.data.value?.today ?? today())
     : false,
 )
 

@@ -1,18 +1,13 @@
 <script setup lang="ts">
 import type { TournamentView } from '@myvgc/core/schema'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
-import { FetchError } from 'ofetch'
+import { useMutation, useQueryClient } from '@tanstack/vue-query'
 import { fieldErrorsOf, saveFailureMessage } from '@/lib/api'
 import { type TournamentBody, tournamentToForm } from '@/lib/tournament-form'
 
 const route = useRoute()
 const id = computed(() => String(route.params.id))
 
-const query = useQuery({
-  queryKey: computed(() => ['tournament', id.value]),
-  queryFn: () => $fetch<TournamentView>(`/api/tournaments/${id.value}`),
-  retry: (count, error) => !(error instanceof FetchError && error.statusCode === 404) && count < 1,
-})
+const { query } = useTournament(id)
 useHead({
   title: computed(() =>
     query.data.value ? `Edit ${query.data.value.name} · MyVGC` : 'Edit Tournament · MyVGC',

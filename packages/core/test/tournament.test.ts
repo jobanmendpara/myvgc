@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatMoney, fromMinorUnits, toMinorUnits } from '../src/schema'
+import { formatMoney, fromMinorUnits, newTournamentSchema, toMinorUnits } from '../src/schema'
 
 describe('Entry fee amounts', () => {
   it.each([
@@ -27,5 +27,21 @@ describe('Entry fee amounts', () => {
     expect(fromMinorUnits(3000, 'JPY')).toBe('3000')
     expect(formatMoney({ amount: 3550, currency: 'USD' })).toBe('$35.50')
     expect(formatMoney({ amount: 3000, currency: 'JPY' })).toBe('¥3,000')
+  })
+})
+
+describe('Entry fee currency', () => {
+  const withFee = (currency: string) =>
+    newTournamentSchema.safeParse({
+      name: 'Locals',
+      startDate: '2026-10-01',
+      eventTier: 'grassroots',
+      entryFee: { amount: 1000, currency },
+    }).success
+
+  it('accepts real currencies and refuses made-up codes', () => {
+    expect(withFee('CAD')).toBe(true)
+    expect(withFee('JPY')).toBe(true)
+    expect(withFee('ABC')).toBe(false)
   })
 })

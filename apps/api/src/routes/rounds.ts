@@ -20,6 +20,15 @@ import { ownTournament } from './tournaments'
 type RoundInput = z.output<typeof roundInputSchema>
 type Issue = { path: string[]; message: string }
 
+/** The constraint a Postgres unique violation names, if the error is one. */
+function uniqueViolation(error: unknown): string | undefined {
+  for (let e = error; e && typeof e === 'object'; e = (e as { cause?: unknown }).cause) {
+    const { code, constraint } = e as { code?: string; constraint?: string }
+    if (code === '23505') return constraint
+  }
+  return undefined
+}
+
 /**
  * Round routes, mounted at /api/tournaments/:tournamentId/rounds behind the session
  * middleware. A Round belongs to whoever owns its Tournament.
@@ -77,34 +86,48 @@ export function roundRoutes(db: Database) {
     }
     if (issues.length) return { issues }
 
-    const id = await db.transaction(async (tx) => {
-      let opponentId = facts.bye ? null : (input.opponentId ?? null)
-      if (!facts.bye && input.newOpponentName) {
-        const [created] = await tx
-          .insert(opponent)
-          .values({ ownerId: t.ownerId, displayName: input.newOpponentName })
-          .returning({ id: opponent.id })
-        opponentId = created!.id
-      }
-      const values = {
-        tournamentId: t.id,
-        phase: facts.phase,
-        roundNumber: facts.roundNumber,
-        stage: facts.stage,
-        bestOf: facts.bestOf,
-        bye: facts.bye,
-        result: roundResult(facts),
-        gamesWon: facts.gameScore?.won ?? null,
-        gamesLost: facts.gameScore?.lost ?? null,
-        opponentId,
-        notes: input.notes,
-      }
-      const [row] = existingId
-        ? await tx.update(round).set(values).where(eq(round.id, existingId)).returning()
-        : await tx.insert(round).values(values).returning()
-      return row!.id
+    // The checks above read before writing, so two saves at once can both pass them; the unique
+    // constraints catch that, and the loser gets the same answer as a plain duplicate.
+    const id = await insertOrUpdate().catch((error: unknown) => {
+      const constraint = uniqueViolation(error)
+      if (constraint === 'round_tournament_number_key')
+        return { path: ['roundNumber'], message: `Round ${facts.roundNumber} is already logged.` }
+      if (constraint === 'round_tournament_stage_key')
+        return { path: ['stage'], message: 'That Top cut stage is already logged.' }
+      throw error
     })
+    if (typeof id !== 'string') return { issues: [id] }
     return { saved: await standing(t, id) }
+
+    function insertOrUpdate() {
+      return db.transaction(async (tx) => {
+        let opponentId = facts.bye ? null : (input.opponentId ?? null)
+        if (!facts.bye && input.newOpponentName) {
+          const [created] = await tx
+            .insert(opponent)
+            .values({ ownerId: t.ownerId, displayName: input.newOpponentName })
+            .returning({ id: opponent.id })
+          opponentId = created!.id
+        }
+        const values = {
+          tournamentId: t.id,
+          phase: facts.phase,
+          roundNumber: facts.roundNumber,
+          stage: facts.stage,
+          bestOf: facts.bestOf,
+          bye: facts.bye,
+          result: roundResult(facts),
+          gamesWon: facts.gameScore?.won ?? null,
+          gamesLost: facts.gameScore?.lost ?? null,
+          opponentId,
+          notes: input.notes,
+        }
+        const [row] = existingId
+          ? await tx.update(round).set(values).where(eq(round.id, existingId)).returning()
+          : await tx.insert(round).values(values).returning()
+        return row!.id
+      })
+    }
   }
 
   /** A Round with its Tournament's Record and, if due, a suggested Placement. */
