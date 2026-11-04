@@ -18,7 +18,7 @@ Outbound network worked for docs sites, `raw.githubusercontent.com`, `git clone`
 **Not verified, and labelled where it matters:**
 
 - How often players have no signal at an event. No source exists; section 1.2 reasons from the product and marks it **[unverified]**.
-- Whether `@vite-pwa/nuxt` 1.1.1 works with Nuxt 4.6. Its docs and README say "Nuxt 3", and its declared compatibility is `>=3.6.5` **[unverified]**.
+- ~~Whether `@vite-pwa/nuxt` 1.1.1 works with Nuxt 4.6.~~ **Tested 2026-11-04, it works** (see 2.1). Its docs say "Nuxt 3" and it depends on `@nuxt/kit ^3.9.0`, but it built and ran on Nuxt 4.6.4.
 - The YJS, Automerge and Loro internals, and Evolu's, Jazz's and Triplit's server designs beyond their READMEs and licence files.
 - Real-world size and speed of PGlite on iPhone, and any hosting cost figure that is not on a vendor page. Costs in section 5 are my estimates and are marked **[estimate]**.
 - Not read: RxDB's premium licence text.
@@ -57,7 +57,7 @@ Labels: **[snippet]** means I only saw an excerpt; **[secondary]** means a non-p
 
 ### 1.2 How real is the offline need?
 
-**[unverified]** I found no data on connectivity at Premier Challenges, Regionals or local game stores, and did not look for any. The product reasoning is: events are often in basements, convention halls or stores, and the User logs between Rounds with a phone. A slow or absent connection there is plausible, and the failure is severe, because the User forgets the Round or gives up. The needed offline surface is narrow:
+**Product input (2026-11-04): the user says venues tend to lack a signal, so treat the offline need as real. No measured data was found** (and none was looked for) on connectivity at Premier Challenges, Regionals or local game stores, and did not look for any. The product reasoning is: events are often in basements, convention halls or stores, and the User logs between Rounds with a phone. A slow or absent connection there is plausible, and the failure is severe, because the User forgets the Round or gives up. The needed offline surface is narrow:
 
 1. open the app and the current Tournament,
 2. search Opponents by name or Alias,
@@ -87,7 +87,7 @@ Each subsection gives the work for tier B first, then the extra work for tier C.
 ### 2.1 Application shell and service worker
 
 **Tier B.**
-- Add `@vite-pwa/nuxt` (MIT, 1.1.1 per npm; wraps Workbox, generates the service worker and manifest, offers update prompts). Its docs are written for Nuxt 3, so a spike must confirm it works with the repo's Nuxt 4.6 **[unverified]**. Plain `vite-plugin-pwa` 2.0.0 (MIT, peers Vite up to 8) is the fallback.
+- Add `@vite-pwa/nuxt` (MIT, 1.1.1 per npm; wraps Workbox, generates the service worker and manifest, offers update prompts). Its docs are written for Nuxt 3, but **tested in this repo (2026-11-04): it works with Nuxt 4.6.4.** In a throwaway change to `apps/web` (reverted), `pnpm add -D @vite-pwa/nuxt` plus `modules: ['@vite-pwa/nuxt']` and a `pwa` block (`registerType: 'autoUpdate'`, `navigateFallback: '/'`, `navigateFallbackDenylist: [/^\/api\//]`) made `nuxt generate` succeed, emitting `sw.js`, a Workbox runtime and `manifest.webmanifest` (PWA v1.3.0, 61 precache entries, 587 KiB). In headless Chromium against the generated files, the service worker registered, took control after one reload, and `/login` and `/tournaments` loaded with the network off. Both showed the app's own "Can't reach the server" page, which is the auth blocker in 2.3, not a shell failure. Not tested: Safari/iOS, install-to-home-screen, update flow, or serving the worker through Hono (`apps/api/src/static.ts`). Plain `vite-plugin-pwa` 2.0.0 (MIT, peers Vite up to 8) is the fallback.
 - Precache the generated SPA. `apps/api/src/static.ts` already serves `index.html` for any non-`/api` GET, which suits a service worker's navigation fallback. The service worker file must be served at the site root and not cached long-term by the browser (a deployment detail to test).
 - Do **not** let the service worker cache `/api/*` responses. API data belongs in the TanStack Query cache (2.2), so logout and account switching can clear it deterministically. The vite-pwa docs show how to exclude routes (`navigateFallbackDenylist`) and note that excluded routes then fail offline.
 
@@ -153,7 +153,7 @@ All versions and dates are from the sources listed at the top; the table gives t
 | Candidate | Licence | Status (today) | Postgres | Self-host | Vue / Nuxt | Offline writes | Verdict |
 |---|---|---|---|---|---|---|---|
 | **TanStack Query persist + mutation queue** | MIT | 5.105.3, stable | n/a (any API) | nothing extra | Yes (already used) | Yes (paused mutations, persisted) | **Use (tier B)** |
-| **@vite-pwa/nuxt / vite-plugin-pwa** | MIT | 1.1.1 / 2.0.0 | n/a | nothing extra | Yes, Nuxt 3 documented; Nuxt 4 **[unverified]** | n/a (shell only) | **Use (tier B)** |
+| **@vite-pwa/nuxt / vite-plugin-pwa** | MIT | 1.1.1 / 2.0.0 | n/a | nothing extra | Yes: Nuxt 3 documented; **Nuxt 4.6.4 tested, works** | n/a (shell only) | **Use (tier B)** |
 | **TanStack DB** | MIT | **1.0.0-rc.1.3**; `@tanstack/vue-db` same version; `@tanstack/offline-transactions` 1.2.0 | Via collections (Query, Electric, PowerSync, RxDB, IndexedDB, SQLite persistence) | n/a | `vue-db` exists | Yes, outbox package | Best *client layer* if C; still RC |
 | **Electric** (sync engine) | Apache-2.0 | client 1.5.28; Electric "joining Databricks" 2026-08-11; **Cloud winding down** | Postgres 14+, needs logical replication | One extra container, `wal_level=logical`, persistent storage dir | Framework-agnostic HTTP client | **No: read-path only**, writes via your API | Viable self-host, but strategic risk |
 | **PGlite** (client Postgres) | Apache-2.0 | 0.5.15, README badge "alpha" | It *is* Postgres | n/a | Agnostic | n/a | Only for tier C; Safari caveat |
