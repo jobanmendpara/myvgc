@@ -8,7 +8,7 @@
 
 ## Tracking
 
-- **Issues live in Linear**: team DEV, project MyVGC. Use the labels Feature, Bug, Improvement, Refactor, Chore and Decision. Don't use GitHub Issues.
+- **Issues live in Linear**: team DEV, project MyVGC. Use the labels Feature, Bug, Improvement, Refactor, Chore and Decision. GitHub Issues are mirrors synced from Linear: create and edit issues in Linear, never in GitHub.
 - **Link work to its issue.** Put the Linear identifier (such as `DEV-31`) in the branch name (Linear's suggested `gitBranchName` works) or the PR title, so the Linear–GitHub integration links them.
 - **Decisions**: the ADR in `docs/adr/` is the source of truth. When you add or change one, mirror it as a document in the MyVGC project titled "ADR N: <title>", starting with a line naming the repo file. A decision still to be made is an issue labelled Decision.
 
