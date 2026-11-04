@@ -129,6 +129,8 @@ describe('Opponents', () => {
     expect(
       (await patch(t.app, `/api/opponents/${id}`, { displayName: 'Mine' }, misty)).status,
     ).toBe(404)
-    expect((await del(t.app, `/api/opponents/${id}`, misty)).status).toBe(404)
+    // A delete has nothing of Misty's to remove, so it is done, and Ash's Opponent stays.
+    expect((await del(t.app, `/api/opponents/${id}`, misty)).status).toBe(204)
+    expect((await get(t.app, `/api/opponents/${id}`, ash)).status).toBe(200)
   })
 })

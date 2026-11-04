@@ -11,7 +11,7 @@ import { Hono } from 'hono'
 import type { AppEnv } from '../app'
 import { opponent, opponentAlias, round, tournament } from '../db/schema'
 import type { Database } from '../db/types'
-import { escapeLike, isId, notFound, readBody } from './helpers'
+import { alreadyGone, escapeLike, idTaken, isId, notFound, readBody } from './helpers'
 import { toRoundView } from './round-data'
 
 type OpponentRow = typeof opponent.$inferSelect
@@ -105,23 +105,26 @@ export function opponentRoutes(db: Database) {
       .post('/', async (c) => {
         const input = await readBody(c, newOpponentSchema)
         if (!input.ok) return input.response
-        const row = await db.transaction(async (tx) => {
-          const [created] = await tx
+        const ownerId = c.get('user').id
+        const { id, displayName, aliases, notes } = input.data
+        const created = await db.transaction(async (tx) => {
+          const [row] = await tx
             .insert(opponent)
-            .values({
-              ownerId: c.get('user').id,
-              displayName: input.data.displayName,
-              notes: input.data.notes,
-            })
+            .values({ id, ownerId, displayName, notes })
+            .onConflictDoNothing({ target: opponent.id })
             .returning()
-          if (input.data.aliases.length)
+          if (row && aliases.length)
             await tx
               .insert(opponentAlias)
-              .values(input.data.aliases.map((name) => ({ opponentId: created!.id, name })))
-          return created!
+              .values(aliases.map((name) => ({ opponentId: row.id, name })))
+          return row
         })
-        const [view] = await views([row])
-        return c.json(view, 201)
+        if (created) return c.json((await views([created]))[0], 201)
+
+        // A replay: the Opponent is already saved, and the saved version wins.
+        const [saved] = await db.select().from(opponent).where(ownOpponent(id!, ownerId))
+        if (!saved) return idTaken(c)
+        return c.json((await views([saved]))[0])
       })
       .get('/:id', async (c) => {
         const id = c.req.param('id')
@@ -184,7 +187,7 @@ export function opponentRoutes(db: Database) {
         if (!isId(id)) return notFound(c)
         const where = ownOpponent(id, c.get('user').id)
         const [row] = await db.select({ id: opponent.id }).from(opponent).where(where)
-        if (!row) return notFound(c)
+        if (!row) return alreadyGone(c)
         const [played] = await db
           .select({ id: round.id })
           .from(round)

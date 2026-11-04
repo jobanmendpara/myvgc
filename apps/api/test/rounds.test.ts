@@ -210,7 +210,11 @@ describe('Rounds', () => {
       (await patch(t.app, url, { roundNumber: 1, result: 'loss', newOpponentName: 'C' }, misty))
         .status,
     ).toBe(404)
-    expect((await del(t.app, url, misty)).status).toBe(404)
+    // A delete has nothing of Misty's to remove, so it is done, and Ash's Round stays.
+    expect((await del(t.app, url, misty)).status).toBe(204)
+    expect(
+      (await json(await get(t.app, `/api/tournaments/${tournamentId}`, ash))).rounds,
+    ).toHaveLength(1)
     expect(await json(await get(t.app, '/api/opponents', misty))).toEqual([])
 
     // Misty can't log a Round of her own against Ash's Opponent.

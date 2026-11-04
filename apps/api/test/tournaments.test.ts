@@ -247,7 +247,8 @@ describe('Tournament details', () => {
     expect((await patch(t.app, `/api/tournaments/${id}`, { name: 'Mine now' }, misty)).status).toBe(
       404,
     )
-    expect((await del(t.app, `/api/tournaments/${id}`, misty)).status).toBe(404)
+    // A delete has nothing of Misty's to remove, so it is done, and Ash's Tournament stays.
+    expect((await del(t.app, `/api/tournaments/${id}`, misty)).status).toBe(204)
     expect(await json(await get(t.app, `/api/tournaments/${id}`, ash))).toMatchObject({
       name: REGIONAL.name,
     })

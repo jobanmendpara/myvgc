@@ -13,6 +13,18 @@ export const isId = (value: string | undefined): value is string =>
  */
 export const notFound = (c: Context) => c.json({ error: 'Not found' }, 404)
 
+/**
+ * The answer for a create whose client-chosen ID is already used by a record it can't be a replay
+ * of: another User's, or a Round in another Tournament.
+ */
+export const idTaken = (c: Context) => c.json({ error: 'That ID is already in use.' }, 409)
+
+/**
+ * The answer for a delete that found nothing of the User's to delete. A replayed delete must not
+ * fail, and saying "done" for another User's ID reveals as little as "not found" would.
+ */
+export const alreadyGone = (c: Context) => c.body(null, 204)
+
 export type BodyResult<T> = { ok: true; data: T } | { ok: false; response: Response }
 
 /**

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { clientIdSchema } from './client-id'
 import { MAX_NOTES_LENGTH } from './team'
 import { BEST_OF, type BestOf } from './tournament'
 
@@ -165,8 +166,10 @@ const gameCount = z.number().int().min(0).max(3)
 
 /**
  * What a User sends to log or change a Round. The Opponent is either one they have
- * (`opponentId`) or a new one to add on the spot (`newOpponentName`). Rules across fields are
- * checked with `roundIssues` once defaults are filled in.
+ * (`opponentId`) or a new one to add on the spot (`newOpponentName`, optionally under
+ * `newOpponentId`). A Swiss Round with no `roundNumber` takes the next free one, so leave it out
+ * unless the User typed it. Rules across fields are checked with `roundIssues` once defaults are
+ * filled in.
  */
 export const roundInputSchema = z.object({
   phase: z.enum(ROUND_PHASES).default('swiss'),
@@ -182,6 +185,7 @@ export const roundInputSchema = z.object({
   result: z.enum(ROUND_RESULTS).nullable().optional(),
   gameScore: z.object({ won: gameCount, lost: gameCount }).nullable().optional(),
   opponentId: z.uuid('Choose one of your Opponents.').nullable().optional(),
+  newOpponentId: clientIdSchema,
   newOpponentName: z
     .string()
     .trim()
@@ -196,6 +200,11 @@ export const roundInputSchema = z.object({
 })
 
 export type RoundInput = z.input<typeof roundInputSchema>
+
+/** What a User sends to log a new Round. */
+export const newRoundSchema = roundInputSchema.extend({ id: clientIdSchema })
+
+export type NewRound = z.input<typeof newRoundSchema>
 
 /** A Round as the API returns it. */
 export interface RoundView {

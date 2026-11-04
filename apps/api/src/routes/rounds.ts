@@ -1,5 +1,6 @@
 import {
   type SavedRound,
+  newRoundSchema,
   recordOf,
   roundInputSchema,
   roundIssues,
@@ -7,18 +8,22 @@ import {
   suggestedPlacement,
 } from '@myvgc/core'
 import { and, eq, ne } from 'drizzle-orm'
-import { Hono } from 'hono'
+import { type Context, Hono } from 'hono'
 import type { z } from 'zod'
 import type { AppEnv } from '../app'
 import { opponent, round, tournament } from '../db/schema'
 import type { Database } from '../db/types'
-import { invalid, isId, notFound, readBody } from './helpers'
+import { alreadyGone, idTaken, invalid, isId, notFound, readBody } from './helpers'
 import { ownOpponent } from './opponents'
 import { loadRounds } from './round-data'
 import { ownTournament } from './tournaments'
 
-type RoundInput = z.output<typeof roundInputSchema>
+// A PATCH has no `id`; it only names the Round to create.
+type RoundInput = z.output<typeof newRoundSchema>
 type Issue = { path: string[]; message: string }
+
+/** Thrown inside a save's transaction when a client-chosen ID belongs to another User. */
+class IdTaken extends Error {}
 
 /** The constraint a Postgres unique violation names, if the error is one. */
 function uniqueViolation(error: unknown): string | undefined {
@@ -49,7 +54,7 @@ export function roundRoutes(db: Database) {
     t: typeof tournament.$inferSelect,
     input: RoundInput,
     existingId?: string,
-  ): Promise<{ issues: Issue[] } | { saved: SavedRound }> {
+  ): Promise<{ issues: Issue[] } | { saved: SavedRound } | { taken: true }> {
     const others = await db
       .select({ id: round.id, roundNumber: round.roundNumber, stage: round.stage })
       .from(round)
@@ -88,15 +93,24 @@ export function roundRoutes(db: Database) {
 
     // The checks above read before writing, so two saves at once can both pass them; the unique
     // constraints catch that, and the loser gets the same answer as a plain duplicate.
-    const id = await insertOrUpdate().catch((error: unknown) => {
-      const constraint = uniqueViolation(error)
-      if (constraint === 'round_tournament_number_key')
-        return { path: ['roundNumber'], message: `Round ${facts.roundNumber} is already logged.` }
-      if (constraint === 'round_tournament_stage_key')
-        return { path: ['stage'], message: 'That Top cut stage is already logged.' }
-      throw error
-    })
-    if (typeof id !== 'string') return { issues: [id] }
+    const id = await insertOrUpdate().catch(
+      (error: unknown): { issues: Issue[] } | { taken: true } => {
+        if (error instanceof IdTaken) return { taken: true }
+        const constraint = uniqueViolation(error)
+        // The same new Round sent twice at once: the other send saved it.
+        if (constraint === 'round_pkey') return { taken: true }
+        if (constraint === 'round_tournament_number_key')
+          return {
+            issues: [
+              { path: ['roundNumber'], message: `Round ${facts.roundNumber} is already logged.` },
+            ],
+          }
+        if (constraint === 'round_tournament_stage_key')
+          return { issues: [{ path: ['stage'], message: 'That Top cut stage is already logged.' }] }
+        throw error
+      },
+    )
+    if (typeof id !== 'string') return id
     return { saved: await standing(t, id) }
 
     function insertOrUpdate() {
@@ -105,9 +119,14 @@ export function roundRoutes(db: Database) {
         if (!facts.bye && input.newOpponentName) {
           const [created] = await tx
             .insert(opponent)
-            .values({ ownerId: t.ownerId, displayName: input.newOpponentName })
+            .values({
+              id: input.newOpponentId,
+              ownerId: t.ownerId,
+              displayName: input.newOpponentName,
+            })
+            .onConflictDoNothing({ target: opponent.id })
             .returning({ id: opponent.id })
-          opponentId = created!.id
+          opponentId = created?.id ?? (await replayedOpponent(tx, input.newOpponentId!))
         }
         const values = {
           tournamentId: t.id,
@@ -124,10 +143,37 @@ export function roundRoutes(db: Database) {
         }
         const [row] = existingId
           ? await tx.update(round).set(values).where(eq(round.id, existingId)).returning()
-          : await tx.insert(round).values(values).returning()
+          : await tx
+              .insert(round)
+              .values({ ...values, id: input.id })
+              .returning()
         return row!.id
       })
     }
+
+    /** A replayed edit already added this Opponent; the saved one is kept. */
+    async function replayedOpponent(tx: Pick<Database, 'select'>, opponentId: string) {
+      const [own] = await tx
+        .select({ id: opponent.id })
+        .from(opponent)
+        .where(ownOpponent(opponentId, t.ownerId))
+      if (!own) throw new IdTaken()
+      return own.id
+    }
+  }
+
+  /**
+   * The answer to a create whose Round is already saved: the saved Round, as the server's version
+   * wins. Nothing when there is no Round with that ID.
+   */
+  async function replay(c: Context<AppEnv>, t: typeof tournament.$inferSelect, id: string) {
+    const [saved] = await db
+      .select({ tournamentId: round.tournamentId })
+      .from(round)
+      .where(eq(round.id, id))
+    if (!saved) return undefined
+    if (saved.tournamentId !== t.id) return idTaken(c)
+    return c.json(await standing(t, id))
   }
 
   /** A Round with its Tournament's Record and, if due, a suggested Placement. */
@@ -145,9 +191,15 @@ export function roundRoutes(db: Database) {
       .post('/', async (c) => {
         const t = await ownedTournament(c.req.param('tournamentId'), c.get('user').id)
         if (!t) return notFound(c)
-        const input = await readBody(c, roundInputSchema)
+        const input = await readBody(c, newRoundSchema)
         if (!input.ok) return input.response
+        // A replay is answered before any rule is checked, since a Round always clashes with
+        // itself.
+        const { id } = input.data
+        const replayed = id && (await replay(c, t, id))
+        if (replayed) return replayed
         const result = await save(t, input.data)
+        if ('taken' in result) return (id && (await replay(c, t, id))) || idTaken(c)
         if ('issues' in result) return invalid(c, result.issues)
         return c.json(result.saved, 201)
       })
@@ -164,18 +216,17 @@ export function roundRoutes(db: Database) {
         const input = await readBody(c, roundInputSchema)
         if (!input.ok) return input.response
         const result = await save(t, input.data, roundId)
+        if ('taken' in result) return idTaken(c)
         if ('issues' in result) return invalid(c, result.issues)
         return c.json(result.saved)
       })
       .delete('/:roundId', async (c) => {
-        const t = await ownedTournament(c.req.param('tournamentId'), c.get('user').id)
         const roundId = c.req.param('roundId')
-        if (!t || !isId(roundId)) return notFound(c)
-        const deleted = await db
-          .delete(round)
-          .where(and(eq(round.id, roundId), eq(round.tournamentId, t.id)))
-          .returning({ id: round.id })
-        if (deleted.length === 0) return notFound(c)
+        if (!isId(roundId)) return notFound(c)
+        const t = await ownedTournament(c.req.param('tournamentId'), c.get('user').id)
+        // The Tournament, and so the Round, is gone, or was never the User's.
+        if (!t) return alreadyGone(c)
+        await db.delete(round).where(and(eq(round.id, roundId), eq(round.tournamentId, t.id)))
         const rounds = (await loadRounds(db, [t.id])).get(t.id)!
         return c.json({ record: recordOf(rounds) })
       })
