@@ -6,7 +6,7 @@ MyVGC is a hub where a competitive player tracks their Pokémon VGC experience i
 
 - **VGC**: Video Game Championships, the official Pokémon competitive format. In Champions it is doubles: each player brings a Team of 6 and picks 4 of them for each Game.
 - **Regulation**: the ruleset in force for a period, such as Reg M-C. It decides which Pokémon, items and mechanics are legal. Each Regulation has a start and end date; the **current Regulation** is the one in force today. A new Tournament defaults to the Regulation in force on its date.
-- **Season**: the Play! Pokémon competitive year, running from the day after one Worlds to the end of the next, for example the 2027 Season. Championship Points reset each Season. A Tournament belongs to the Season its start date falls in. Seasons and their dates come with the app; Users don't define them.
+- **Season**: the Play! Pokémon competitive year, running from the day after one Worlds to the end of the next, for example the 2027 Season. Championship Points reset each Season. A Tournament belongs to the Season its start date falls in. Seasons and their dates come with the app; Users don't define them. In MyVGC the 2026 Season starts on Champions' release (2026-04-08), so it only holds the part of that Season played in Champions.
 - **User**: someone with a MyVGC account. Each User has a private space; nothing is shared between Users.
 - **Team**: up to six Pokémon builds. One type covers both the User's own teams (fully known) and teams seen from Opponents (often partly known). Everything except species is optional. An Opponent's Team is usually entered by choosing six species, then filling in what the open teamsheet shows.
 - **Pokémon build**: one Pokémon on a Team. In Champions it has a species or form, ability, held item, up to four moves, a nature (called Stat Alignment in Champions) and Stat Points (0 to 32 per stat, 66 in total). Champions has no EVs, IVs to set, Tera or level to choose; level is always 50.
@@ -21,7 +21,7 @@ MyVGC is a hub where a competitive player tracks their Pokémon VGC experience i
 - **Dropped**: the User left a Tournament before it ended. A Dropped Tournament usually has no Placement.
 - **Organizer**: who ran a Tournament, such as a local game store or community. Just a name, not a record of its own.
 - **Entry fee**: what the User paid to enter a Tournament: an amount and a currency. Totals across different currencies are never converted into one another.
-- **Championship Points (CP)**: the Play! Pokémon points a User earned at a Tournament, entered by hand. MyVGC does not calculate them.
+- **Championship Points (CP)**: the Play! Pokémon points a User earned at a Tournament, entered by hand. MyVGC does not calculate them. Because CP resets each Season, CP is only ever totalled within one Season.
 - **Event tier**: the kind of Tournament, from a fixed list: Premier Challenge, Regional, International, Worlds, Grassroots, Online, Other.
 - **Teamsheet**: the official Play! Pokémon team list for a Tournament. It can be generated in the app from a Team, or uploaded as a PDF.
 - **Round**: one pairing in a Tournament. Never called "Match". It has a phase (Swiss or Top cut) and, within it, a round number (Swiss) or a Top cut stage, is best of 1 or best of 3 (defaulting to the Tournament's setting), and has a result, an Opponent and notes (for example leads). Every Round except a Bye has an Opponent.
