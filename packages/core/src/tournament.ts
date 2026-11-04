@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { MAX_NOTES_LENGTH, REGULATIONS, type Regulation } from './team'
+import { MAX_NOTES_LENGTH, type NamedPokemonBuild, REGULATIONS, type Regulation } from './team'
 
 /** The kinds of Tournament, in the order the User picks from. */
 export const EVENT_TIERS = [
@@ -228,9 +228,44 @@ export interface TournamentView {
   notes: string
   /** It starts after today. */
   upcoming: boolean
+  /** The snapshot of the User's Team for this Tournament (ADR 9). */
+  team: TeamSnapshotView | null
+  /** Things worth a second look that don't stop a save, such as a Regulation mismatch. */
+  warnings: string[]
   createdAt: string
   updatedAt: string
 }
 
 /** Whether a Tournament starting on `startDate` is still Upcoming on `today`. */
 export const isUpcoming = (startDate: string, today: string) => startDate > today
+
+/** A frozen copy of a Team, attached to a Tournament (ADR 9). */
+export interface TeamSnapshotView {
+  /** The Team it was copied from, or null once that Team is deleted. */
+  teamId: string | null
+  name: string
+  regulation: Regulation
+  pokemon: NamedPokemonBuild[]
+  snapshotAt: string
+}
+
+export const linkTeamSchema = z.object({ teamId: z.uuid('Choose one of your Teams.') })
+
+/**
+ * Whether the Team snapshot can still be replaced on `today`: until the Tournament's last day
+ * (its end date, or its start date for a one-day event) has passed.
+ */
+export const canSnapshotTeam = (t: { startDate: string; endDate: string | null }, today: string) =>
+  (t.endDate ?? t.startDate) >= today
+
+/** Warnings about a Tournament as it stands. */
+export function tournamentWarnings(t: {
+  regulation: Regulation
+  team: { regulation: Regulation } | null
+}): string[] {
+  if (t.team && t.team.regulation !== t.regulation)
+    return [
+      `The Team is tagged Reg ${t.team.regulation}, but this Tournament is Reg ${t.regulation}.`,
+    ]
+  return []
+}

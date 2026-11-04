@@ -1,8 +1,14 @@
 <script setup lang="ts">
-import { EVENT_TIER_LABELS, type TournamentView, formatMoney } from '@myvgc/core/schema'
+import {
+  EVENT_TIER_LABELS,
+  type TournamentView,
+  canSnapshotTeam,
+  formatMoney,
+} from '@myvgc/core/schema'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 import { FetchError } from 'ofetch'
 import { formatDates, ordinal } from '@/lib/format'
+import { localToday } from '@/lib/tournament-form'
 
 const route = useRoute()
 const id = computed(() => String(route.params.id))
@@ -15,6 +21,14 @@ const query = useQuery({
 const tournament = query.data
 const notFound = computed(
   () => query.error.value instanceof FetchError && query.error.value.statusCode === 404,
+)
+
+const calendar = useCalendar()
+// The server has the final say; this only decides which buttons to show.
+const canSnapshot = computed(() =>
+  tournament.value
+    ? canSnapshotTeam(tournament.value, calendar.data.value?.today ?? localToday())
+    : false,
 )
 
 const queryClient = useQueryClient()
@@ -128,6 +142,8 @@ useHead({
           <dd class="font-semibold break-words">{{ tournament.organizer ?? '—' }}</dd>
         </div>
       </dl>
+
+      <TournamentTeam :tournament="tournament" :can-snapshot="canSnapshot" />
 
       <p v-if="tournament.link" class="text-sm">
         <a

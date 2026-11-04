@@ -36,6 +36,13 @@
       "when": 1793789299581,
       "tag": "0004_tournament_details",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793789711150,
+      "tag": "0005_tournament_team_snapshot",
+      "breakpoints": true
     }
   ]
 }

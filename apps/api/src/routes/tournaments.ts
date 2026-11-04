@@ -1,6 +1,11 @@
 import {
+  type TeamSnapshotView,
   type TournamentView,
+  canSnapshotTeam,
   isUpcoming,
+  linkTeamSchema,
+  nameBuild,
+  tournamentWarnings,
   newTournamentSchema,
   regulationOn,
   today,
@@ -11,13 +16,25 @@ import type { z } from 'zod'
 import { and, asc, desc, eq, ilike, isNotNull } from 'drizzle-orm'
 import { Hono } from 'hono'
 import type { AppEnv } from '../app'
-import { tournament } from '../db/schema'
+import { team, tournament } from '../db/schema'
 import type { Database } from '../db/types'
 import { invalid, isId, notFound, readBody } from './helpers'
 
 type TournamentRow = typeof tournament.$inferSelect
 
+function toSnapshotView(row: TournamentRow): TeamSnapshotView | null {
+  if (!row.teamName || !row.teamRegulation || !row.teamPokemon || !row.teamSnapshotAt) return null
+  return {
+    teamId: row.teamId,
+    name: row.teamName,
+    regulation: row.teamRegulation,
+    pokemon: row.teamPokemon.map(nameBuild),
+    snapshotAt: row.teamSnapshotAt.toISOString(),
+  }
+}
+
 export function toTournamentView(row: TournamentRow, on = today()): TournamentView {
+  const snapshot = toSnapshotView(row)
   return {
     id: row.id,
     name: row.name,
@@ -40,6 +57,8 @@ export function toTournamentView(row: TournamentRow, on = today()): TournamentVi
     dropped: row.dropped,
     notes: row.notes,
     upcoming: isUpcoming(row.startDate, on),
+    team: snapshot,
+    warnings: tournamentWarnings({ regulation: row.regulation, team: snapshot }),
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   }
@@ -139,6 +158,57 @@ export function tournamentRoutes(db: Database) {
           .where(where)
           .returning()
         return c.json(toTournamentView(row!))
+      })
+      .put('/:id/team', async (c) => {
+        const id = c.req.param('id')
+        if (!isId(id)) return notFound(c)
+        const input = await readBody(c, linkTeamSchema)
+        if (!input.ok) return input.response
+        const ownerId = c.get('user').id
+        const where = ownTournament(id, ownerId)
+        const [saved] = await db.select().from(tournament).where(where)
+        if (!saved) return notFound(c)
+        if (!canSnapshotTeam(saved, today()))
+          return c.json(
+            { error: 'This Tournament is over, so its Team snapshot stays as it is.' },
+            409,
+          )
+
+        const [source] = await db
+          .select()
+          .from(team)
+          .where(and(eq(team.id, input.data.teamId), eq(team.ownerId, ownerId)))
+        if (!source) return notFound(c)
+
+        const [row] = await db
+          .update(tournament)
+          .set({
+            teamId: source.id,
+            teamName: source.name,
+            teamRegulation: source.regulation,
+            teamPokemon: source.pokemon,
+            teamSnapshotAt: new Date(),
+          })
+          .where(where)
+          .returning()
+        return c.json(toTournamentView(row!))
+      })
+      .delete('/:id/team', async (c) => {
+        const id = c.req.param('id')
+        if (!isId(id)) return notFound(c)
+        const [row] = await db
+          .update(tournament)
+          .set({
+            teamId: null,
+            teamName: null,
+            teamRegulation: null,
+            teamPokemon: null,
+            teamSnapshotAt: null,
+          })
+          .where(ownTournament(id, c.get('user').id))
+          .returning()
+        if (!row) return notFound(c)
+        return c.json(toTournamentView(row))
       })
       .delete('/:id', async (c) => {
         const id = c.req.param('id')

@@ -1,4 +1,4 @@
-import { EVENT_TIERS } from '@myvgc/core'
+import { EVENT_TIERS, type PokemonBuild } from '@myvgc/core'
 import { sql } from 'drizzle-orm'
 import {
   boolean,
@@ -7,6 +7,7 @@ import {
   date,
   index,
   integer,
+  jsonb,
   pgEnum,
   pgTable,
   smallint,
@@ -15,7 +16,7 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core'
 import { user } from './auth-schema'
-import { regulation } from './team-schema'
+import { regulation, team } from './team-schema'
 
 export const eventTier = pgEnum('event_tier', EVENT_TIERS)
 
@@ -43,6 +44,13 @@ export const tournament = pgTable(
     link: text('link'),
     placement: integer('placement'),
     dropped: boolean('dropped').notNull().default(false),
+    // The Team snapshot (ADR 9): a copy of the User's Team, linked back to it while it exists.
+    // At most one per Tournament, so it lives here rather than in a table of its own.
+    teamId: uuid('team_id').references(() => team.id, { onDelete: 'set null' }),
+    teamName: text('team_name'),
+    teamRegulation: regulation('team_regulation'),
+    teamPokemon: jsonb('team_pokemon').$type<PokemonBuild[]>(),
+    teamSnapshotAt: timestamp('team_snapshot_at', { withTimezone: true }),
     notes: text('notes').notNull().default(''),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true })

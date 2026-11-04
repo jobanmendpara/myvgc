@@ -4,9 +4,9 @@
 
 **Blocked by:** 02
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] `PUT /api/tournaments/:id/team` saves a snapshot of the User's Team; another User's Team is a 404; once the end date (or the start date, if there is no end date) has passed it answers 409.
-- [ ] Editing the original Team afterwards doesn't change the snapshot; deleting it keeps the snapshot with no source.
-- [ ] `DELETE /api/tournaments/:id/team` unlinks it.
-- [ ] The response and the Tournament page carry a Regulation mismatch warning when the Regulations differ.
+- [x] `PUT /api/tournaments/:id/team` saves a snapshot of the User's Team; another User's Team is a 404; once the end date (or the start date, if there is no end date) has passed it answers 409.
+- [x] Editing the original Team afterwards doesn't change the snapshot; deleting it keeps the snapshot with no source.
+- [x] `DELETE /api/tournaments/:id/team` unlinks it.
+- [x] The response and the Tournament page carry a Regulation mismatch warning when the Regulations differ.
