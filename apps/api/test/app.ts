@@ -29,18 +29,34 @@ export async function createTestApp(
   return { app, db, client }
 }
 
-/** Sends a JSON request the way the web app does, from the app's own origin. */
-export function post(app: Hono<AppEnv>, path: string, body: unknown, cookie?: string) {
+/** Sends a request the way the web app does, from the app's own origin, with an optional JSON body. */
+export function send(
+  app: Hono<AppEnv>,
+  method: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE',
+  path: string,
+  options: { body?: unknown; cookie?: string } = {},
+) {
   return app.request(path, {
-    method: 'POST',
+    method,
     headers: {
-      'content-type': 'application/json',
+      ...(options.body === undefined ? {} : { 'content-type': 'application/json' }),
       origin: APP_URL,
-      ...(cookie ? { cookie } : {}),
+      ...(options.cookie ? { cookie: options.cookie } : {}),
     },
-    body: JSON.stringify(body),
+    body: options.body === undefined ? undefined : JSON.stringify(options.body),
   })
 }
+
+export const post = (app: Hono<AppEnv>, path: string, body: unknown, cookie?: string) =>
+  send(app, 'POST', path, { body, cookie })
+export const patch = (app: Hono<AppEnv>, path: string, body: unknown, cookie?: string) =>
+  send(app, 'PATCH', path, { body, cookie })
+export const put = (app: Hono<AppEnv>, path: string, body: unknown, cookie?: string) =>
+  send(app, 'PUT', path, { body, cookie })
+export const get = (app: Hono<AppEnv>, path: string, cookie?: string) =>
+  send(app, 'GET', path, { cookie })
+export const del = (app: Hono<AppEnv>, path: string, cookie?: string) =>
+  send(app, 'DELETE', path, { cookie })
 
 /** The cookie header to send back, built from a response's Set-Cookie headers. */
 export function cookieFrom(res: Response): string {

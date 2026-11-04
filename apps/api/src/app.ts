@@ -2,7 +2,12 @@ import { sql } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { type AuthOptions, type SessionUser, createAuth } from './auth'
 import type { Database } from './db/types'
+import { REGULATION_PERIODS, SEASONS, currentRegulation, today } from '@myvgc/core'
 import { teamRoutes } from './routes/teams'
+import { dashboardRoutes } from './routes/dashboard'
+import { opponentRoutes } from './routes/opponents'
+import { roundRoutes } from './routes/rounds'
+import { tournamentRoutes } from './routes/tournaments'
 import { mountWeb } from './static'
 
 export interface AppOptions {
@@ -51,6 +56,22 @@ export function createApp({ db, auth: authOptions, webDir }: AppOptions): Hono<A
   })
 
   app.route('/api/teams', teamRoutes(db))
+  app.route('/api/tournaments/:tournamentId/rounds', roundRoutes(db))
+  app.route('/api/tournaments', tournamentRoutes(db))
+  app.route('/api/opponents', opponentRoutes(db))
+  app.route('/api/dashboard', dashboardRoutes(db))
+
+  // Seasons and Regulation dates ship with the app (ADR 16). The web app reads them from here
+  // so it never has to load `@myvgc/core`, and "today" is the server's day.
+  app.get('/api/calendar', (c) => {
+    const on = today()
+    return c.json({
+      today: on,
+      currentRegulation: currentRegulation(on),
+      regulations: REGULATION_PERIODS,
+      seasons: SEASONS,
+    })
+  })
 
   app.notFound((c) =>
     c.req.path.startsWith('/api') ? c.json({ error: 'Not found' }, 404) : c.text('Not found', 404),

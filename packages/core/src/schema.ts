@@ -2,3 +2,8 @@
 // import it without downloading Showdown's data. Everything here is also in `@myvgc/core`.
 export * from './build'
 export * from './team'
+export * from './calendar'
+export * from './tournament'
+export * from './round'
+export * from './opponent'
+export * from './dashboard'

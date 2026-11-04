@@ -1,0 +1,224 @@
+<script setup lang="ts">
+import {
+  MAX_NOTES_LENGTH,
+  ROUND_RESULT_LABELS,
+  TOP_CUT_STAGE_LABELS,
+  type OpponentDetailView,
+  type OpponentRoundView,
+  formatRecord,
+} from '@myvgc/core/schema'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
+import { FetchError } from 'ofetch'
+import { fieldErrorsOf, saveFailureMessage } from '@/lib/api'
+import { formatDates } from '@/lib/format'
+
+const route = useRoute()
+const id = computed(() => String(route.params.id))
+const query = useQuery({
+  queryKey: computed(() => ['opponents', 'detail', id.value]),
+  queryFn: () => $fetch<OpponentDetailView>(`/api/opponents/${id.value}`),
+  retry: (count, error) => !(error instanceof FetchError && error.statusCode === 404) && count < 1,
+})
+const opponent = query.data
+const notFound = computed(
+  () => query.error.value instanceof FetchError && query.error.value.statusCode === 404,
+)
+useHead({
+  title: computed(() =>
+    opponent.value ? `${opponent.value.displayName} · MyVGC` : 'Opponent · MyVGC',
+  ),
+})
+
+// Editing: the display name, Aliases (one per line) and notes, saved together.
+const editing = ref(false)
+const displayName = ref('')
+const aliasText = ref('')
+const notes = ref('')
+function startEditing() {
+  if (!opponent.value) return
+  displayName.value = opponent.value.displayName
+  aliasText.value = opponent.value.aliases.join('\n')
+  notes.value = opponent.value.notes
+  editing.value = true
+}
+
+const queryClient = useQueryClient()
+const save = useMutation({
+  mutationFn: () => {
+    const url: string = `/api/opponents/${id.value}`
+    return $fetch<unknown>(url, {
+      method: 'PATCH',
+      body: {
+        displayName: displayName.value,
+        aliases: aliasText.value
+          .split('\n')
+          .map((a) => a.trim())
+          .filter(Boolean),
+        notes: notes.value,
+      },
+    })
+  },
+  onSuccess: async () => {
+    editing.value = false
+    await queryClient.invalidateQueries({ queryKey: ['opponents'] })
+    await queryClient.invalidateQueries({ queryKey: ['tournament'] })
+  },
+})
+const fieldErrors = computed(() => fieldErrorsOf(save.error.value))
+
+const confirmingDelete = ref(false)
+const remove = useMutation({
+  mutationFn: () => {
+    const url: string = `/api/opponents/${id.value}`
+    return $fetch<null>(url, { method: 'DELETE' })
+  },
+  onSuccess: async () => {
+    confirmingDelete.value = false
+    await queryClient.invalidateQueries({ queryKey: ['opponents'] })
+    await navigateTo('/opponents')
+  },
+})
+
+const outcome = (r: OpponentRoundView) =>
+  r.gameScore
+    ? `${ROUND_RESULT_LABELS[r.result]} ${r.gameScore.won}-${r.gameScore.lost}`
+    : ROUND_RESULT_LABELS[r.result]
+const label = (r: OpponentRoundView) =>
+  r.phase === 'swiss' ? `Round ${r.roundNumber}` : TOP_CUT_STAGE_LABELS[r.stage!]
+</script>
+
+<template>
+  <div class="flex flex-col gap-6">
+    <NuxtLink to="/opponents" class="text-muted-foreground text-sm hover:underline"
+      >← Opponents</NuxtLink
+    >
+
+    <p v-if="query.isPending.value" class="text-muted-foreground">Loading…</p>
+    <Card v-else-if="notFound">
+      <CardHeader>
+        <CardTitle>Opponent not found</CardTitle>
+        <CardDescription>They may have been deleted.</CardDescription>
+      </CardHeader>
+    </Card>
+    <Alert v-else-if="query.isError.value" variant="destructive" role="alert">
+      <AlertDescription>Couldn't load this Opponent.</AlertDescription>
+    </Alert>
+
+    <template v-else-if="opponent">
+      <form v-if="editing" class="flex flex-col gap-4" novalidate @submit.prevent="save.mutate()">
+        <div class="flex flex-col gap-2">
+          <Label for="display-name">Display name</Label>
+          <Input id="display-name" v-model="displayName" autocomplete="off" />
+          <p v-if="fieldErrors?.displayName" class="text-destructive text-sm">
+            {{ fieldErrors.displayName }}
+          </p>
+        </div>
+        <div class="flex flex-col gap-2">
+          <Label for="aliases"
+            >Aliases <span class="text-muted-foreground font-normal">(one per line)</span></Label
+          >
+          <Textarea
+            id="aliases"
+            v-model="aliasText"
+            rows="3"
+            placeholder="Legal name, screen name, Discord username, nickname"
+          />
+          <p v-if="fieldErrors?.aliases" class="text-destructive text-sm">
+            {{ fieldErrors.aliases }}
+          </p>
+        </div>
+        <div class="flex flex-col gap-2">
+          <Label for="opponent-notes">Notes</Label>
+          <Textarea id="opponent-notes" v-model="notes" rows="5" :maxlength="MAX_NOTES_LENGTH" />
+        </div>
+        <Alert v-if="save.isError.value && !fieldErrors" variant="destructive" role="alert">
+          <AlertDescription>{{
+            saveFailureMessage(save.error.value, 'Opponent')
+          }}</AlertDescription>
+        </Alert>
+        <div class="flex gap-2">
+          <Button type="submit" :disabled="save.isPending.value">{{
+            save.isPending.value ? 'Saving…' : 'Save'
+          }}</Button>
+          <Button type="button" variant="ghost" @click="editing = false">Cancel</Button>
+        </div>
+      </form>
+
+      <header v-else class="flex flex-col gap-2">
+        <div class="flex items-start justify-between gap-3">
+          <h1 class="min-w-0 text-2xl font-semibold break-words" data-testid="opponent-name">
+            {{ opponent.displayName }}
+          </h1>
+          <Button variant="outline" size="sm" @click="startEditing">Edit</Button>
+        </div>
+        <p v-if="opponent.aliases.length" class="text-muted-foreground text-sm">
+          Also: {{ opponent.aliases.join(', ') }}
+        </p>
+        <p class="text-sm" data-testid="head-to-head">
+          Head-to-head <span class="font-semibold">{{ formatRecord(opponent.headToHead) }}</span>
+          <span class="text-muted-foreground">
+            in {{ opponent.roundCount === 1 ? '1 Round' : `${opponent.roundCount} Rounds` }}</span
+          >
+        </p>
+        <p v-if="opponent.notes" class="mt-2 text-sm whitespace-pre-wrap">{{ opponent.notes }}</p>
+      </header>
+
+      <section aria-labelledby="opponent-rounds" class="flex flex-col gap-3">
+        <h2 id="opponent-rounds" class="font-semibold">Rounds against them</h2>
+        <p v-if="opponent.rounds.length === 0" class="text-muted-foreground text-sm">None yet.</p>
+        <ol v-else class="flex flex-col divide-y rounded-lg border">
+          <li v-for="r in opponent.rounds" :key="r.id" class="flex flex-col gap-1 p-3">
+            <div class="flex items-start justify-between gap-3">
+              <NuxtLink
+                :to="`/tournaments/${r.tournament.id}/rounds/${r.id}`"
+                class="min-w-0 font-medium break-words hover:underline"
+                >{{ r.tournament.name }}</NuxtLink
+              >
+              <span class="shrink-0 text-sm font-semibold">{{ outcome(r) }}</span>
+            </div>
+            <p class="text-muted-foreground text-xs">
+              {{ formatDates(r.tournament.startDate) }} · {{ label(r) }} · Best of {{ r.bestOf }}
+            </p>
+            <p v-if="r.notes" class="text-sm whitespace-pre-wrap">{{ r.notes }}</p>
+          </li>
+        </ol>
+      </section>
+
+      <div class="border-t pt-6">
+        <Button variant="ghost" class="text-destructive" @click="confirmingDelete = true"
+          >Delete Opponent</Button
+        >
+      </div>
+      <AlertDialog v-model:open="confirmingDelete">
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {{ opponent.displayName }}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              <template v-if="opponent.roundCount">
+                You have Rounds against them, so they can't be deleted. Rename them instead.
+              </template>
+              <template v-else>This removes the Opponent and their notes.</template>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <Alert v-if="remove.isError.value" variant="destructive" role="alert">
+            <AlertDescription>{{
+              saveFailureMessage(remove.error.value, 'Opponent')
+            }}</AlertDescription>
+          </Alert>
+          <AlertDialogFooter>
+            <AlertDialogCancel :disabled="remove.isPending.value">{{
+              opponent.roundCount ? 'Close' : 'Keep them'
+            }}</AlertDialogCancel>
+            <Button
+              v-if="!opponent.roundCount"
+              variant="destructive"
+              :disabled="remove.isPending.value"
+              @click="remove.mutate()"
+              >{{ remove.isPending.value ? 'Deleting…' : 'Delete Opponent' }}</Button
+            >
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </template>
+  </div>
+</template>

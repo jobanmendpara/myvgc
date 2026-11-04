@@ -43,3 +43,31 @@ test('sign up, import a Team and see its six Pokémon', async ({ page }) => {
   await page.goto('/teams')
   await expect(page.getByTestId('teams-list')).toContainText('Smoke test Team')
 })
+
+test('log a Tournament and a Round against a new Opponent', async ({ page }) => {
+  await page.goto('/signup')
+  await expect(page.getByRole('heading', { name: 'Create an account' })).toBeVisible()
+  await page.getByLabel('Email').fill(`smoke-round-${Date.now()}@example.com`)
+  await page.getByLabel('Password').fill('smoke-test-password')
+  await page.getByRole('button', { name: 'Create account' }).click()
+  await expect(page).toHaveURL(/\/teams$/)
+
+  await page.getByRole('link', { name: 'Tournaments' }).click()
+  await expect(page.getByRole('heading', { name: 'Your Tournaments' })).toBeVisible()
+  await page.getByRole('link', { name: 'Log your first Tournament' }).click()
+  await expect(page.getByRole('heading', { name: 'New Tournament' })).toBeVisible()
+  await page.getByLabel('Name', { exact: true }).fill('Smoke test Regional')
+  await page.getByLabel('Start date').fill('2026-09-19')
+  await page.getByRole('button', { name: 'Save Tournament' }).click()
+  await expect(page.getByTestId('tournament-name')).toHaveText('Smoke test Regional')
+
+  await page.getByRole('link', { name: 'Log Round' }).click()
+  await expect(page.getByRole('heading', { name: 'Log a Round' })).toBeVisible()
+  await page.getByRole('combobox').fill('Smoke Opponent')
+  await page.getByRole('option', { name: /Add “Smoke Opponent”/ }).click()
+  await page.getByText('Win', { exact: true }).click()
+  await page.getByRole('button', { name: 'Log Round' }).click()
+
+  await expect(page.getByTestId('record')).toContainText('Swiss 1-0-0')
+  await expect(page.getByTestId('round')).toContainText('Smoke Opponent')
+})

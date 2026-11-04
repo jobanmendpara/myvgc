@@ -22,6 +22,34 @@
       "when": 1793701796669,
       "tag": "0002_teams",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1793788815775,
+      "tag": "0003_tournaments",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793789299581,
+      "tag": "0004_tournament_details",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793789711150,
+      "tag": "0005_tournament_team_snapshot",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793790221890,
+      "tag": "0006_rounds_and_opponents",
+      "breakpoints": true
     }
   ]
 }
