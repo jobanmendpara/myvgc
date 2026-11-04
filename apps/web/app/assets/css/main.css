@@ -31,7 +31,8 @@
   --color-ring: var(--ring);
 }
 
-:root {
+:root,
+[data-palette='neutral'][data-mode='light'] {
   --radius: 0.625rem;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
@@ -60,6 +61,9 @@
 
 :root[data-mode='dark'] {
   color-scheme: dark;
+}
+
+[data-mode='dark'] {
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.205 0 0);
@@ -80,8 +84,11 @@
   --ring: oklch(0.556 0 0);
 }
 
+/* Palettes apply to any element with data-palette and data-mode, not only <html>, so a
+   swatch can preview a palette that is not the active one. */
+
 /* Pikachu: warm yellow. */
-:root[data-palette='pikachu'][data-mode='light'] {
+[data-palette='pikachu'][data-mode='light'] {
   --background: oklch(0.995 0.008 95);
   --foreground: oklch(0.2 0.02 85);
   --card: oklch(1 0.004 95);
@@ -102,7 +109,7 @@
   --ring: oklch(0.75 0.15 90);
 }
 
-:root[data-palette='pikachu'][data-mode='dark'] {
+[data-palette='pikachu'][data-mode='dark'] {
   --background: oklch(0.17 0.012 85);
   --foreground: oklch(0.97 0.015 95);
   --card: oklch(0.22 0.015 85);
@@ -124,7 +131,7 @@
 }
 
 /* Lapras: cool blue and teal. */
-:root[data-palette='lapras'][data-mode='light'] {
+[data-palette='lapras'][data-mode='light'] {
   --background: oklch(0.99 0.006 225);
   --foreground: oklch(0.2 0.03 235);
   --card: oklch(1 0.003 225);
@@ -145,7 +152,7 @@
   --ring: oklch(0.65 0.1 220);
 }
 
-:root[data-palette='lapras'][data-mode='dark'] {
+[data-palette='lapras'][data-mode='dark'] {
   --background: oklch(0.17 0.025 240);
   --foreground: oklch(0.97 0.01 220);
   --card: oklch(0.22 0.03 240);

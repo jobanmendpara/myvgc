@@ -53,9 +53,11 @@ export function writeStored(key: string, value: string) {
   }
 }
 
-export function applyTheme(palette: Palette, mode: Mode) {
+export function applyTheme(palette: Palette, mode: Mode): 'light' | 'dark' {
   const dark = window.matchMedia('(prefers-color-scheme: dark)').matches
   const root = document.documentElement
   root.dataset.palette = palette
-  root.dataset.mode = resolveMode(mode, dark)
+  const resolved = resolveMode(mode, dark)
+  root.dataset.mode = resolved
+  return resolved
 }
