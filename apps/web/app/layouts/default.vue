@@ -19,6 +19,7 @@ async function logOut() {
   await authClient.signOut()
   // Drop everything cached for this User before anyone else logs in on this device.
   queryClient.clear()
+  forgetChampionsNames()
   await navigateTo('/login')
 }
 </script>

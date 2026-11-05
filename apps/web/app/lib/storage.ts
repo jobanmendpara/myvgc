@@ -17,3 +17,11 @@ export function writeStored(key: string, value: string) {
     // Ignore: see above.
   }
 }
+
+export function removeStored(key: string) {
+  try {
+    localStorage.removeItem(key)
+  } catch {
+    // Ignore: there is nothing to remove.
+  }
+}

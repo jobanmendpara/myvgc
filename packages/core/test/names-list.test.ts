@@ -1,3 +1,4 @@
+import { gzipSync } from 'node:zlib'
 import { describe, expect, it } from 'vitest'
 import { NAME_KINDS, champions, championsNames, searchNames } from '../src'
 
@@ -19,6 +20,10 @@ describe('championsNames', () => {
     expect(Object.keys(names.abilities)).toHaveLength(317)
   })
 
+  it('stays small enough to keep on a phone, about 13 KB gzipped', () => {
+    expect(gzipSync(JSON.stringify(names)).length).toBeLessThan(16_000)
+  })
+
   it('holds only names the Champions look-ups recognise, under their own IDs', () => {
     const lookUp = {
       species: 'species',
@@ -33,7 +38,7 @@ describe('championsNames', () => {
     }
   })
 
-  it('leaves out Natures, which the web app carries itself', () => {
+  it('leaves out Stat Alignments', () => {
     expect(Object.keys(names).sort()).toEqual(['abilities', 'items', 'moves', 'species'])
   })
 })

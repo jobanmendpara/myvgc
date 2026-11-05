@@ -1,6 +1,6 @@
 import { type ChampionsNames, NAME_KINDS } from '@myvgc/core/schema'
 import { useQuery } from '@tanstack/vue-query'
-import { readStored, writeStored } from '@/lib/storage'
+import { readStored, removeStored, writeStored } from '@/lib/storage'
 
 // Bump when the shape of the names list changes, so old copies on devices are ignored.
 const STORAGE_KEY = 'myvgc-names-v1'
@@ -24,14 +24,25 @@ function readStoredNames(): StoredNames | undefined {
 }
 
 // Read from storage once per page load; after that the query cache holds the list.
-let stored: { value: StoredNames | undefined } | undefined
-const cached = () => (stored ??= { value: readStoredNames() }).value
+// `null` means not read yet.
+let storedNames: StoredNames | undefined | null = null
+function cached(): StoredNames | undefined {
+  if (storedNames === null) storedNames = readStoredNames()
+  return storedNames
+}
+
+/** Drops the copy kept on this device, so local data stays disposable (ADR 17). */
+export function forgetChampionsNames() {
+  removeStored(STORAGE_KEY)
+  storedNames = undefined
+}
 
 /**
  * The names list for pickers: display names for every Champions species, move, item and
  * ability, keyed by Showdown ID (ADR 17). The last copy is kept on the device, so pickers work
  * with no signal; when online it is refreshed once a day. Store the IDs, show the names (ADR 14).
- * The list isn't private, so it isn't keyed by User or cleared on logout.
+ * Like the rest of the device's data it is cleared on logout; it is the same for every User,
+ * so it needs no User in its key.
  */
 export function useChampionsNames() {
   return useQuery({

@@ -16,8 +16,8 @@ export type NameKind = (typeof NAME_KINDS)[number]
 export type NamesTable = Record<string, string>
 
 /**
- * The names list. Natures (Stat Alignments) are not in it: there are only 25, and the web app
- * carries them itself.
+ * The names list. Stat Alignments are not in it: there are only 25, and DEV-33 hard-codes them in
+ * this light entry point instead.
  */
 export type ChampionsNames = Record<NameKind, NamesTable>
 
