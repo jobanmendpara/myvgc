@@ -1,14 +1,16 @@
 <script setup lang="ts">
-import { type NameKind, searchNames } from '@myvgc/core/schema'
+import { type NameKind, searchAbilities, searchNames } from '@myvgc/core/schema'
 
 /**
  * Picks one species, move, item or ability from the names list, which works with no signal
  * once the list is on the device. The model is the Showdown ID (ADR 14); the User sees names.
+ * For abilities, `species` puts that species' own abilities first (see `searchAbilities`).
  */
 const props = defineProps<{
   id: string
   label: string
   kind: NameKind
+  species?: string | null
   placeholder?: string
   error?: string
 }>()
@@ -24,9 +26,12 @@ const unavailable = computed(
 const text = ref('')
 const open = ref(false)
 const active = ref(0)
-const options = computed(() =>
-  table.value ? searchNames(table.value, text.value, SUGGESTIONS) : [],
-)
+const options = computed(() => {
+  if (!names.data.value || !table.value) return []
+  return props.kind === 'abilities'
+    ? searchAbilities(names.data.value, props.species, text.value, SUGGESTIONS)
+    : searchNames(table.value, text.value, SUGGESTIONS)
+})
 watch(options, () => (active.value = 0))
 
 const chosenName = computed(() =>

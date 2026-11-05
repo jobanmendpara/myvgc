@@ -16,10 +16,12 @@ export type NameKind = (typeof NAME_KINDS)[number]
 export type NamesTable = Record<string, string>
 
 /**
- * The names list. Stat Alignments are not in it: there are only 25, hard-coded in
- * `stat-alignment.ts` instead.
+ * The names list, plus each species' or form's own abilities for the ability picker. Stat
+ * Alignments are not in it: there are only 25, hard-coded in `stat-alignment.ts` instead.
  */
-export type ChampionsNames = Record<NameKind, NamesTable>
+export type ChampionsNames = Record<NameKind, NamesTable> & {
+  abilitiesBySpecies: Record<string, string[]>
+}
 
 /** Folds text the way Showdown builds IDs: lower case, letters and digits only. */
 function fold(text: string): string {
@@ -43,4 +45,26 @@ export function searchNames(table: NamesTable, query: string, limit = Infinity):
     else if (folded.includes(needle) || id.includes(needle)) contains.push({ id, name })
   }
   return [...starts.sort(byName), ...contains.sort(byName)].slice(0, limit)
+}
+
+/**
+ * The ability picker's search. With no query it lists only the species' own abilities; with a
+ * query those come first, then every other match, because this is a convenience and not a
+ * legality check (ADR 10). With no species, or none listed for it, it searches every ability.
+ */
+export function searchAbilities(
+  names: Pick<ChampionsNames, 'abilities' | 'abilitiesBySpecies'>,
+  species: string | null | undefined,
+  query: string,
+  limit = Infinity,
+): Named[] {
+  const own: NamesTable = {}
+  for (const id of (species && names.abilitiesBySpecies[species]) || []) {
+    const name = names.abilities[id]
+    if (name) own[id] = name
+  }
+  const ownMatches = searchNames(own, query)
+  if (!fold(query) && ownMatches.length) return ownMatches.slice(0, limit)
+  const others = searchNames(names.abilities, query).filter((entry) => !(entry.id in own))
+  return [...ownMatches, ...others].slice(0, limit)
 }
