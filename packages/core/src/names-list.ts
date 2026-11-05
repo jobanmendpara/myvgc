@@ -2,6 +2,7 @@
 // ability, keyed by Showdown ID (ADR 14, ADR 17). This module holds only the shape and the
 // search, so the web app can use it through `@myvgc/core/schema`; the list itself is built
 // from Showdown's data in `champions.ts` and served by the API.
+import type { BaseStats } from './stat-values'
 
 /** A name the Champions data recognises: its Showdown ID and display name. */
 export interface Named {
@@ -16,11 +17,13 @@ export type NameKind = (typeof NAME_KINDS)[number]
 export type NamesTable = Record<string, string>
 
 /**
- * The names list, plus each species' or form's own abilities for the ability picker. Stat
- * Alignments are not in it: there are only 25, hard-coded in `stat-alignment.ts` instead.
+ * The names list, plus each species' or form's own abilities for the ability picker and its
+ * base stats for stat values. Stat Alignments are not in it: there are only 25, hard-coded in
+ * `stat-alignment.ts` instead.
  */
 export type ChampionsNames = Record<NameKind, NamesTable> & {
   abilitiesBySpecies: Record<string, string[]>
+  baseStats: Record<string, BaseStats>
 }
 
 /** Folds text the way Showdown builds IDs: lower case, letters and digits only. */

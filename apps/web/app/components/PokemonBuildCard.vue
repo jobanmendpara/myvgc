@@ -20,7 +20,12 @@ const buildWarnings = computed(() => wholeBuildProblems(props.problems ?? []))
 const moveWarnings = computed(() =>
   props.build.names.moves.map((_, index) => moveProblems(props.problems ?? [], index)),
 )
-const hasStatPoints = computed(() => STAT_IDS.some((stat) => props.build.statPoints[stat] > 0))
+// Shown only once something about the spread is known, so a partly known Opponent's build
+// doesn't show stat values as if they were real.
+const spreadKnown = computed(
+  () => Boolean(props.build.nature) || STAT_IDS.some((stat) => props.build.statPoints[stat] > 0),
+)
+const values = useStatValues(() => props.build)
 </script>
 
 <template>
@@ -59,14 +64,24 @@ const hasStatPoints = computed(() => STAT_IDS.some((stat) => props.build.statPoi
       </li>
     </ul>
 
-    <div v-if="hasStatPoints">
-      <h3 class="text-muted-foreground mb-1 text-xs font-medium tracking-wide uppercase">
-        Stat Points
-      </h3>
+    <div v-if="spreadKnown">
+      <h3 class="text-muted-foreground mb-1 text-xs font-medium tracking-wide uppercase">Stats</h3>
       <dl class="grid grid-cols-6 gap-1 text-center text-sm">
-        <div v-for="stat in STAT_IDS" :key="stat" class="rounded border px-0.5 py-1">
-          <dt class="text-muted-foreground text-xs">{{ STAT_LABELS[stat] }}</dt>
-          <dd :class="build.statPoints[stat] ? 'font-medium' : 'text-muted-foreground'">
+        <div
+          v-for="stat in STAT_IDS"
+          :key="stat"
+          class="rounded border px-0.5 py-1"
+          :data-testid="`stat-${stat}`"
+        >
+          <dt class="text-muted-foreground text-xs">
+            {{ STAT_LABELS[stat] }}
+            <StatAlignmentMark :stat-alignment="build.nature" :stat="stat" />
+          </dt>
+          <dd class="font-medium tabular-nums">{{ values?.[stat] ?? '—' }}</dd>
+          <dd
+            class="text-muted-foreground text-xs tabular-nums"
+            :aria-label="`${build.statPoints[stat]} Stat Points`"
+          >
             {{ build.statPoints[stat] }}
           </dd>
         </div>

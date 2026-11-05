@@ -20,8 +20,8 @@ describe('championsNames', () => {
     expect(Object.keys(names.abilities)).toHaveLength(317)
   })
 
-  it('stays small enough to keep on a phone, about 17 KB gzipped', () => {
-    expect(gzipSync(JSON.stringify(names)).length).toBeLessThan(20_000)
+  it('stays small enough to keep on a phone, about 23 KB gzipped', () => {
+    expect(gzipSync(JSON.stringify(names)).length).toBeLessThan(25_000)
   })
 
   it('holds only names the Champions look-ups recognise, under their own IDs', () => {
@@ -42,6 +42,7 @@ describe('championsNames', () => {
     expect(Object.keys(names).sort()).toEqual([
       'abilities',
       'abilitiesBySpecies',
+      'baseStats',
       'items',
       'moves',
       'species',

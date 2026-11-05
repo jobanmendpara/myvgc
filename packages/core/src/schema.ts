@@ -2,6 +2,7 @@
 // import it without downloading Showdown's data. Everything here is also in `@myvgc/core`.
 export * from './build'
 export * from './stat-alignment'
+export * from './stat-values'
 export * from './client-id'
 export * from './team'
 export * from './calendar'
