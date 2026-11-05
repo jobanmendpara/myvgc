@@ -26,6 +26,8 @@ test('sign up, import a Team and see its six Pokémon', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Your Teams' })).toBeVisible()
 
   await page.goto('/teams/new')
+  await expect(page.getByRole('heading', { name: 'New Team' })).toBeVisible()
+  await page.getByRole('link', { name: /Import a paste/ }).click()
   await expect(page.getByRole('heading', { name: 'Import a Team' })).toBeVisible()
   await page.getByLabel('Name', { exact: true }).fill('Smoke test Team')
   await page.getByLabel('Regulation').selectOption('M-B')
@@ -42,6 +44,49 @@ test('sign up, import a Team and see its six Pokémon', async ({ page }) => {
 
   await page.goto('/teams')
   await expect(page.getByTestId('teams-list')).toContainText('Smoke test Team')
+})
+
+test('build a one-Pokémon Team, then edit a move', async ({ page }) => {
+  await page.goto('/signup')
+  await expect(page.getByRole('heading', { name: 'Create an account' })).toBeVisible()
+  await page.getByLabel('Email').fill(`smoke-build-${Date.now()}@example.com`)
+  await page.getByLabel('Password').fill('smoke-test-password')
+  await page.getByRole('button', { name: 'Create account' }).click()
+  await expect(page).toHaveURL(/\/teams$/)
+
+  await page.goto('/teams/new')
+  await page.getByRole('link', { name: /Build/ }).click()
+  await expect(page.getByRole('heading', { name: 'Build a Team' })).toBeVisible()
+  await page.getByLabel('Name', { exact: true }).fill('Built Team')
+
+  const pick = async (label: string, search: string) => {
+    await page.getByRole('combobox', { name: label }).fill(search)
+    await page.getByRole('option', { name: search, exact: true }).click()
+  }
+
+  await page.getByRole('button', { name: 'Add a Pokémon' }).first().click()
+  await pick('Species', 'Incineroar')
+  await pick('Move 1', 'Fake Out')
+  await page.getByRole('button', { name: 'Done' }).click()
+  await page.getByRole('button', { name: 'Save Team' }).click()
+
+  await expect(page).toHaveURL(/\/teams\/[0-9a-f-]{36}$/)
+  await expect(page.getByTestId('pokemon-build')).toContainText('Fake Out')
+
+  await page.getByRole('link', { name: 'Edit' }).click()
+  await expect(page.getByRole('heading', { name: 'Edit Team' })).toBeVisible()
+  await page
+    .getByTestId('build-slot')
+    .getByRole('button', { name: /Incineroar/ })
+    .click()
+  await page.getByTestId('build-move-1-choice').getByRole('button', { name: 'Change' }).click()
+  await pick('Move 1', 'Flare Blitz')
+  await page.getByRole('button', { name: 'Done' }).click()
+  await page.getByRole('button', { name: 'Save Team' }).click()
+
+  await expect(page).toHaveURL(/\/teams\/[0-9a-f-]{36}$/)
+  await expect(page.getByTestId('pokemon-build')).toContainText('Flare Blitz')
+  await expect(page.getByTestId('pokemon-build')).not.toContainText('Fake Out')
 })
 
 test('log a Tournament and a Round against a new Opponent', async ({ page }) => {

@@ -8,6 +8,8 @@ Status: Accepted
 - The paste reader rejects malformed pastes with clear, line-by-line errors: more than 6 Pokémon, more than 4 moves, Stat Points above 32 for a stat or above 66 in total, or a name the Champions data doesn't recognize.
 - Pokémon builds sent directly (by the form-based Team builder) pass the same checks as a paste, with errors by field instead of by line: a name the Champions data doesn't recognize, Stat Points out of range, more than 4 moves, or more than 6 Pokémon.
 - Both ways in also reject the same move twice in one build. That is malformed data, not legality; two builds with the same species or item are legality (species and item clauses) and stay unchecked.
+- Both ways in also limit a nickname to one line of at most 100 characters, so it can't break a line of an exported paste.
+- The 25 Stat Alignments are the one exception to looking names up: their IDs, names and effects are hard-coded in `@myvgc/core/schema` so the web app needn't load the data package. A test keeps them matching it.
 - Whether a Team is legal in a Regulation is still not checked (ADR 10).
 
 ## Consequences

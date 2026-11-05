@@ -152,6 +152,32 @@ describe('rejecting pastes', () => {
     ])
   })
 
+  it('rejects the same move twice in one Pokémon', () => {
+    expect(expectErrors('Incineroar\n- Fake Out\n- Protect\n- fake out')).toEqual([
+      { line: 4, message: 'This Pokémon already has "fake out".' },
+    ])
+  })
+
+  it('reports only the repeat, not the moves after it', () => {
+    expect(expectErrors('Incineroar\n- Fake Out\n- Fake Out\n- Protect')).toEqual([
+      { line: 3, message: 'This Pokémon already has "Fake Out".' },
+    ])
+  })
+
+  it('does not count two unknown moves as a repeat', () => {
+    expect(expectErrors('Incineroar\n- Nope\n- Nada\n- Protect').map((e) => e.line)).toEqual([2, 3])
+  })
+
+  it('allows the same move on two different Pokémon', () => {
+    expect(readPaste('Incineroar\n- Protect\n\nGarchomp\n- Protect').ok).toBe(true)
+  })
+
+  it('rejects a nickname too long to store', () => {
+    expect(expectErrors(`${'a'.repeat(101)} (Incineroar)`)).toEqual([
+      { line: 1, message: 'Nicknames can be at most 100 characters.' },
+    ])
+  })
+
   it('rejects a stat above 32 Stat Points', () => {
     expect(expectErrors('Incineroar\nAbility: Intimidate\nEVs: 33 HP / 2 Atk')).toEqual([
       { line: 3, message: 'HP has 33 Stat Points; the most for one stat is 32.' },
@@ -184,7 +210,7 @@ describe('rejecting pastes', () => {
     ['an ability', 'Ability: Totally Real', 'Totally Real'],
     ['a move', '- Tera Blast', 'Tera Blast'],
     ['a move', '- Protect / Detect', 'Protect / Detect'],
-    ['a nature', 'Grumpy Nature', 'Grumpy'],
+    ['a Stat Alignment', 'Grumpy Nature', 'Grumpy'],
   ])('rejects %s that Champions does not have (%s)', (kind, line, name) => {
     expect(expectErrors(`Incineroar\n${line}`)).toEqual([
       { line: 2, message: `"${name}" is not ${kind} in Pokémon Champions.` },

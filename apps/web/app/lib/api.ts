@@ -47,6 +47,8 @@ export function fieldErrorsOf(error: unknown): Record<string, string> | undefine
 export function saveFailureMessage(error: unknown, what: string): string {
   if (error instanceof FetchError && error.statusCode === 401)
     return `Your session has ended. Log in again to save this ${what}.`
+  if (error instanceof FetchError && error.statusCode === 404)
+    return `This ${what} no longer exists. It may have been deleted on another device.`
   if (error instanceof FetchError && error.statusCode === 409 && error.data?.error)
     return error.data.error
   return `Couldn't save the ${what}. Check your connection and try again.`

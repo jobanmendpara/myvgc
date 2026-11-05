@@ -40,6 +40,20 @@ export const champions = {
 
 export type ChampionsKind = keyof typeof champions
 
+// Each kind with its article, for messages like "is not an item in Pokémon Champions".
+const KIND_NOUNS: Record<ChampionsKind, string> = {
+  species: 'a Pokémon',
+  item: 'an item',
+  ability: 'an ability',
+  move: 'a move',
+  nature: 'a Stat Alignment',
+}
+
+/** The message for a name the Champions data doesn't recognize. */
+export function unknownName(kind: ChampionsKind, name: string): string {
+  return `"${name}" is not ${KIND_NOUNS[kind]} in Pokémon Champions.`
+}
+
 /** The display name for a stored ID, falling back to the ID if the data doesn't have it. */
 export function displayName(kind: ChampionsKind, id: string): string {
   return champions[kind](id)?.name ?? id
