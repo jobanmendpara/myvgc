@@ -50,7 +50,7 @@ describe('checkPokemon', () => {
       },
       {
         path: ['pokemon', 1, 'nature'],
-        message: '"notanature" is not a nature in Pokémon Champions.',
+        message: '"notanature" is not a Stat Alignment in Pokémon Champions.',
       },
       {
         path: ['pokemon', 1, 'moves', 1],

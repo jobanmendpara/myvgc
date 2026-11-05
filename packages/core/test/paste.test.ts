@@ -158,6 +158,16 @@ describe('rejecting pastes', () => {
     ])
   })
 
+  it('reports only the repeat, not the moves after it', () => {
+    expect(expectErrors('Incineroar\n- Fake Out\n- Fake Out\n- Protect')).toEqual([
+      { line: 3, message: 'This Pokémon already has "Fake Out".' },
+    ])
+  })
+
+  it('does not count two unknown moves as a repeat', () => {
+    expect(expectErrors('Incineroar\n- Nope\n- Nada\n- Protect').map((e) => e.line)).toEqual([2, 3])
+  })
+
   it('allows the same move on two different Pokémon', () => {
     expect(readPaste('Incineroar\n- Protect\n\nGarchomp\n- Protect').ok).toBe(true)
   })
@@ -200,7 +210,7 @@ describe('rejecting pastes', () => {
     ['an ability', 'Ability: Totally Real', 'Totally Real'],
     ['a move', '- Tera Blast', 'Tera Blast'],
     ['a move', '- Protect / Detect', 'Protect / Detect'],
-    ['a nature', 'Grumpy Nature', 'Grumpy'],
+    ['a Stat Alignment', 'Grumpy Nature', 'Grumpy'],
   ])('rejects %s that Champions does not have (%s)', (kind, line, name) => {
     expect(expectErrors(`Incineroar\n${line}`)).toEqual([
       { line: 2, message: `"${name}" is not ${kind} in Pokémon Champions.` },

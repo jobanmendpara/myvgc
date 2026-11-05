@@ -46,7 +46,7 @@ const KIND_NOUNS: Record<ChampionsKind, string> = {
   item: 'an item',
   ability: 'an ability',
   move: 'a move',
-  nature: 'a nature',
+  nature: 'a Stat Alignment',
 }
 
 /** The message for a name the Champions data doesn't recognize. */

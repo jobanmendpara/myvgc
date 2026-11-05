@@ -173,7 +173,7 @@ function readBuild(
         continue
       }
       const move = lookUp('move', name, line)
-      if (move && repeatedMoves([...build.moves, move]).length > 0) {
+      if (move && repeatedMoves([...build.moves, move]).includes(build.moves.length)) {
         errors.push({ line: line.number, message: `This Pokémon already has "${name}".` })
       }
       build.moves.push(move ?? '')

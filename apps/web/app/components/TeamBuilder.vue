@@ -36,7 +36,7 @@ function add() {
   editing.value = draft.pokemon.length - 1
 }
 
-function move(from: number, to: number) {
+function reorder(from: number, to: number) {
   if (to < 0 || to >= draft.pokemon.length || from === to) return
   draft.pokemon.splice(to, 0, ...draft.pokemon.splice(from, 1))
 }
@@ -44,8 +44,13 @@ function move(from: number, to: number) {
 // Dragging a slot onto another, with a mouse or trackpad.
 const finePointer = useMediaQuery('(pointer: fine)')
 const dragging = ref<number | null>(null)
+function startDrag(event: DragEvent, index: number) {
+  dragging.value = index
+  // Firefox only starts a drag that carries data.
+  event.dataTransfer?.setData('text/plain', String(index))
+}
 function drop(to: number) {
-  if (dragging.value !== null) move(dragging.value, to)
+  if (dragging.value !== null) reorder(dragging.value, to)
   dragging.value = null
 }
 
@@ -53,6 +58,8 @@ const queryClient = useQueryClient()
 const saved = ref(false)
 const save = useMutation({
   mutationFn: props.save,
+  // Teams are online only (ADR 17): say so now, rather than saving whenever a signal returns.
+  networkMode: 'always',
   onSuccess: async (team) => {
     saved.value = true
     queryClient.setQueryData(['team', team.id], team)
@@ -159,13 +166,13 @@ useEventListener(window, 'beforeunload', (event: BeforeUnloadEvent) => {
           :count="draft.pokemon.length"
           :error="slotError(index)"
           :draggable="finePointer"
-          @dragstart="dragging = index"
+          @dragstart="startDrag($event, index)"
           @dragend="dragging = null"
           @dragover.prevent
           @drop.prevent="drop(index)"
           @edit="editing = index"
           @remove="draft.pokemon.splice(index, 1)"
-          @move="(to: number) => move(index, to)"
+          @reorder="(to: number) => reorder(index, to)"
         />
         <li
           v-for="empty in MAX_TEAM_SIZE - draft.pokemon.length"

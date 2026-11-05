@@ -26,7 +26,7 @@ const props = defineProps<{
   count: number
   error?: string
 }>()
-const emit = defineEmits<{ edit: []; remove: []; move: [to: number] }>()
+const emit = defineEmits<{ edit: []; remove: []; reorder: [to: number] }>()
 
 const finePointer = useMediaQuery('(pointer: fine)')
 const names = useChampionsNames()
@@ -87,14 +87,14 @@ const MENU_ITEM =
           <DropdownMenuItem
             :class="MENU_ITEM"
             :disabled="props.index === 0"
-            @select="emit('move', props.index - 1)"
+            @select="emit('reorder', props.index - 1)"
           >
             <ArrowUpIcon aria-hidden="true" /> Move up
           </DropdownMenuItem>
           <DropdownMenuItem
             :class="MENU_ITEM"
             :disabled="props.index === props.count - 1"
-            @select="emit('move', props.index + 1)"
+            @select="emit('reorder', props.index + 1)"
           >
             <ArrowDownIcon aria-hidden="true" /> Move down
           </DropdownMenuItem>
@@ -113,7 +113,7 @@ const MENU_ITEM =
         class="size-11"
         :aria-label="`Move Pokémon ${props.index + 1} up`"
         :disabled="props.index === 0"
-        @click="emit('move', props.index - 1)"
+        @click="emit('reorder', props.index - 1)"
       >
         <ArrowUpIcon aria-hidden="true" />
       </Button>
@@ -124,7 +124,7 @@ const MENU_ITEM =
         class="size-11"
         :aria-label="`Move Pokémon ${props.index + 1} down`"
         :disabled="props.index === props.count - 1"
-        @click="emit('move', props.index + 1)"
+        @click="emit('reorder', props.index + 1)"
       >
         <ArrowDownIcon aria-hidden="true" />
       </Button>
