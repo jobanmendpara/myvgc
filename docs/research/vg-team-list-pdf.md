@@ -18,7 +18,7 @@ Checked 2026-11-05 for MyVGC (DEV-30). This resolves open items 2 and 3 in `poke
 
 ## Layout
 
-The **staff page** ("1 of 2: For Tournament Staff") is handed to event staff before the Tournament. The **opponents page** ("2 of 2: For Opponents") is kept by the player and shown to each Opponent. Both pages end with "All Pokémon must be listed exactly as they appear in the Battle Team."
+The **staff page** ("1 of 2: For Tournament Staff") is handed to event staff before the Tournament. The **opponents page** ("2 of 2: For Opponents") is kept by the player and shown to the other player in each Round. Both pages end with "All Pokémon must be listed exactly as they appear in the Battle Team."
 
 Each page has a header and six Pokémon boxes in a 2 × 3 grid. Each box has Pokémon, Stat Alignment, Ability, Held Item and Move 1 to 4. Only the staff page boxes also have HP, Atk, Def, Sp. Atk, Sp. Def and Speed boxes.
 
@@ -26,7 +26,7 @@ This agrees with the handbook rule reported in `pokemon-champions-data.md` §3: 
 
 ## Field map
 
-Every field is a terminal field with one widget, and no field has a value set. All text fields are single-line with no maximum length. The check boxes are separate check boxes (not a radio group) with the states `/Yes` and `/Off`.
+Every field is a terminal field with one widget, and every field is blank: the header text fields hold an empty string and the others have no value. All text fields are single-line with no maximum length. The check boxes are separate check boxes (not a radio group) with the states `/Yes` and `/Off`.
 
 ### Header
 
@@ -72,18 +72,19 @@ For example, box 2's Move 3 is `f47` on the staff page and `f61` on the opponent
 ## Filling it
 
 - **pdf-lib works.** `PDFDocument.load`, `form.getTextField(name).setText(...)`, `form.getCheckBox(name).check()` and `save()` produced a correct PDF with no viewer warnings. pdf-lib draws the appearances itself, so viewers do not have to regenerate them.
-- **The form has no default appearance for most fields.** Only the header text fields carry a `/DA` (Helvetica, 10 pt). The Pokémon box fields and Support ID have none, and the AcroForm has no `/DA` either. pdf-lib copes with this, but tools that rely on the viewer to build appearances (setting `NeedAppearances`) may draw those fields badly or not at all. Generate appearances when saving.
+- **Font sizes are set per field.** Every field has its own default appearance (`/DA`) in black Helvetica: 12 pt for Pokémon, 9 pt for Stat Alignment, 10 pt for Ability, Held Item, the moves and the header, and 8 pt for the stat boxes. pdf-lib uses these sizes when it draws the fields.
+- **The font name does not resolve.** The field `/DA` strings name `/Helvetica`, but the form's resources (`/DR`) define only `/Helv`, and the AcroForm has no `/DA` of its own. pdf-lib copes with this. A tool that leaves drawing to the viewer (by setting `NeedAppearances`) relies on each viewer falling back to a font. Draw the appearances when saving.
 - **The standard Helvetica font covers WinAnsi only.** "Flabébé" and "Mind's Eye" fill fine. "Nidoran♀" throws (`WinAnsi cannot encode "♀"`). Showdown names write the symbol as `Nidoran-F`, so this only matters if display names with symbols are used. Otherwise, embed a font with fontkit.
 - **Flattening** (`form.flatten()`) removes the fields and keeps the text, but poppler then reports many "Invalid XRef entry" warnings. That is a known pdf-lib flattening problem. Leave the form unflattened unless a reason to flatten comes up.
-- **Space.** The longest names tried (Ursaluna-Bloodmoon, Scorching Sands, Charizardite Y) fit at 10 pt. pdf-lib does not shrink text to fit unless asked.
+- **Space.** The longest names tried (Ursaluna-Bloodmoon at 12 pt, Scorching Sands and Charizardite Y at 10 pt) fit at the form's own sizes. pdf-lib does not shrink text to fit unless asked.
 
 ## Questions for Teamsheet export (DEV-31)
 
-These are not settled here. They belong to DEV-31, or to a Decision issue if they are big enough.
+These are not settled here. They belong to DEV-31. Any that need a decision become Linear issues labelled Decision, and the outcome is recorded as an ADR.
 
 1. **Player details.** Player Name, Trainer Name in Game, Switch Profile Name, Age Division, Player ID, Date of Birth and Support ID are not stored anywhere in MyVGC. The export could leave them blank for the User to fill by hand, ask for them at export time, or store them on the User. Date of birth is personal data, which argues against storing it.
 2. **Battle Team Number / Name.** This refers to the in-game Battle Team. A Team has a name, but no Battle Team number.
 3. **The stat boxes.** The sheet does not say whether to write the Pokémon's stat values (as shown in game at level 50) or its Stat Points. A Pokémon build stores Stat Points, so writing stat values would mean working them out from base stats, Stat Points and Stat Alignment. Check the current VGC Tournament Handbook before choosing.
 4. **Support ID.** The sheet does not explain this field. It is probably an ID from the game or from Play! Pokémon support. Check the handbook.
-5. **Shipping the template.** The PDF belongs to The Pokémon Company International. MyVGC can bundle it in the repository and image, download it from the official URL when exporting, or ask the User to supply it. This touches the intellectual property risk in `docs/risks.md`, so it is a decision to record as an ADR.
+5. **Shipping the template.** The PDF belongs to The Pokémon Company International. MyVGC can bundle it in the repository and image, download it from the official URL when exporting, or ask the User to supply it. This touches the intellectual property risk in `docs/risks.md`, so it needs a Decision issue.
 6. **Display names.** The sheet says Pokémon must be listed exactly as in the Battle Team, so the export should write in-game display names (from `@myvgc/core`'s data), not Showdown IDs.
