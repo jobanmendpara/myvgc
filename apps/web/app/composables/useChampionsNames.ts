@@ -43,8 +43,9 @@ export function forgetChampionsNames() {
 
 /**
  * The names list for pickers: display names for every Champions species, move, item and
- * ability, keyed by Showdown ID, and each species' abilities (ADR 17). The last copy is kept on the device, so pickers work
- * with no signal; when online it is refreshed once a day. Store the IDs, show the names (ADR 14).
+ * ability, keyed by Showdown ID, and each species' abilities (ADR 17). The last copy is kept on
+ * the device, so pickers work with no signal; when online it is refreshed once a day. Store the
+ * IDs, show the names (ADR 14).
  * Like the rest of the device's data it is cleared on logout; it is the same for every User,
  * so it needs no User in its key.
  */

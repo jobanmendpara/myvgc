@@ -1,6 +1,6 @@
 # 17. Offline-tolerant web app with a queued-write outbox
 
-Date: 2026-11-04
+Date: 2026-11-04 (amended 2026-11-05 for each species' own abilities, DEV-51)
 Status: Accepted
 
 ## Context
