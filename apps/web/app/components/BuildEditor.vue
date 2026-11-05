@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import {
+  type LegalityProblem,
   MAX_MOVES,
   MAX_NICKNAME_LENGTH,
   MAX_STAT_POINTS,
@@ -22,6 +23,8 @@ import { type BuildDraft, moveField } from '@/lib/team-form'
 const props = defineProps<{
   index: number
   errors: Record<string, string>
+  /** What's illegal about this build, live as it's edited. These never stop a save (ADR 18). */
+  problems?: LegalityProblem[]
 }>()
 const open = defineModel<boolean>('open', { required: true })
 const build = defineModel<BuildDraft>('build', { required: true })
@@ -50,6 +53,8 @@ function setStat(stat: StatId, value: string | number) {
           <DialogTitle class="text-lg font-semibold">Pokémon {{ props.index + 1 }}</DialogTitle>
           <Button type="button" @click="open = false">Done</Button>
         </div>
+
+        <LegalityWarnings v-if="props.problems?.length" :problems="props.problems" />
 
         <NamePicker
           id="build-species"

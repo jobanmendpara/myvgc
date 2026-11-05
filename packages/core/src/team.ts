@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { type PokemonBuild, teamPokemonSchema } from './build'
+import { MAX_TEAM_SIZE, type PokemonBuild, showdownId, teamPokemonSchema } from './build'
 
 /** Champions Regulations a Team can be tagged with, oldest first. */
 export const REGULATIONS = ['M-A', 'M-B', 'M-C'] as const
@@ -49,6 +49,50 @@ export const teamSchema = z.object({
 export type TeamBody = z.infer<typeof teamSchema>
 export type NewTeam = z.input<typeof newTeamSchema>
 
+/** What the Team builder sends to have unsaved Pokémon builds judged. A slot may have no species yet. */
+export const legalityCheckSchema = z.object({
+  regulation: z.enum(REGULATIONS),
+  pokemon: z
+    .array(
+      z.object({
+        species: showdownId.nullable(),
+        item: showdownId.optional(),
+        ability: showdownId.optional(),
+      }),
+    )
+    .max(MAX_TEAM_SIZE, `A Team has at most ${MAX_TEAM_SIZE} Pokémon.`),
+})
+
+export type LegalityCheck = z.input<typeof legalityCheckSchema>
+
+/** The parts of a Pokémon build legality looks at. Learnsets aren't checked yet (ADR 18). */
+export type LegalityBuild = z.infer<typeof legalityCheckSchema>['pokemon'][number]
+
+/** Whether a Team breaks a Regulation's rules. MyVGC can't say for a Regulation it has no rules for. */
+export type LegalityStatus = 'legal' | 'illegal' | 'unchecked'
+
+/** One rule a Team breaks. */
+export interface LegalityProblem {
+  /** The field it's about, such as `['pokemon', 2, 'item']`, or `['pokemon']` for the whole Team. */
+  path: [string, ...(string | number)[]]
+  message: string
+}
+
+/** A Team judged against a Regulation. Worked out each time, never stored (ADR 18). */
+export interface Legality {
+  regulation: Regulation
+  status: LegalityStatus
+  problems: LegalityProblem[]
+}
+
+/** The problems about one Pokémon build. */
+export const buildProblems = (legality: Legality, index: number): LegalityProblem[] =>
+  legality.problems.filter((problem) => problem.path[1] === index)
+
+/** The problems about the whole Team, such as Species Clause. */
+export const teamProblems = (legality: Legality): LegalityProblem[] =>
+  legality.problems.filter((problem) => problem.path.length === 1)
+
 /** Display names for one Pokémon build, looked up from the Champions data. */
 export interface PokemonBuildNames {
   species: string
@@ -68,6 +112,8 @@ export interface TeamView {
   regulation: Regulation
   notes: string
   pokemon: NamedPokemonBuild[]
+  /** Judged against its own Regulation. */
+  legality: Legality
   createdAt: string
   updatedAt: string
 }

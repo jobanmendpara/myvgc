@@ -6,6 +6,8 @@ import {
   REGULATIONS,
   type TeamBody,
   type TeamView,
+  buildProblems,
+  teamProblems,
   teamSchema,
 } from '@myvgc/core/schema'
 import { useEventListener, useMediaQuery } from '@vueuse/core'
@@ -53,6 +55,10 @@ function drop(to: number) {
   if (dragging.value !== null) reorder(dragging.value, to)
   dragging.value = null
 }
+
+// Warnings only: nothing here stops a save (ADR 18).
+const legality = useTeamLegality(draft)
+const problemsOf = (index: number) => (legality.value ? buildProblems(legality.value, index) : [])
 
 const queryClient = useQueryClient()
 const saved = ref(false)
@@ -165,6 +171,7 @@ useEventListener(window, 'beforeunload', (event: BeforeUnloadEvent) => {
           :index="index"
           :count="draft.pokemon.length"
           :error="slotError(index)"
+          :problems="problemsOf(index)"
           :draggable="finePointer"
           @dragstart="startDrag($event, index)"
           @dragend="dragging = null"
@@ -189,6 +196,11 @@ useEventListener(window, 'beforeunload', (event: BeforeUnloadEvent) => {
         </li>
       </ol>
       <p v-if="errors.pokemon" class="text-destructive text-sm">{{ errors.pokemon }}</p>
+      <LegalityWarnings
+        v-if="legality && teamProblems(legality).length"
+        :problems="teamProblems(legality)"
+        data-testid="team-problems"
+      />
     </section>
 
     <div class="flex flex-col gap-2">
@@ -216,6 +228,15 @@ useEventListener(window, 'beforeunload', (event: BeforeUnloadEvent) => {
       <AlertDescription>{{ failure }}</AlertDescription>
     </Alert>
 
+    <p class="text-sm empty:hidden sm:text-right" role="status" data-testid="legality-note">
+      <template v-if="legality?.status === 'illegal'"
+        >This Team isn't legal in {{ legality.regulation }}.</template
+      >
+      <template v-else-if="legality?.status === 'unchecked'"
+        >MyVGC has no rules for {{ legality.regulation }}, so this Team isn't checked.</template
+      >
+    </p>
+
     <div class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
       <Button as-child variant="outline" size="lg"
         ><NuxtLink :to="props.cancelTo">Cancel</NuxtLink></Button
@@ -231,6 +252,7 @@ useEventListener(window, 'beforeunload', (event: BeforeUnloadEvent) => {
       v-model:build="draft.pokemon[editing]!"
       :index="editing"
       :errors="errors"
+      :problems="problemsOf(editing)"
     />
 
     <AlertDialog :open="discarding" @update:open="(open: boolean) => open || answer(false)">

@@ -11,7 +11,8 @@ export interface PokemonIssue {
 /**
  * Checks Pokémon builds against the Champions data, the check a paste gets line by line (ADR 14).
  * `teamPokemonSchema` covers everything that needs no data. Only the ID itself passes, not an
- * alias of it, so what is stored stays clean. Legality isn't checked (ADR 10).
+ * alias of it, so what is stored stays clean. A name allowed in any Regulation passes: whether it's
+ * allowed in this Team's Regulation is only a warning (ADR 18).
  */
 export function checkPokemon(pokemon: PokemonBuild[]): PokemonIssue[] {
   const issues: PokemonIssue[] = []

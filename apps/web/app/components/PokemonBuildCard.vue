@@ -1,7 +1,12 @@
 <script setup lang="ts">
-import { type NamedPokemonBuild, STAT_IDS, STAT_LABELS } from '@myvgc/core/schema'
+import {
+  type LegalityProblem,
+  type NamedPokemonBuild,
+  STAT_IDS,
+  STAT_LABELS,
+} from '@myvgc/core/schema'
 
-const props = defineProps<{ build: NamedPokemonBuild }>()
+const props = defineProps<{ build: NamedPokemonBuild; problems?: LegalityProblem[] }>()
 
 const title = computed(() =>
   props.build.nickname
@@ -59,5 +64,7 @@ const hasStatPoints = computed(() => STAT_IDS.some((stat) => props.build.statPoi
         </div>
       </dl>
     </div>
+
+    <LegalityWarnings v-if="problems?.length" :problems="problems" />
   </article>
 </template>

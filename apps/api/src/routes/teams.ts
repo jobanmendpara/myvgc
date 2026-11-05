@@ -1,6 +1,8 @@
 import {
   type TeamView,
   checkPokemon,
+  judgeTeam,
+  legalityCheckSchema,
   nameBuild,
   newTeamSchema,
   readPaste,
@@ -24,6 +26,7 @@ function toView(row: TeamRow): TeamView {
     regulation: row.regulation,
     notes: row.notes,
     pokemon: row.pokemon.map(nameBuild),
+    legality: judgeTeam(row.pokemon, row.regulation),
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   }
@@ -35,92 +38,100 @@ export function teamRoutes(db: Database) {
   // Team answers exactly like a missing one.
   const ownTeam = (id: string, ownerId: string) => and(eq(team.id, id), eq(team.ownerId, ownerId))
 
-  return new Hono<AppEnv>()
-    .get('/', async (c) => {
-      const rows = await db
-        .select()
-        .from(team)
-        .where(eq(team.ownerId, c.get('user').id))
-        .orderBy(desc(team.createdAt), desc(team.id))
-      return c.json(rows.map(toView))
-    })
-    .post('/', async (c) => {
-      const input = await readBody(c, newTeamSchema)
-      if (!input.ok) return input.response
+  return (
+    new Hono<AppEnv>()
+      .get('/', async (c) => {
+        const rows = await db
+          .select()
+          .from(team)
+          .where(eq(team.ownerId, c.get('user').id))
+          .orderBy(desc(team.createdAt), desc(team.id))
+        return c.json(rows.map(toView))
+      })
+      .post('/', async (c) => {
+        const input = await readBody(c, newTeamSchema)
+        if (!input.ok) return input.response
 
-      const { name, regulation, notes, paste, pokemon } = input.data
-      const owned = { ownerId: c.get('user').id, name, regulation, notes }
+        const { name, regulation, notes, paste, pokemon } = input.data
+        const owned = { ownerId: c.get('user').id, name, regulation, notes }
 
-      if (pokemon) {
-        const issues = checkPokemon(pokemon)
-        if (issues.length > 0) return invalid(c, issues)
+        if (pokemon) {
+          const issues = checkPokemon(pokemon)
+          if (issues.length > 0) return invalid(c, issues)
+          const [row] = await db
+            .insert(team)
+            .values({ ...owned, pokemon })
+            .returning()
+          return c.json({ team: toView(row!), warnings: [] }, 201)
+        }
+
+        // The schema makes sure a body without Pokémon builds has a paste.
+        const read = readPaste(paste!)
+        if (!read.ok) return c.json({ errors: read.errors, warnings: read.warnings }, 422)
+
         const [row] = await db
           .insert(team)
-          .values({ ...owned, pokemon })
+          .values({
+            ...owned,
+            // The reader already checks every rule; parsing again guards what reaches the database.
+            pokemon: teamPokemonSchema.parse(read.pokemon),
+          })
           .returning()
-        return c.json({ team: toView(row!), warnings: [] }, 201)
-      }
+        return c.json({ team: toView(row!), warnings: read.warnings }, 201)
+      })
+      // Judges unsaved Pokémon builds for the Team builder, which can't load the data (ADR 18).
+      .post('/check', async (c) => {
+        const input = await readBody(c, legalityCheckSchema)
+        if (!input.ok) return input.response
+        return c.json(judgeTeam(input.data.pokemon, input.data.regulation))
+      })
+      .get('/:id', async (c) => {
+        const id = c.req.param('id')
+        if (!isId(id)) return notFound(c)
+        const [row] = await db
+          .select()
+          .from(team)
+          .where(ownTeam(id, c.get('user').id))
+        if (!row) return notFound(c)
+        return c.json(toView(row))
+      })
+      .put('/:id', async (c) => {
+        const id = c.req.param('id')
+        if (!isId(id)) return notFound(c)
+        const input = await readBody(c, teamSchema)
+        if (!input.ok) return input.response
 
-      // The schema makes sure a body without Pokémon builds has a paste.
-      const read = readPaste(paste!)
-      if (!read.ok) return c.json({ errors: read.errors, warnings: read.warnings }, 422)
+        const issues = checkPokemon(input.data.pokemon)
+        if (issues.length > 0) return invalid(c, issues)
 
-      const [row] = await db
-        .insert(team)
-        .values({
-          ...owned,
-          // The reader already checks every rule; parsing again guards what reaches the database.
-          pokemon: teamPokemonSchema.parse(read.pokemon),
-        })
-        .returning()
-      return c.json({ team: toView(row!), warnings: read.warnings }, 201)
-    })
-    .get('/:id', async (c) => {
-      const id = c.req.param('id')
-      if (!isId(id)) return notFound(c)
-      const [row] = await db
-        .select()
-        .from(team)
-        .where(ownTeam(id, c.get('user').id))
-      if (!row) return notFound(c)
-      return c.json(toView(row))
-    })
-    .put('/:id', async (c) => {
-      const id = c.req.param('id')
-      if (!isId(id)) return notFound(c)
-      const input = await readBody(c, teamSchema)
-      if (!input.ok) return input.response
-
-      const issues = checkPokemon(input.data.pokemon)
-      if (issues.length > 0) return invalid(c, issues)
-
-      // Team snapshots are copies (ADR 9), so they don't change. The last save wins.
-      const [row] = await db
-        .update(team)
-        .set(input.data)
-        .where(ownTeam(id, c.get('user').id))
-        .returning()
-      if (!row) return notFound(c)
-      return c.json(toView(row))
-    })
-    .get('/:id/paste', async (c) => {
-      const id = c.req.param('id')
-      if (!isId(id)) return notFound(c)
-      const [row] = await db
-        .select({ pokemon: team.pokemon })
-        .from(team)
-        .where(ownTeam(id, c.get('user').id))
-      if (!row) return notFound(c)
-      return c.text(writePaste(row.pokemon))
-    })
-    .delete('/:id', async (c) => {
-      const id = c.req.param('id')
-      if (!isId(id)) return notFound(c)
-      const deleted = await db
-        .delete(team)
-        .where(ownTeam(id, c.get('user').id))
-        .returning({ id: team.id })
-      if (deleted.length === 0) return notFound(c)
-      return c.body(null, 204)
-    })
+        // Team snapshots are copies (ADR 9), so they don't change. The last save wins.
+        const [row] = await db
+          .update(team)
+          .set(input.data)
+          .where(ownTeam(id, c.get('user').id))
+          .returning()
+        if (!row) return notFound(c)
+        return c.json(toView(row))
+      })
+      .get('/:id/paste', async (c) => {
+        const id = c.req.param('id')
+        if (!isId(id)) return notFound(c)
+        const [row] = await db
+          .select({ pokemon: team.pokemon })
+          .from(team)
+          .where(ownTeam(id, c.get('user').id))
+        if (!row) return notFound(c)
+        return c.text(writePaste(row.pokemon))
+      })
+      .delete('/:id', async (c) => {
+        const id = c.req.param('id')
+        if (!isId(id)) return notFound(c)
+        const deleted = await db
+          .delete(team)
+          .where(ownTeam(id, c.get('user').id))
+          .returning({ id: team.id })
+        if (deleted.length === 0) return notFound(c)
+        return c.body(null, 204)
+      })
+  )
 }

@@ -4,6 +4,7 @@ import {
   ArrowUpIcon,
   EllipsisVerticalIcon,
   GripVerticalIcon,
+  TriangleAlertIcon,
   XIcon,
 } from '@lucide/vue'
 import { useMediaQuery } from '@vueuse/core'
@@ -14,6 +15,7 @@ import {
   DropdownMenuRoot,
   DropdownMenuTrigger,
 } from 'reka-ui'
+import type { LegalityProblem } from '@myvgc/core/schema'
 import type { BuildDraft } from '@/lib/team-form'
 
 /**
@@ -25,6 +27,8 @@ const props = defineProps<{
   index: number
   count: number
   error?: string
+  /** What's illegal about it. These never stop a save (ADR 18). */
+  problems?: LegalityProblem[]
 }>()
 const emit = defineEmits<{ edit: []; remove: []; reorder: [to: number] }>()
 
@@ -65,6 +69,15 @@ const MENU_ITEM =
         {{ moveCount === 1 ? '1 move' : `${moveCount} moves` }}
       </span>
       <span v-if="props.error" class="text-destructive text-sm">{{ props.error }}</span>
+      <span
+        v-for="problem in props.problems"
+        :key="problem.message"
+        class="flex items-start gap-1.5 text-sm"
+        data-testid="build-warning"
+      >
+        <TriangleAlertIcon class="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+        {{ problem.message }}
+      </span>
     </button>
 
     <DropdownMenuRoot v-if="finePointer">

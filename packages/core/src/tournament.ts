@@ -1,7 +1,13 @@
 import { z } from 'zod'
 import { clientIdSchema } from './client-id'
 import type { RoundView, TournamentRecord } from './round'
-import { MAX_NOTES_LENGTH, type NamedPokemonBuild, REGULATIONS, type Regulation } from './team'
+import {
+  type Legality,
+  MAX_NOTES_LENGTH,
+  type NamedPokemonBuild,
+  REGULATIONS,
+  type Regulation,
+} from './team'
 
 /** The kinds of Tournament, in the order the User picks from. */
 export const EVENT_TIERS = [
@@ -245,6 +251,8 @@ export interface TeamSnapshotView {
   name: string
   regulation: Regulation
   pokemon: NamedPokemonBuild[]
+  /** Judged against the Tournament's Regulation, not the Team's own (ADR 18). */
+  legality: Legality
   snapshotAt: string
 }
 
