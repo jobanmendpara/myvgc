@@ -9,7 +9,7 @@ The first slice covers sign-up and login, importing a Team from a Champions-form
 Out of the first slice:
 - Teamsheet export (next).
 - A form-based team builder (after paste import).
-- Legality checks against a Regulation (not planned yet).
+- Legality checks against a Regulation (not planned yet; since decided in ADR 18: warn, never block).
 - File uploads of any kind. Uploaded teamsheet PDFs will first be stored as reference attachments, and later read into Teams through the same "file in, Team out" pipeline as reading screenshots of replica teams.
 
 ## Consequences
