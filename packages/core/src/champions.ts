@@ -70,10 +70,20 @@ function table(entries: readonly DexEntry[]): NamesTable {
 
 let names: ChampionsNames | undefined
 
+function abilitiesBySpecies(): Record<string, string[]> {
+  const abilities: Record<string, string[]> = {}
+  for (const species of dex.species.all()) {
+    if (!inChampions(species)) continue
+    const own = Object.values(species.abilities).map((ability) => champions.ability(ability)?.id)
+    abilities[species.id] = [...new Set(own.filter((id) => id !== undefined))]
+  }
+  return abilities
+}
+
 /**
  * The names list for pickers: every species and form, move, item and ability in Champions,
- * keyed by Showdown ID. About 36 KB of JSON, 13 KB gzipped, against about 900 KB for the full
- * data. Built once, on first use.
+ * keyed by Showdown ID, and each species' or form's own abilities. About 52 KB of JSON, 17 KB
+ * gzipped, against about 900 KB for the full data. Built once, on first use.
  */
 export function championsNames(): ChampionsNames {
   names ??= {
@@ -81,6 +91,7 @@ export function championsNames(): ChampionsNames {
     moves: table(dex.moves.all()),
     items: table(dex.items.all()),
     abilities: table(dex.abilities.all()),
+    abilitiesBySpecies: abilitiesBySpecies(),
   }
   return names
 }

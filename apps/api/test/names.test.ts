@@ -14,11 +14,18 @@ describe('GET /api/names', () => {
 
     expect(res.status).toBe(200)
     const body = await json(res)
-    expect(Object.keys(body).sort()).toEqual(['abilities', 'items', 'moves', 'species'])
+    expect(Object.keys(body).sort()).toEqual([
+      'abilities',
+      'abilitiesBySpecies',
+      'items',
+      'moves',
+      'species',
+    ])
     expect(body.species.floetteeternal).toBe('Floette-Eternal')
     expect(body.moves.moonblast).toBe('Moonblast')
     expect(body.items.floettite).toBe('Floettite')
     expect(body.abilities.flowerveil).toBe('Flower Veil')
+    expect(body.abilitiesBySpecies.incineroar).toEqual(['blaze', 'intimidate'])
     expect(Object.keys(body.species)).toHaveLength(392)
   })
 

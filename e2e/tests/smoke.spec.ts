@@ -66,12 +66,17 @@ test('build a one-Pokémon Team, then edit a move', async ({ page }) => {
 
   await page.getByRole('button', { name: 'Add a Pokémon' }).first().click()
   await pick('Species', 'Incineroar')
+  await page.getByRole('combobox', { name: 'Ability' }).click()
+  await expect(page.getByRole('listbox').getByRole('option')).toHaveText(['Blaze', 'Intimidate'])
+  // Only a convenience: an ability that isn't the species' own can still be found and saved.
+  await pick('Ability', 'Levitate')
   await pick('Move 1', 'Fake Out')
   await page.getByRole('button', { name: 'Done' }).click()
   await page.getByRole('button', { name: 'Save Team' }).click()
 
   await expect(page).toHaveURL(/\/teams\/[0-9a-f-]{36}$/)
   await expect(page.getByTestId('pokemon-build')).toContainText('Fake Out')
+  await expect(page.getByTestId('pokemon-build')).toContainText('Levitate')
 
   await page.getByRole('link', { name: 'Edit' }).click()
   await expect(page.getByRole('heading', { name: 'Edit Team' })).toBeVisible()
