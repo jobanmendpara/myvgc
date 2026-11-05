@@ -36,23 +36,6 @@ export function resolveMode(mode: Mode, systemPrefersDark: boolean): 'light' | '
   return mode
 }
 
-// Storage can throw (private windows, blocked site data); the theme then just isn't kept.
-export function readStored(key: string): string | null {
-  try {
-    return localStorage.getItem(key)
-  } catch {
-    return null
-  }
-}
-
-export function writeStored(key: string, value: string) {
-  try {
-    localStorage.setItem(key, value)
-  } catch {
-    // Ignore: the choice still applies until the page is closed.
-  }
-}
-
 export function applyTheme(palette: Palette, mode: Mode): 'light' | 'dark' {
   const dark = window.matchMedia('(prefers-color-scheme: dark)').matches
   const root = document.documentElement
