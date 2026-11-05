@@ -17,7 +17,7 @@ Claims about official Play! Pokémon documents come **only from web-search snipp
 
 - **Game status.** Pokémon Champions came out on Nintendo Switch and Switch 2 on 2026-04-08, and on iOS and Android on 2026-06-17. It replaced Scarlet/Violet as the VGC game for the 2026 season. The regulations so far are M-A (Apr–Jun), M-B (Jun–Sep, used at Worlds 2026) and M-C (2026-09-09 to 2026-12-02, current today). [secondary/snippet]
 - **Team building.** Champions does **not** use EVs or IVs. It uses **Stat Points (SP)**: 66 in total, at most 32 per stat. IVs are effectively fixed at 31. Natures still exist, and the community calls them "Stat Alignment". **There is no Terastallization.** Mega Evolution is in, including new "Z" Megas from M-C on. Levels are fixed at 50. Showdown's code confirms all of the mechanics in this list.
-- **Teamsheets.** The 2026 VGC Handbook says the season uses **open team lists**. Opponents see everything except stats; a handbook update reportedly added nature (Stat Alignment) to the open list. Lists can be submitted through RK9 Labs' Team List Creator, or as in-game Replica Team IDs. **No official fillable Champions PDF could be confirmed, and its form-field names could not be checked.** [snippet/unverified]
+- **Teamsheets.** The 2026 VGC Handbook says the season uses **open team lists**. Opponents see everything except stats; a handbook update reportedly added nature (Stat Alignment) to the open list. Lists can be submitted through RK9 Labs' Team List Creator, or as in-game Replica Team IDs. [snippet] The official fillable team list PDF was checked on 2026-11-05: see `vg-team-list-pdf.md`.
 - **Showdown.** Showdown fully supports Champions. It has `champions` and `championsregmb` mods, and the formats `[Gen 9 Champions] VGC 2026 Reg M-C` (Bo1 and Bo3) and Reg M-B, among others. The paste format is unchanged: the `EVs:` line holds **SP values (0–32)**, and the `Tera Type:` line is dropped. A paste therefore can't be read correctly without knowing its format.
 - **Data sources.** Showdown's data files cover Champions species, moves, items, abilities, learnsets and legality (MIT). The same data comes repackaged in `@pkmn/dex` plus `@pkmn/mods` (MIT). PokeAPI has a `champions` version group, a Pokédex and learnsets (BSD-3-Clause, plus a fair-use policy). All Pokémon names and data are Nintendo/Creatures/GAME FREAK/TPC IP.
 
@@ -84,10 +84,10 @@ All of the following is verified in Showdown's source unless marked otherwise. S
 - **How lists are submitted.** Organizers may use **RK9 Labs' Team List Creator**. Judges may ask players to share Battle Teams through Champions' **Replica Teams** feature and give the **Team ID** [snippet, Handbook PDF]. MyVGC should therefore store an optional Replica **Team ID** for each team.
 - **Fields on the sheet.**
   - Per Pokémon, from the snippets: species (with form or regional variant), ability, held item, moves, and Stat Alignment ([Victory Road](https://victoryroad.pro/champions-regulations/) [secondary]). Tera type would no longer apply.
-  - Player header fields (player name, Play! Pokémon player ID, date of birth, division, battle team name): **[unverified] for Champions**. They appeared on pre-Champions Play! Pokémon VG team lists, for example the 2020 sheet mirrored on [Scribd](https://www.scribd.com/document/451099770/Play-Pokemon-Vg-Team-List-2020) [secondary], but no Champions-era sheet could be read.
+  - Player header fields: confirmed for Champions on 2026-11-05. See `vg-team-list-pdf.md`.
   - Level: not needed, since everything is auto-leveled to 50 [snippet].
-- **Official fillable PDF: [unverified].** The [Play! Pokémon documents page (VGC filter)](https://play.pokemon.com/en-us/resources/documents/?filter=vgc) lists a "Pokémon Video Game Team List" download [snippet]. Its URL, whether it has been updated for Champions, and whether it has AcroForm fields with names a program could fill could not be checked. `play.pokemon.com` and `pokemon.com` were blocked.
-  - Because RK9 appears to be the main channel, MyVGC should probably offer an RK9-friendly export and a printable sheet. It should not depend on official PDF field names until someone has inspected the PDF, for example with `pdftk dump_data_fields` or pypdf.
+- **Official fillable PDF: verified 2026-11-05.** The [Play! Pokémon documents page (VGC filter)](https://play.pokemon.com/en-us/resources/documents/?filter=vgc) links "Pokémon Video Game Team List" to `play-pokemon-vg-team-list-2023.pdf`, which has been updated for Champions. It is a fillable AcroForm that pdf-lib can fill, but its fields are named `f0` to `f150`, so MyVGC keeps its own field map. Details, the field map and the open questions for export are in `vg-team-list-pdf.md`.
+  - Because RK9 appears to be the main channel, MyVGC may still want an RK9-friendly export alongside the filled PDF.
 
 Also worth reading once access is available: the [Play! Pokémon VG Rules, Formats & Penalty Guidelines PDF](https://www.pokemon.com/static-assets/content-assets/cms2/pdf/play-pokemon/rules/play-pokemon-vg-rules-formats-and-penalty-guidelines-en.pdf) [not read].
 
@@ -132,7 +132,6 @@ Also worth reading once access is available: the [Play! Pokémon VG Rules, Forma
 ## Open items to verify once `pokemon.com` / `play.pokemon.com` are reachable
 
 1. The current VGC Tournament Handbook, section on team lists: the exact open and closed fields, whether Stat Alignment is on the open list, and the RK9 and Replica Team rules.
-2. The official "Pokémon Video Game Team List" PDF: its URL, whether it has been updated for Champions, and its AcroForm field names.
-3. The header fields on the sheet (player ID, date of birth, division, team name) for Champions.
-4. PokeAPI fair-use wording on [pokeapi.co/docs/v2](https://pokeapi.co/docs/v2).
-5. The format after M-C (after 2026-12-02).
+2. Resolved 2026-11-05 in `vg-team-list-pdf.md`: the official team list PDF, its URL, and its fields, including the header fields.
+3. PokeAPI fair-use wording on [pokeapi.co/docs/v2](https://pokeapi.co/docs/v2).
+4. The format after M-C (after 2026-12-02).
