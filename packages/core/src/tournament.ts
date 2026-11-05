@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { clientIdSchema } from './client-id'
 import type { RoundView, TournamentRecord } from './round'
 import { MAX_NOTES_LENGTH, type NamedPokemonBuild, REGULATIONS, type Regulation } from './team'
 
@@ -152,6 +153,7 @@ const crossCheck = (t: CrossChecked, ctx: z.RefinementCtx) => {
 /** What a User sends to create a Tournament. A missing Regulation comes from the start date. */
 export const newTournamentSchema = z
   .object({
+    id: clientIdSchema,
     ...tournamentFields,
     online: tournamentFields.online.default(false),
     regulation: tournamentFields.regulation.optional(),

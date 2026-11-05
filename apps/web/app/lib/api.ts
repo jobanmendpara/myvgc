@@ -33,9 +33,14 @@ export function toCreateTeamError(error: unknown): CreateTeamError {
   return { kind: 'other', message: "Couldn't save the Team. Check your connection and try again." }
 }
 
-/** The errors per field from a 400 answer, or nothing for any other failure. */
+/**
+ * The errors per field from a 400 answer, or from a 409 that names fields (such as a round
+ * number already logged). Nothing for any other failure.
+ */
 export function fieldErrorsOf(error: unknown): Record<string, string> | undefined {
-  return error instanceof FetchError && error.statusCode === 400 ? error.data?.fields : undefined
+  return error instanceof FetchError && (error.statusCode === 400 || error.statusCode === 409)
+    ? error.data?.fields
+    : undefined
 }
 
 /** A message for a failed save that isn't about a particular field. */

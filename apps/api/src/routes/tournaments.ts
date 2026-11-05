@@ -21,7 +21,7 @@ import { Hono } from 'hono'
 import type { AppEnv } from '../app'
 import { team, tournament } from '../db/schema'
 import type { Database } from '../db/types'
-import { escapeLike, invalid, isId, notFound, readBody } from './helpers'
+import { deleted, escapeLike, idTaken, invalid, isId, notFound, readBody } from './helpers'
 import { loadRounds } from './round-data'
 
 type TournamentRow = typeof tournament.$inferSelect
@@ -133,19 +133,27 @@ export function tournamentRoutes(db: Database) {
       .post('/', async (c) => {
         const input = await readBody(c, newTournamentSchema)
         if (!input.ok) return input.response
-        const { regulation, ...fields } = input.data
+        const ownerId = c.get('user').id
+        const { id, regulation, ...fields } = input.data
         const [row] = await db
           .insert(tournament)
           .values({
             ...toColumns(fields),
+            id,
             name: fields.name,
             startDate: fields.startDate,
             eventTier: fields.eventTier,
-            ownerId: c.get('user').id,
+            ownerId,
             regulation: regulation ?? regulationOn(fields.startDate),
           })
+          .onConflictDoNothing({ target: tournament.id })
           .returning()
-        return c.json(toTournamentView(row!, []), 201)
+        if (row) return c.json(toTournamentView(row, []), 201)
+
+        // A replay: the Tournament is already saved, and the saved version wins.
+        const [saved] = await db.select().from(tournament).where(ownTournament(id!, ownerId))
+        if (!saved) return idTaken(c)
+        return c.json(await viewWithRounds(saved))
       })
       .get('/:id', async (c) => {
         const id = c.req.param('id')
@@ -233,12 +241,8 @@ export function tournamentRoutes(db: Database) {
       .delete('/:id', async (c) => {
         const id = c.req.param('id')
         if (!isId(id)) return notFound(c)
-        const deleted = await db
-          .delete(tournament)
-          .where(ownTournament(id, c.get('user').id))
-          .returning({ id: tournament.id })
-        if (deleted.length === 0) return notFound(c)
-        return c.body(null, 204)
+        await db.delete(tournament).where(ownTournament(id, c.get('user').id))
+        return deleted(c)
       })
   )
 }

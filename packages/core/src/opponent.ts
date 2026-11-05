@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { clientIdSchema } from './client-id'
 import { MAX_OPPONENT_NAME_LENGTH, type RoundView, type Tally } from './round'
 import { MAX_NOTES_LENGTH } from './team'
 
@@ -29,6 +30,7 @@ const opponentFields = {
 
 /** What a User sends to add an Opponent. */
 export const newOpponentSchema = z.object({
+  id: clientIdSchema,
   ...opponentFields,
   aliases: opponentFields.aliases.default([]),
   notes: opponentFields.notes.default(''),

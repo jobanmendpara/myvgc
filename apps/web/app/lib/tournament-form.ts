@@ -64,7 +64,7 @@ export function tournamentToForm(t: TournamentView): TournamentFormValues {
 }
 
 /** A whole Tournament as the API takes it, for creating one or saving every field. */
-export type TournamentBody = Required<Omit<NewTournament, 'regulation'>> &
+export type TournamentBody = Required<Omit<NewTournament, 'id' | 'regulation'>> &
   Pick<NewTournament, 'regulation'>
 
 /**
