@@ -4,11 +4,10 @@ import {
   PALETTE_KEY,
   parseMode,
   parsePalette,
-  readStored,
-  writeStored,
   type Mode,
   type Palette,
 } from '@/lib/theme'
+import { readStored, writeStored } from '@/lib/storage'
 
 // Shared by every ThemePicker on the page. The state starts from what is stored on this device.
 export function useTheme() {

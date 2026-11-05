@@ -3,15 +3,10 @@
 /// <reference path="./pkmn-mods.d.ts" />
 import { Dex, type ID, type ModData } from '@pkmn/dex'
 import * as championsMod from '@pkmn/mods/champions'
+import type { ChampionsNames, Named, NamesTable } from './names-list'
 
 // Showdown's Champions data, pinned through exact versions of @pkmn/dex and @pkmn/mods (ADR 12).
 const dex = Dex.mod('champions' as ID, championsMod as unknown as ModData)
-
-/** A name the Champions data recognises: its Showdown ID and display name. */
-export interface Named {
-  id: string
-  name: string
-}
 
 interface DexEntry {
   id: string
@@ -48,4 +43,30 @@ export type ChampionsKind = keyof typeof champions
 /** The display name for a stored ID, falling back to the ID if the data doesn't have it. */
 export function displayName(kind: ChampionsKind, id: string): string {
   return champions[kind](id)?.name ?? id
+}
+
+function table(entries: readonly DexEntry[]): NamesTable {
+  const names: NamesTable = {}
+  for (const entry of entries) {
+    const named = inChampions(entry)
+    if (named) names[named.id] = named.name
+  }
+  return names
+}
+
+let names: ChampionsNames | undefined
+
+/**
+ * The names list for pickers: every species and form, move, item and ability in Champions,
+ * keyed by Showdown ID. About 36 KB of JSON, 13 KB gzipped, against about 900 KB for the full
+ * data. Built once, on first use.
+ */
+export function championsNames(): ChampionsNames {
+  names ??= {
+    species: table(dex.species.all()),
+    moves: table(dex.moves.all()),
+    items: table(dex.items.all()),
+    abilities: table(dex.abilities.all()),
+  }
+  return names
 }

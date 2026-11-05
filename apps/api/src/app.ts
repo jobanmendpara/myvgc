@@ -2,7 +2,7 @@ import { sql } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { type AuthOptions, type SessionUser, createAuth } from './auth'
 import type { Database } from './db/types'
-import { REGULATION_PERIODS, SEASONS, currentRegulation, today } from '@myvgc/core'
+import { REGULATION_PERIODS, SEASONS, championsNames, currentRegulation, today } from '@myvgc/core'
 import { teamRoutes } from './routes/teams'
 import { dashboardRoutes } from './routes/dashboard'
 import { opponentRoutes } from './routes/opponents'
@@ -72,6 +72,10 @@ export function createApp({ db, auth: authOptions, webDir }: AppOptions): Hono<A
       seasons: SEASONS,
     })
   })
+
+  // The names list for pickers (ADR 17). The web app caches it on the device, so pickers work
+  // with no signal, and never loads Showdown's full data. Stored values stay Showdown IDs (ADR 14).
+  app.get('/api/names', (c) => c.json(championsNames()))
 
   app.notFound((c) =>
     c.req.path.startsWith('/api') ? c.json({ error: 'Not found' }, 404) : c.text('Not found', 404),
