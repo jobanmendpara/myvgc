@@ -64,7 +64,8 @@ function setStat(stat: StatId, value: string | number) {
           v-model="build.ability"
           label="Ability"
           kind="abilities"
-          placeholder="Search abilities"
+          :species="build.species"
+          placeholder="Search all abilities"
           :error="error('ability')"
         />
         <NamePicker
