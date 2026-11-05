@@ -79,6 +79,18 @@ describe('Team legality', () => {
     ])
   })
 
+  it('warns about a move the species can not learn in a saved Team', async () => {
+    await setUp()
+    const { team } = await json(await createFromPaste('M-C', 'Incineroar\n- Fake Out\n- Psychic'))
+    const problems = [
+      { path: ['pokemon', 0, 'moves', 1], message: "Incineroar can't learn Psychic." },
+    ]
+    expect(team.legality.problems).toEqual(problems)
+    expect((await json(await get(t.app, `/api/teams/${team.id}`, ash))).legality.problems).toEqual(
+      problems,
+    )
+  })
+
   it('works legality out on each read, so changing the Regulation changes the answer', async () => {
     await setUp()
     const { team } = await json(await createFromPaste('M-B'))
@@ -137,6 +149,17 @@ describe('Team legality', () => {
         problems: [{ path: ['pokemon', 0, 'ability'], message: "Incineroar can't have Levitate." }],
       })
       expect(await json(await get(t.app, '/api/teams', ash))).toEqual([])
+    })
+
+    it('judges the moves of unsaved Pokémon builds', async () => {
+      await setUp()
+      const res = await check({
+        regulation: 'M-C',
+        pokemon: [{ species: 'incineroar', moves: ['fakeout', 'dragonclaw'] }],
+      })
+      expect((await json(res)).problems).toEqual([
+        { path: ['pokemon', 0, 'moves', 1], message: "Incineroar can't learn Dragon Claw." },
+      ])
     })
 
     it('answers for a Regulation with no rules', async () => {

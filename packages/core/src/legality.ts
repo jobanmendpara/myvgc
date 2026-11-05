@@ -1,5 +1,5 @@
-import { REGULATION_MODS } from './calendar'
-import { modDexes } from './champions'
+import { type ChampionsMod, REGULATION_MODS } from './calendar'
+import { modDexes, modLearnsets } from './champions'
 import type { Legality, LegalityBuild, LegalityProblem, Regulation } from './team'
 
 /** Species tags a Regulation bans. Sub-Legendary Pokémon are allowed. */
@@ -8,6 +8,26 @@ const BANNED_TAGS = ['Mythical', 'Restricted Legendary']
 /** An entry's display name, or the stored ID when the data doesn't have it. */
 const nameOf = (entry: { exists: boolean; name: string }, id: string) =>
   entry.exists ? entry.name : id
+
+type Species = ReturnType<(typeof modDexes)[ChampionsMod]['species']['get']>
+
+/**
+ * The moves a species can learn in a mod's data, or undefined if the data has none for it. A Mega
+ * or other battle-only form, and a cosmetic form such as a Vivillon pattern, has no learnset of its
+ * own and learns what the form it comes from learns.
+ */
+function learnsetOf(mod: ChampionsMod, species: Species): Record<string, unknown> | undefined {
+  const dex = modDexes[mod]
+  const forms = [species.id, species.changesFrom, species.baseSpecies].filter((form) => form)
+  for (const form of forms) {
+    const id = dex.species.get(form!).id
+    for (const learnsets of modLearnsets[mod]) {
+      const learnset = learnsets[id]?.learnset
+      if (learnset) return learnset
+    }
+  }
+  return undefined
+}
 
 /** The first entry of each group sharing a key with another entry. */
 function repeatedBy<T>(entries: readonly T[], key: (entry: T) => unknown): T[] {
@@ -20,7 +40,7 @@ function repeatedBy<T>(entries: readonly T[], key: (entry: T) => unknown): T[] {
 /**
  * Judges Pokémon builds against a Regulation's rules (ADR 18). This is a warning a Team can always
  * save past, so anything the data doesn't have, such as a name dropped by a data update, is one
- * more problem rather than a failure. Learnsets aren't checked yet.
+ * more problem rather than a failure.
  */
 export function judgeTeam(pokemon: readonly LegalityBuild[], regulation: Regulation): Legality {
   const mod = REGULATION_MODS[regulation]
@@ -58,6 +78,19 @@ export function judgeTeam(pokemon: readonly LegalityBuild[], regulation: Regulat
         })
       }
     }
+
+    // A species with no learnset in the data, such as a battle-only form of a species Champions
+    // doesn't have, can't be judged on its moves.
+    const learnset = species.exists ? learnsetOf(mod, species) : undefined
+    build.moves?.forEach((moveId, moveIndex) => {
+      const move = dex.moves.get(moveId)
+      if (learnset && !(move.id in learnset)) {
+        problems.push({
+          path: ['pokemon', index, 'moves', moveIndex],
+          message: `${name} can't learn ${nameOf(move, moveId)}.`,
+        })
+      }
+    })
 
     if (build.item) {
       const item = dex.items.get(build.item)

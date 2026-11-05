@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import {
   type LegalityProblem,
+  moveProblems,
   type NamedPokemonBuild,
   STAT_IDS,
   STAT_LABELS,
+  wholeBuildProblems,
 } from '@myvgc/core/schema'
 
 const props = defineProps<{ build: NamedPokemonBuild; problems?: LegalityProblem[] }>()
@@ -12,6 +14,11 @@ const title = computed(() =>
   props.build.nickname
     ? `${props.build.nickname} (${props.build.names.species})`
     : props.build.names.species,
+)
+// Each move's problems show by that move; the rest below the build.
+const buildWarnings = computed(() => wholeBuildProblems(props.problems ?? []))
+const moveWarnings = computed(() =>
+  props.build.names.moves.map((_, index) => moveProblems(props.problems ?? [], index)),
 )
 const hasStatPoints = computed(() => STAT_IDS.some((stat) => props.build.statPoints[stat] > 0))
 </script>
@@ -45,9 +52,10 @@ const hasStatPoints = computed(() => STAT_IDS.some((stat) => props.build.statPoi
       <li
         v-for="(move, index) in build.names.moves"
         :key="index"
-        class="bg-muted rounded px-2 py-1"
+        class="bg-muted flex flex-col gap-1 rounded px-2 py-1"
       >
         {{ move }}
+        <LegalityWarnings v-if="moveWarnings[index]?.length" :problems="moveWarnings[index]!" />
       </li>
     </ul>
 
@@ -65,6 +73,6 @@ const hasStatPoints = computed(() => STAT_IDS.some((stat) => props.build.statPoi
       </dl>
     </div>
 
-    <LegalityWarnings v-if="problems?.length" :problems="problems" />
+    <LegalityWarnings v-if="buildWarnings.length" :problems="buildWarnings" />
   </article>
 </template>

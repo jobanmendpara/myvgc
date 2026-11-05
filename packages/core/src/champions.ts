@@ -17,6 +17,18 @@ export const modDexes: Record<ChampionsMod, typeof dex> = {
 }
 const allDexes = Object.values(modDexes)
 
+type Learnsets = Record<string, { learnset?: Record<string, unknown> }>
+const latestLearnsets = championsMod.Learnsets as Learnsets
+
+/**
+ * Each mod's learnsets, keyed by species ID, to look in first to last. An older Regulation's mod
+ * holds only the learnsets it changes and inherits the rest from `champions`.
+ */
+export const modLearnsets: Record<ChampionsMod, Learnsets[]> = {
+  champions: [latestLearnsets],
+  championsregmb: [championsRegMbMod.Learnsets as Learnsets, latestLearnsets],
+}
+
 interface DexEntry {
   id: string
   name: string

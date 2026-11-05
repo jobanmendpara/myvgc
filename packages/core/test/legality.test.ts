@@ -5,7 +5,9 @@ import {
   REGULATION_MODS,
   buildProblems,
   judgeTeam,
+  moveProblems,
   teamProblems,
+  wholeBuildProblems,
 } from '../src'
 
 const build = (species: string, rest: Partial<LegalityBuild> = {}): LegalityBuild => ({
@@ -91,6 +93,52 @@ describe('judgeTeam', () => {
     }
   })
 
+  it('flags a move the species can not learn, next to that move', () => {
+    const team = [build('incineroar', { moves: ['fakeout', 'psychic', 'protect', 'dragonclaw'] })]
+    expect(judgeTeam(team, 'M-C')).toEqual({
+      regulation: 'M-C',
+      status: 'illegal',
+      problems: [
+        { path: ['pokemon', 0, 'moves', 1], message: "Incineroar can't learn Psychic." },
+        { path: ['pokemon', 0, 'moves', 3], message: "Incineroar can't learn Dragon Claw." },
+      ],
+    })
+  })
+
+  it('gives a Mega or cosmetic form the moves of the form it comes from', () => {
+    const team = [
+      build('charizardmegay', { moves: ['dragonclaw', 'hurricane'] }),
+      build('vivillonpolar', { moves: ['sleeppowder', 'hurricane'] }),
+    ]
+    expect(judgeTeam(team, 'M-C').status).toBe('legal')
+    expect(judgeTeam([build('charizardmegax', { moves: ['fakeout'] })], 'M-C').problems).toEqual([
+      { path: ['pokemon', 0, 'moves', 0], message: "Charizard-Mega-X can't learn Fake Out." },
+    ])
+  })
+
+  it('reads learnsets by Regulation', () => {
+    // Archaludon learned Metal Burst in M-B but not in M-C, and Slash the other way round.
+    const team = [build('archaludon', { moves: ['metalburst', 'slash'] })]
+    expect(judgeTeam(team, 'M-B').problems).toEqual([
+      { path: ['pokemon', 0, 'moves', 1], message: "Archaludon can't learn Slash." },
+    ])
+    expect(judgeTeam(team, 'M-C').problems).toEqual([
+      { path: ['pokemon', 0, 'moves', 0], message: "Archaludon can't learn Metal Burst." },
+    ])
+  })
+
+  it('flags a move the data no longer has, by its ID', () => {
+    expect(judgeTeam([build('incineroar', { moves: ['notamove'] })], 'M-C').problems).toEqual([
+      { path: ['pokemon', 0, 'moves', 0], message: "Incineroar can't learn notamove." },
+    ])
+  })
+
+  it('does not judge the moves of a species the data has no learnset for', () => {
+    expect(judgeTeam([build('notapokemon', { moves: ['fakeout'] })], 'M-C').problems).toEqual([
+      { path: ['pokemon', 0, 'species'], message: "notapokemon isn't allowed in Reg M-C." },
+    ])
+  })
+
   it('flags an item the Regulation does not allow, by Regulation', () => {
     const team = [build('incineroar', { item: 'rockyhelmet' })]
     expect(judgeTeam(team, 'M-B').problems).toEqual([
@@ -143,6 +191,23 @@ describe('splitting problems for display', () => {
       "Incineroar can't have Levitate.",
     ])
     expect(buildProblems(legality, 1)).toEqual([])
+  })
+
+  it('gives each move its own problems, apart from the rest of the build', () => {
+    const problems = buildProblems(
+      judgeTeam(
+        [build('incineroar', { ability: 'levitate', moves: ['fakeout', 'psychic'] })],
+        'M-C',
+      ),
+      0,
+    )
+    expect(moveProblems(problems, 1).map((problem) => problem.message)).toEqual([
+      "Incineroar can't learn Psychic.",
+    ])
+    expect(moveProblems(problems, 0)).toEqual([])
+    expect(wholeBuildProblems(problems).map((problem) => problem.message)).toEqual([
+      "Incineroar can't have Levitate.",
+    ])
   })
 
   it('keeps Team-wide problems apart', () => {

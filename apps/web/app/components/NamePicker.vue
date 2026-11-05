@@ -1,5 +1,10 @@
 <script setup lang="ts">
-import { type NameKind, searchAbilities, searchNames } from '@myvgc/core/schema'
+import {
+  type LegalityProblem,
+  type NameKind,
+  searchAbilities,
+  searchNames,
+} from '@myvgc/core/schema'
 
 /**
  * Picks one species, move, item or ability from the names list, which works with no signal
@@ -13,6 +18,8 @@ const props = defineProps<{
   species?: string | null
   placeholder?: string
   error?: string
+  /** What's illegal about the choice. These never stop a save (ADR 18). */
+  problems?: LegalityProblem[]
 }>()
 const choice = defineModel<string | null>({ required: true })
 
@@ -66,7 +73,7 @@ function onKeydown(event: KeyboardEvent) {
 </script>
 
 <template>
-  <div class="flex flex-col gap-2">
+  <div class="flex flex-col gap-2" :data-testid="`${props.id}-field`">
     <Label :for="props.id">{{ props.label }}</Label>
     <div
       v-if="choice"
@@ -120,5 +127,6 @@ function onKeydown(event: KeyboardEvent) {
       </ul>
     </div>
     <p v-if="props.error" :id="errorId" class="text-destructive text-sm">{{ props.error }}</p>
+    <LegalityWarnings v-if="props.problems?.length" :problems="props.problems" />
   </div>
 </template>
