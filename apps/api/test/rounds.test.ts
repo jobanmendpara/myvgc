@@ -134,31 +134,38 @@ describe('Rounds', () => {
     expect(await json(await get(t.app, '/api/opponents', ash))).toEqual([])
   })
 
-  it('refuses a Swiss round number or Top cut stage that is already logged', async () => {
+  it('answers 409 for a Swiss round number or Top cut stage that is already logged', async () => {
     await setUp()
     await logRound({ roundNumber: 3, result: 'win', newOpponentName: 'A' })
     await logRound({ phase: 'top-cut', stage: 'top-8', result: 'win', newOpponentName: 'B' })
 
+    // A Round that is also invalid answers 400 for that first, as fixing it may change the clash.
+    const both = await logRound({ roundNumber: 3, result: 'win' })
+    expect(both.status).toBe(400)
+
     const number = await logRound({ roundNumber: 3, result: 'loss', newOpponentName: 'C' })
-    expect(number.status).toBe(400)
-    expect((await json(number)).fields).toHaveProperty('roundNumber')
+    expect(number.status).toBe(409)
+    expect(await json(number)).toMatchObject({
+      error: 'Round 3 is already logged.',
+      fields: { roundNumber: 'Round 3 is already logged.' },
+    })
     const stage = await logRound({
       phase: 'top-cut',
       stage: 'top-8',
       result: 'loss',
       newOpponentName: 'D',
     })
-    expect(stage.status).toBe(400)
+    expect(stage.status).toBe(409)
     expect((await json(stage)).fields).toHaveProperty('stage')
   })
 
-  it('answers 400, not a server error, when the same Round is logged twice at once', async () => {
+  it('answers 409, not a server error, when the same Round is logged twice at once', async () => {
     await setUp()
     const results = await Promise.all([
       logRound({ roundNumber: 1, result: 'win', newOpponentName: 'A' }),
       logRound({ roundNumber: 1, result: 'win', newOpponentName: 'A' }),
     ])
-    expect(results.map((r) => r.status).sort()).toEqual([201, 400])
+    expect(results.map((r) => r.status).sort()).toEqual([201, 409])
   })
 
   it('shows the Tournament’s Rounds in order with its Record', async () => {

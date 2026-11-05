@@ -179,7 +179,7 @@ describe('Replayed writes', () => {
         result: 'loss',
         newOpponentName: 'B',
       })
-      expect(res.status).toBe(400)
+      expect(res.status).toBe(409)
       expect((await json(res)).fields.roundNumber).toBe('Round 3 is already logged.')
       expect(await json(await get(t.app, '/api/opponents', ash))).toHaveLength(1)
     })

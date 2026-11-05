@@ -42,14 +42,29 @@ export async function readBody<S extends z.ZodType>(
   return { ok: false, response: invalid(c, input.error.issues) }
 }
 
-/** A 400 with the first message for each field. */
-export function invalid(c: Context, issues: readonly { path: PropertyKey[]; message: string }[]) {
+type Issue = { path: PropertyKey[]; message: string }
+
+/** The first message for each field. */
+function byField(issues: readonly Issue[]) {
   const fields: Record<string, string> = {}
   for (const issue of issues) {
     const field = issue.path.length ? issue.path.map(String).join('.') : 'body'
     fields[field] ??= issue.message
   }
-  return c.json({ error: 'Invalid request', fields }, 400)
+  return fields
+}
+
+/** A 400 with the first message for each field. */
+export function invalid(c: Context, issues: readonly Issue[]) {
+  return c.json({ error: 'Invalid request', fields: byField(issues) }, 400)
+}
+
+/**
+ * A 409 for a valid request that clashes with what is saved, such as a round number already
+ * logged. It names the fields, like a 400, so the form can show the message next to them.
+ */
+export function clash(c: Context, issues: readonly [Issue, ...Issue[]]) {
+  return c.json({ error: issues[0].message, fields: byField(issues) }, 409)
 }
 
 /** Makes `%`, `_` and `\\` in a search match themselves in a LIKE pattern. */
