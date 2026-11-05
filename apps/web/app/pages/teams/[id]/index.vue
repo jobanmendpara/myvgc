@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { TeamView } from '@myvgc/core/schema'
+import { type TeamView, buildProblems, teamProblems } from '@myvgc/core/schema'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 import { FetchError } from 'ofetch'
 
@@ -122,6 +122,7 @@ const remove = useMutation({
             {{ team.name }}
           </h1>
           <Badge variant="secondary">Reg {{ team.regulation }}</Badge>
+          <LegalityBadge :legality="team.legality" />
         </div>
         <div class="flex flex-wrap gap-2">
           <Button :disabled="copyState === 'copying'" data-testid="copy-paste" @click="copyPaste">
@@ -170,8 +171,19 @@ const remove = useMutation({
         </AlertDescription>
       </Alert>
 
+      <Alert v-if="teamProblems(team.legality).length" data-testid="team-problems">
+        <AlertDescription>
+          <LegalityWarnings :problems="teamProblems(team.legality)" />
+        </AlertDescription>
+      </Alert>
+
       <div class="grid grid-cols-1 gap-3 sm:grid-cols-2" data-testid="team-pokemon">
-        <PokemonBuildCard v-for="(build, index) in team.pokemon" :key="index" :build="build" />
+        <PokemonBuildCard
+          v-for="(build, index) in team.pokemon"
+          :key="index"
+          :build="build"
+          :problems="buildProblems(team.legality, index)"
+        />
       </div>
 
       <section class="flex flex-col gap-1">

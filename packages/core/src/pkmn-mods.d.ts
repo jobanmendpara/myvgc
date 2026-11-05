@@ -11,3 +11,12 @@ declare module '@pkmn/mods/champions' {
   export const Rulesets: unknown
   export const Scripts: unknown
 }
+
+declare module '@pkmn/mods/championsregmb' {
+  export const Formats: unknown
+  export const FormatsData: unknown
+  export const Items: unknown
+  export const Learnsets: unknown
+  export const Moves: unknown
+  export const Scripts: unknown
+}

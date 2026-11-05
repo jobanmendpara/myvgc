@@ -68,15 +68,22 @@ test('build a one-Pokémon Team, then edit a move', async ({ page }) => {
   await pick('Species', 'Incineroar')
   await page.getByRole('combobox', { name: 'Ability' }).click()
   await expect(page.getByRole('listbox').getByRole('option')).toHaveText(['Blaze', 'Intimidate'])
-  // Only a convenience: an ability that isn't the species' own can still be found and saved.
+  // Only a convenience: an ability that isn't the species' own can still be found and saved,
+  // with a warning all the way (ADR 18).
   await pick('Ability', 'Levitate')
+  const warning = "Incineroar can't have Levitate."
+  await expect(page.getByTestId('build-editor')).toContainText(warning)
   await pick('Move 1', 'Fake Out')
   await page.getByRole('button', { name: 'Done' }).click()
+  await expect(page.getByTestId('build-warning')).toHaveText(warning)
+  await expect(page.getByTestId('legality-note')).toHaveText("This Team isn't legal in M-C.")
   await page.getByRole('button', { name: 'Save Team' }).click()
 
   await expect(page).toHaveURL(/\/teams\/[0-9a-f-]{36}$/)
   await expect(page.getByTestId('pokemon-build')).toContainText('Fake Out')
   await expect(page.getByTestId('pokemon-build')).toContainText('Levitate')
+  await expect(page.getByTestId('pokemon-build')).toContainText(warning)
+  await expect(page.getByTestId('legality-badge')).toHaveText('Illegal in M-C')
 
   await page.getByRole('link', { name: 'Edit' }).click()
   await expect(page.getByRole('heading', { name: 'Edit Team' })).toBeVisible()
@@ -92,6 +99,15 @@ test('build a one-Pokémon Team, then edit a move', async ({ page }) => {
   await expect(page).toHaveURL(/\/teams\/[0-9a-f-]{36}$/)
   await expect(page.getByTestId('pokemon-build')).toContainText('Flare Blitz')
   await expect(page.getByTestId('pokemon-build')).not.toContainText('Fake Out')
+
+  await page.getByRole('link', { name: 'Edit' }).click()
+  await page.getByLabel('Regulation').selectOption('M-A')
+  await expect(page.getByTestId('legality-note')).toContainText("this Team isn't checked")
+  await page.getByRole('button', { name: 'Save Team' }).click()
+  await expect(page).toHaveURL(/\/teams\/[0-9a-f-]{36}$/)
+
+  await page.goto('/teams')
+  await expect(page.getByTestId('legality-badge')).toHaveText('Not checked')
 })
 
 test('log a Tournament and a Round against a new Opponent', async ({ page }) => {

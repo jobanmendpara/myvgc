@@ -49,8 +49,9 @@ export function searchNames(table: NamesTable, query: string, limit = Infinity):
 
 /**
  * The ability picker's search. With no query it lists only the species' own abilities; with a
- * query those come first, then every other match, because this is a convenience and not a
- * legality check (ADR 10). With no species, or none listed for it, it searches every ability.
+ * query those come first, then every other match, because this is a convenience: the Team
+ * builder warns about an ability the species can't have (ADR 18). With no species, or none listed
+ * for it, it searches every ability.
  */
 export function searchAbilities(
   names: Pick<ChampionsNames, 'abilities' | 'abilitiesBySpecies'>,

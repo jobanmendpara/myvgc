@@ -76,8 +76,15 @@ const snapshotDate = computed(() =>
             }}<template v-if="!tournament.team.teamId"> · original Team deleted</template>
           </p>
         </div>
-        <Badge variant="secondary">Reg {{ tournament.team.regulation }}</Badge>
+        <div class="flex flex-wrap justify-end gap-1.5">
+          <LegalityBadge :legality="tournament.team.legality" />
+          <Badge variant="secondary">Reg {{ tournament.team.regulation }}</Badge>
+        </div>
       </div>
+      <LegalityWarnings
+        v-if="tournament.team.legality.problems.length"
+        :problems="tournament.team.legality.problems"
+      />
       <ul class="flex flex-wrap gap-1.5" :aria-label="`Pokémon in ${tournament.team.name}`">
         <li
           v-for="(build, index) in tournament.team.pokemon"

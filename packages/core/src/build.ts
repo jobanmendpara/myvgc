@@ -21,7 +21,7 @@ export const MAX_TEAM_SIZE = 6
 export const MAX_NICKNAME_LENGTH = 100
 
 /** A Showdown ID: lowercase letters and digits, such as `rotomwash` or `sitrusberry`. */
-const showdownId = z.string().regex(/^[a-z0-9]+$/, 'Must be a Showdown ID')
+export const showdownId = z.string().regex(/^[a-z0-9]+$/, 'Must be a Showdown ID')
 
 const statPoint = z
   .number()

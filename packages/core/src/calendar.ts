@@ -32,6 +32,19 @@ export const REGULATION_PERIODS: readonly RegulationPeriod[] = [
   { regulation: 'M-C', start: '2026-09-09', end: '2026-12-01' },
 ]
 
+/** A Showdown mod holding one Regulation's rules. */
+export type ChampionsMod = 'champions' | 'championsregmb'
+
+/**
+ * The mod that holds each Regulation's rules, or null for one MyVGC has no rules for (ADR 18).
+ * `champions` always holds the latest Regulation, so a new one moves this map in the same release.
+ */
+export const REGULATION_MODS: Readonly<Record<Regulation, ChampionsMod | null>> = {
+  'M-A': null,
+  'M-B': 'championsregmb',
+  'M-C': 'champions',
+}
+
 /** Every Season with its dates, oldest first. */
 export const SEASONS: readonly Season[] = [
   // Champions came out on 2026-04-08, partway through the 2026 Season.

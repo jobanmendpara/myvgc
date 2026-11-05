@@ -5,6 +5,7 @@ import {
   type TournamentView,
   canRefreshSnapshot,
   isUpcoming,
+  judgeTeam,
   linkTeamSchema,
   recordOf,
   nameBuild,
@@ -33,6 +34,7 @@ function toSnapshotView(row: TournamentRow): TeamSnapshotView | null {
     name: row.teamName,
     regulation: row.teamRegulation,
     pokemon: row.teamPokemon.map(nameBuild),
+    legality: judgeTeam(row.teamPokemon, row.regulation),
     snapshotAt: row.teamSnapshotAt.toISOString(),
   }
 }

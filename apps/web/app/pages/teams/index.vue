@@ -44,7 +44,10 @@ const teams = useQuery({ queryKey: ['teams'], queryFn: () => $fetch<TeamView[]>(
         >
           <div class="flex items-start justify-between gap-3">
             <span class="min-w-0 font-semibold break-words">{{ team.name }}</span>
-            <Badge variant="secondary" class="shrink-0">Reg {{ team.regulation }}</Badge>
+            <div class="flex shrink-0 flex-wrap justify-end gap-1.5">
+              <LegalityBadge :legality="team.legality" />
+              <Badge variant="secondary">Reg {{ team.regulation }}</Badge>
+            </div>
           </div>
           <ul class="flex flex-wrap gap-1.5" :aria-label="`Pokémon in ${team.name}`">
             <li

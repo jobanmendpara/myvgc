@@ -1,5 +1,6 @@
 import {
   DEFAULT_REGULATION,
+  type LegalityCheck,
   MAX_MOVES,
   type NamedPokemonBuild,
   type Regulation,
@@ -85,6 +86,18 @@ export function draftToBody(draft: TeamDraft): TeamBody {
       nature: build.nature || undefined,
       moves: build.moves.filter((move) => move !== null),
       statPoints: build.statPoints,
+    })),
+  }
+}
+
+/** What to have judged for the form as it stands. Every slot is sent, so paths match the slots. */
+export function draftToLegalityCheck(draft: TeamDraft): LegalityCheck {
+  return {
+    regulation: draft.regulation,
+    pokemon: draft.pokemon.map((build) => ({
+      species: build.species,
+      item: build.item ?? undefined,
+      ability: build.ability ?? undefined,
     })),
   }
 }

@@ -4,5 +4,6 @@
 export * from './schema'
 export { champions, championsNames, displayName, type ChampionsKind } from './champions'
 export { checkPokemon, type PokemonIssue } from './check-pokemon'
+export { judgeTeam } from './legality'
 export { nameBuild } from './names'
 export { readPaste, writePaste, type PasteIssue, type ReadPasteResult } from './paste'
