@@ -5,16 +5,18 @@ import {
   MAX_NICKNAME_LENGTH,
   MAX_STAT_POINTS,
   MAX_TOTAL_STAT_POINTS,
+  moveProblems,
   STAT_ALIGNMENTS,
   STAT_IDS,
   STAT_LABELS,
   type StatId,
   statAlignmentLabel,
   totalStatPoints,
+  wholeBuildProblems,
 } from '@myvgc/core/schema'
 import { MinusIcon, PlusIcon } from '@lucide/vue'
 import { DialogContent, DialogOverlay, DialogPortal, DialogRoot, DialogTitle } from 'reka-ui'
-import { type BuildDraft, moveField } from '@/lib/team-form'
+import { type BuildDraft, moveField, sentMoveIndex } from '@/lib/team-form'
 
 /**
  * The editor for one slot's Pokémon build: full screen on a phone, a side panel on desktop.
@@ -31,6 +33,10 @@ const build = defineModel<BuildDraft>('build', { required: true })
 
 const error = (field: string) => props.errors[`pokemon.${props.index}.${field}`]
 const moveError = (picker: number) => props.errors[moveField(build.value, props.index, picker)]
+// Each move's problems show by its picker; the rest at the top.
+const buildWarnings = computed(() => wholeBuildProblems(props.problems ?? []))
+const moveWarnings = (picker: number) =>
+  moveProblems(props.problems ?? [], sentMoveIndex(build.value, picker))
 
 const moreHasError = computed(() => Boolean(error('nickname') || error('gender')))
 const remaining = computed(() => MAX_TOTAL_STAT_POINTS - totalStatPoints(build.value.statPoints))
@@ -54,7 +60,7 @@ function setStat(stat: StatId, value: string | number) {
           <Button type="button" @click="open = false">Done</Button>
         </div>
 
-        <LegalityWarnings v-if="props.problems?.length" :problems="props.problems" />
+        <LegalityWarnings v-if="buildWarnings.length" :problems="buildWarnings" />
 
         <NamePicker
           id="build-species"
@@ -118,6 +124,7 @@ function setStat(stat: StatId, value: string | number) {
             kind="moves"
             placeholder="Search moves"
             :error="build.moves[picker - 1] ? moveError(picker - 1) : undefined"
+            :problems="build.moves[picker - 1] ? moveWarnings(picker - 1) : undefined"
           />
           <p v-if="error('moves')" class="text-destructive text-sm">{{ error('moves') }}</p>
         </fieldset>

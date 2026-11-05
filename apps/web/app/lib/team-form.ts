@@ -98,6 +98,7 @@ export function draftToLegalityCheck(draft: TeamDraft): LegalityCheck {
       species: build.species,
       item: build.item ?? undefined,
       ability: build.ability ?? undefined,
+      moves: build.moves.filter((move) => move !== null),
     })),
   }
 }
@@ -112,8 +113,12 @@ export function draftErrors(draft: TeamDraft): Record<string, string> {
   return fields
 }
 
-/** The field a move's picker answers for: empty pickers aren't sent, so later moves shift up. */
+/** Where a move's picker lands among the moves sent: empty pickers aren't sent, so later moves shift up. */
+export function sentMoveIndex(build: BuildDraft, picker: number): number {
+  return build.moves.slice(0, picker).filter((move) => move !== null).length
+}
+
+/** The field a move's picker answers for. */
 export function moveField(build: BuildDraft, buildIndex: number, picker: number): string {
-  const sent = build.moves.slice(0, picker).filter((move) => move !== null).length
-  return `pokemon.${buildIndex}.moves.${sent}`
+  return `pokemon.${buildIndex}.moves.${sentMoveIndex(build, picker)}`
 }

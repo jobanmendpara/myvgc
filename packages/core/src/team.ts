@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { MAX_TEAM_SIZE, type PokemonBuild, showdownId, teamPokemonSchema } from './build'
+import { MAX_MOVES, MAX_TEAM_SIZE, type PokemonBuild, showdownId, teamPokemonSchema } from './build'
 
 /** Champions Regulations a Team can be tagged with, oldest first. */
 export const REGULATIONS = ['M-A', 'M-B', 'M-C'] as const
@@ -58,6 +58,7 @@ export const legalityCheckSchema = z.object({
         species: showdownId.nullable(),
         item: showdownId.optional(),
         ability: showdownId.optional(),
+        moves: z.array(showdownId).max(MAX_MOVES).optional(),
       }),
     )
     .max(MAX_TEAM_SIZE, `A Team has at most ${MAX_TEAM_SIZE} Pokémon.`),
@@ -65,7 +66,7 @@ export const legalityCheckSchema = z.object({
 
 export type LegalityCheck = z.input<typeof legalityCheckSchema>
 
-/** The parts of a Pokémon build legality looks at. Learnsets aren't checked yet (ADR 18). */
+/** The parts of a Pokémon build legality looks at. */
 export type LegalityBuild = z.infer<typeof legalityCheckSchema>['pokemon'][number]
 
 /** Whether a Team breaks a Regulation's rules. MyVGC can't say for a Regulation it has no rules for. */
@@ -88,6 +89,14 @@ export interface Legality {
 /** The problems about one Pokémon build. */
 export const buildProblems = (legality: Legality, index: number): LegalityProblem[] =>
   legality.problems.filter((problem) => problem.path[1] === index)
+
+/** Of one Pokémon build's problems, those about its move at `move`, to show next to that move. */
+export const moveProblems = (problems: LegalityProblem[], move: number): LegalityProblem[] =>
+  problems.filter((problem) => problem.path[2] === 'moves' && problem.path[3] === move)
+
+/** Of one Pokémon build's problems, those not about one of its moves. */
+export const wholeBuildProblems = (problems: LegalityProblem[]): LegalityProblem[] =>
+  problems.filter((problem) => problem.path[2] !== 'moves')
 
 /** The problems about the whole Team, such as Species Clause. */
 export const teamProblems = (legality: Legality): LegalityProblem[] =>

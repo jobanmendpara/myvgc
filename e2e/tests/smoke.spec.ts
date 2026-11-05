@@ -74,8 +74,12 @@ test('build a one-Pokémon Team, then edit a move', async ({ page }) => {
   const warning = "Incineroar can't have Levitate."
   await expect(page.getByTestId('build-editor')).toContainText(warning)
   await pick('Move 1', 'Fake Out')
+  await pick('Move 2', 'Psychic')
+  const moveWarning = "Incineroar can't learn Psychic."
+  await expect(page.getByTestId('build-move-2-field')).toContainText(moveWarning)
+  await expect(page.getByTestId('build-move-1-field')).not.toContainText(moveWarning)
   await page.getByRole('button', { name: 'Done' }).click()
-  await expect(page.getByTestId('build-warning')).toHaveText(warning)
+  await expect(page.getByTestId('build-warning')).toHaveText([warning, moveWarning])
   await expect(page.getByTestId('legality-note')).toHaveText("This Team isn't legal in M-C.")
   await page.getByRole('button', { name: 'Save Team' }).click()
 
@@ -83,6 +87,9 @@ test('build a one-Pokémon Team, then edit a move', async ({ page }) => {
   await expect(page.getByTestId('pokemon-build')).toContainText('Fake Out')
   await expect(page.getByTestId('pokemon-build')).toContainText('Levitate')
   await expect(page.getByTestId('pokemon-build')).toContainText(warning)
+  const moves = page.getByRole('list', { name: 'Moves' }).locator(':scope > li')
+  await expect(moves.filter({ hasText: 'Psychic' })).toContainText(moveWarning)
+  await expect(moves.filter({ hasText: 'Fake Out' })).not.toContainText(moveWarning)
   await expect(page.getByTestId('legality-badge')).toHaveText('Illegal in M-C')
 
   await page.getByRole('link', { name: 'Edit' }).click()
