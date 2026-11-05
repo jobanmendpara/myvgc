@@ -123,7 +123,7 @@ const snapshotDate = computed(() =>
       <p v-if="teams.isPending.value" class="text-muted-foreground text-sm">Loading your Teams…</p>
       <p v-else-if="!teams.data.value?.length" class="text-sm">
         You have no Teams yet.
-        <NuxtLink to="/teams/new" class="text-primary underline">Import one</NuxtLink> first.
+        <NuxtLink to="/teams/new" class="text-primary underline">Add one</NuxtLink> first.
       </p>
       <template v-else>
         <Label for="team-choice">Which Team did you bring?</Label>

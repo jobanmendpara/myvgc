@@ -12,7 +12,7 @@ const teams = useQuery({ queryKey: ['teams'], queryFn: () => $fetch<TeamView[]>(
     <div class="flex flex-wrap items-center justify-between gap-3">
       <h1 class="text-2xl font-semibold">Your Teams</h1>
       <Button v-if="teams.data.value?.length" as-child>
-        <NuxtLink to="/teams/new">Import a Team</NuxtLink>
+        <NuxtLink to="/teams/new">New Team</NuxtLink>
       </Button>
     </div>
 
@@ -27,11 +27,11 @@ const teams = useQuery({ queryKey: ['teams'], queryFn: () => $fetch<TeamView[]>(
     <Card v-else-if="teams.data.value?.length === 0" data-testid="teams-empty">
       <CardHeader>
         <CardTitle>No Teams yet</CardTitle>
-        <CardDescription>Paste a Team exported from Showdown to keep it here.</CardDescription>
+        <CardDescription>Import a Team from Showdown or build one here.</CardDescription>
       </CardHeader>
       <CardFooter>
         <Button as-child size="lg" class="w-full sm:w-auto">
-          <NuxtLink to="/teams/new">Import your first Team</NuxtLink>
+          <NuxtLink to="/teams/new">Add your first Team</NuxtLink>
         </Button>
       </CardFooter>
     </Card>

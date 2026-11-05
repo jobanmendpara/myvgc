@@ -1,13 +1,16 @@
-import { type ChampionsKind, champions, displayName } from './champions'
+import { type ChampionsKind, champions, displayName, unknownName } from './champions'
 import {
   MAX_MOVES,
+  MAX_NICKNAME_LENGTH,
   MAX_STAT_POINTS,
   MAX_TEAM_SIZE,
   MAX_TOTAL_STAT_POINTS,
   type PokemonBuild,
   STAT_IDS,
+  STAT_LABELS,
   type StatId,
   type StatPoints,
+  repeatedMoves,
   totalStatPoints,
 } from './build'
 
@@ -24,15 +27,6 @@ export type ReadPasteResult =
 interface Line {
   number: number
   text: string
-}
-
-const STAT_LABELS: Record<StatId, string> = {
-  hp: 'HP',
-  atk: 'Atk',
-  def: 'Def',
-  spa: 'SpA',
-  spd: 'SpD',
-  spe: 'Spe',
 }
 
 // Stat names as written in pastes, after lowercasing and removing everything but letters.
@@ -69,15 +63,6 @@ const IGNORED_LINES: { label: string; message: string }[] = [
     message: "Champions doesn't use Happiness, so the Happiness line was ignored.",
   },
 ]
-
-// Each kind with its article, for messages like "is not an item in Pokémon Champions".
-const KIND_NOUNS: Record<ChampionsKind, string> = {
-  species: 'a Pokémon',
-  item: 'an item',
-  ability: 'an ability',
-  move: 'a move',
-  nature: 'a nature',
-}
 
 /**
  * Reads a Champions-format Showdown paste: Showdown's export format, where the `EVs:` line holds
@@ -131,10 +116,7 @@ function readBuild(
   const lookUp = (kind: ChampionsKind, name: string, line: Line): string | undefined => {
     const found = champions[kind](name)
     if (!found) {
-      errors.push({
-        line: line.number,
-        message: `"${name}" is not ${KIND_NOUNS[kind]} in Pokémon Champions.`,
-      })
+      errors.push({ line: line.number, message: unknownName(kind, name) })
     }
     return found?.id
   }
@@ -148,6 +130,12 @@ function readBuild(
   const head = readFirstLine(first!.text)
   build.species = lookUp('species', head.species, first!) ?? ''
   if (head.nickname && head.nickname !== champions.species(head.species)?.name) {
+    if (head.nickname.length > MAX_NICKNAME_LENGTH) {
+      errors.push({
+        line: first!.number,
+        message: `Nicknames can be at most ${MAX_NICKNAME_LENGTH} characters.`,
+      })
+    }
     build.nickname = head.nickname
   }
   if (head.gender) build.gender = head.gender
@@ -184,7 +172,11 @@ function readBuild(
         build.moves.push('')
         continue
       }
-      build.moves.push(lookUp('move', name, line) ?? '')
+      const move = lookUp('move', name, line)
+      if (move && repeatedMoves([...build.moves, move]).length > 0) {
+        errors.push({ line: line.number, message: `This Pokémon already has "${name}".` })
+      }
+      build.moves.push(move ?? '')
     } else {
       errors.push({ line: line.number, message: "Can't read this line." })
     }

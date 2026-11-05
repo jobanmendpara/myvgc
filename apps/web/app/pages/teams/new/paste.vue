@@ -168,7 +168,7 @@ function showLine(line: number) {
 
       <div class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
         <Button as-child variant="outline" size="lg"
-          ><NuxtLink to="/teams">Cancel</NuxtLink></Button
+          ><NuxtLink to="/teams/new">Cancel</NuxtLink></Button
         >
         <Button type="submit" size="lg" :disabled="save.isPending.value">
           {{ save.isPending.value ? 'Saving…' : 'Save Team' }}

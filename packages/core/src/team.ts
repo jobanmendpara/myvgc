@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { PokemonBuild } from './build'
+import { type PokemonBuild, teamPokemonSchema } from './build'
 
 /** Champions Regulations a Team can be tagged with, oldest first. */
 export const REGULATIONS = ['M-A', 'M-B', 'M-C'] as const
@@ -11,21 +11,42 @@ export const MAX_NOTES_LENGTH = 20_000
 /** Six Pokémon with long nicknames and every line filled in stay well under this. */
 export const MAX_PASTE_LENGTH = 10_000
 
-/** What a User sends to import a Team from a paste. */
-export const newTeamSchema = z.object({
-  name: z
-    .string()
-    .trim()
-    .min(1, 'Give the Team a name.')
-    .max(MAX_TEAM_NAME_LENGTH, `Team names can be at most ${MAX_TEAM_NAME_LENGTH} characters.`),
-  regulation: z.enum(REGULATIONS).default(DEFAULT_REGULATION),
-  paste: z.string().max(MAX_PASTE_LENGTH, `Pastes can be at most ${MAX_PASTE_LENGTH} characters.`),
-  notes: z
-    .string()
-    .max(MAX_NOTES_LENGTH, `Notes can be at most ${MAX_NOTES_LENGTH} characters.`)
-    .default(''),
+const teamName = z
+  .string()
+  .trim()
+  .min(1, 'Give the Team a name.')
+  .max(MAX_TEAM_NAME_LENGTH, `Team names can be at most ${MAX_TEAM_NAME_LENGTH} characters.`)
+
+const teamNotes = z
+  .string()
+  .max(MAX_NOTES_LENGTH, `Notes can be at most ${MAX_NOTES_LENGTH} characters.`)
+
+/** What a User sends to create a Team: from a paste, or from the Team builder's Pokémon builds. */
+export const newTeamSchema = z
+  .object({
+    name: teamName,
+    regulation: z.enum(REGULATIONS).default(DEFAULT_REGULATION),
+    paste: z
+      .string()
+      .max(MAX_PASTE_LENGTH, `Pastes can be at most ${MAX_PASTE_LENGTH} characters.`)
+      .optional(),
+    pokemon: teamPokemonSchema.optional(),
+    notes: teamNotes.default(''),
+  })
+  .refine((team) => (team.paste === undefined) !== (team.pokemon === undefined), {
+    message: 'Send either a paste or Pokémon builds.',
+    path: ['paste'],
+  })
+
+/** The whole Team, which replaces what is saved. Nothing is left to a default. */
+export const teamSchema = z.object({
+  name: teamName,
+  regulation: z.enum(REGULATIONS),
+  notes: teamNotes,
+  pokemon: teamPokemonSchema,
 })
 
+export type TeamBody = z.infer<typeof teamSchema>
 export type NewTeam = z.input<typeof newTeamSchema>
 
 /** Display names for one Pokémon build, looked up from the Champions data. */

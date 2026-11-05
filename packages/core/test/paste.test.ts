@@ -152,6 +152,22 @@ describe('rejecting pastes', () => {
     ])
   })
 
+  it('rejects the same move twice in one Pokémon', () => {
+    expect(expectErrors('Incineroar\n- Fake Out\n- Protect\n- fake out')).toEqual([
+      { line: 4, message: 'This Pokémon already has "fake out".' },
+    ])
+  })
+
+  it('allows the same move on two different Pokémon', () => {
+    expect(readPaste('Incineroar\n- Protect\n\nGarchomp\n- Protect').ok).toBe(true)
+  })
+
+  it('rejects a nickname too long to store', () => {
+    expect(expectErrors(`${'a'.repeat(101)} (Incineroar)`)).toEqual([
+      { line: 1, message: 'Nicknames can be at most 100 characters.' },
+    ])
+  })
+
   it('rejects a stat above 32 Stat Points', () => {
     expect(expectErrors('Incineroar\nAbility: Intimidate\nEVs: 33 HP / 2 Atk')).toEqual([
       { line: 3, message: 'HP has 33 Stat Points; the most for one stat is 32.' },

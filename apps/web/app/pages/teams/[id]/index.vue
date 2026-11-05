@@ -127,6 +127,9 @@ const remove = useMutation({
           <Button :disabled="copyState === 'copying'" data-testid="copy-paste" @click="copyPaste">
             {{ copyState === 'copied' ? 'Copied' : 'Copy paste' }}
           </Button>
+          <Button as-child variant="outline"
+            ><NuxtLink :to="`/teams/${id}/edit`">Edit</NuxtLink></Button
+          >
           <Button variant="outline" class="text-destructive" @click="confirmingDelete = true"
             >Delete</Button
           >

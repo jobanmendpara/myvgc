@@ -1,8 +1,8 @@
-import { teamPokemonSchema } from '@myvgc/core'
+import { type NamedPokemonBuild, pokemonBuildSchema, teamPokemonSchema } from '@myvgc/core'
 import { eq } from 'drizzle-orm'
 import { afterEach, describe, expect, it } from 'vitest'
 import { team, user } from '../src/db/schema'
-import { type TestApp, createTestApp, json, post, signUp } from './app'
+import { type TestApp, createTestApp, get, json, post, put, signUp } from './app'
 
 const PASTE = `Floette-Eternal @ Floettite
 Ability: Flower Veil
@@ -193,4 +193,217 @@ describe('GET /api/teams/:id', () => {
       expect(res.status).toBe(404)
     },
   )
+})
+
+const NO_POINTS = { hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0 }
+const INCINEROAR = {
+  species: 'incineroar',
+  ability: 'intimidate',
+  moves: ['fakeout', 'protect'],
+  statPoints: { ...NO_POINTS, hp: 32 },
+}
+
+describe('Teams from the Team builder', () => {
+  let t: TestApp | undefined
+  afterEach(async () => {
+    await t?.client.close()
+    t = undefined
+  })
+
+  async function asUser(email = 'ash@example.com') {
+    t = t ?? (await createTestApp())
+    const { cookie } = await signUp(t.app, email)
+    return cookie
+  }
+
+  async function createTeam(cookie: string) {
+    const res = await post(t!.app, '/api/teams', { name: 'Sun', pokemon: [INCINEROAR] }, cookie)
+    return (await json(res)).team
+  }
+
+  const whole = { name: 'Rain', regulation: 'M-A', notes: 'Lead', pokemon: [INCINEROAR] }
+
+  describe('POST /api/teams with Pokémon builds', () => {
+    it('creates a Team, with display names and no warnings', async () => {
+      const cookie = await asUser()
+      const res = await post(t!.app, '/api/teams', { name: 'Sun', pokemon: [INCINEROAR] }, cookie)
+
+      expect(res.status).toBe(201)
+      const body = await json(res)
+      expect(body.warnings).toEqual([])
+      expect(body.team).toMatchObject({ name: 'Sun', regulation: 'M-C', notes: '' })
+      expect(body.team.pokemon[0]).toMatchObject({
+        ...INCINEROAR,
+        names: { species: 'Incineroar', ability: 'Intimidate', moves: ['Fake Out', 'Protect'] },
+      })
+    })
+
+    it('accepts a build with only a species', async () => {
+      const cookie = await asUser()
+      const pokemon = [{ species: 'pikachu', moves: [], statPoints: NO_POINTS }]
+      const res = await post(t!.app, '/api/teams', { name: 'Seen', pokemon }, cookie)
+      expect(res.status).toBe(201)
+    })
+
+    it('rejects a body with both a paste and Pokémon builds', async () => {
+      const cookie = await asUser()
+      const res = await post(
+        t!.app,
+        '/api/teams',
+        { name: 'Sun', paste: 'Incineroar', pokemon: [INCINEROAR] },
+        cookie,
+      )
+      expect(res.status).toBe(400)
+    })
+
+    it('rejects a name the Champions data does not recognize, by field', async () => {
+      const cookie = await asUser()
+      const pokemon = [{ ...INCINEROAR, moves: ['fakeout', 'notamove'] }]
+      const res = await post(t!.app, '/api/teams', { name: 'Sun', pokemon }, cookie)
+
+      expect(res.status).toBe(400)
+      expect((await json(res)).fields).toEqual({
+        'pokemon.0.moves.1': '"notamove" is not a move in Pokémon Champions.',
+      })
+    })
+  })
+
+  describe('PUT /api/teams/:id', () => {
+    it('replaces the whole Team and answers with it', async () => {
+      const cookie = await asUser()
+      const { id, createdAt } = await createTeam(cookie)
+
+      const pokemon = [INCINEROAR, { species: 'garchomp', moves: [], statPoints: NO_POINTS }]
+      const res = await put(t!.app, `/api/teams/${id}`, { ...whole, pokemon }, cookie)
+
+      expect(res.status).toBe(200)
+      const body = await json(res)
+      expect(body).toMatchObject({ id, createdAt, name: 'Rain', regulation: 'M-A', notes: 'Lead' })
+      expect(body.pokemon[1].names.species).toBe('Garchomp')
+      expect(await json(await get(t!.app, `/api/teams/${id}`, cookie))).toEqual(body)
+    })
+
+    it('changes what the paste says', async () => {
+      const cookie = await asUser()
+      const { id } = await createTeam(cookie)
+      await put(
+        t!.app,
+        `/api/teams/${id}`,
+        { ...whole, pokemon: [{ ...INCINEROAR, moves: ['flareblitz'] }] },
+        cookie,
+      )
+      const paste = await (await get(t!.app, `/api/teams/${id}/paste`, cookie)).text()
+      expect(paste).toContain('- Flare Blitz')
+      expect(paste).not.toContain('- Fake Out')
+    })
+
+    it('edits a Team imported from a paste, keeping its nicknames and Stat Points', async () => {
+      const cookie = await asUser()
+      const created = await json(
+        await post(t!.app, '/api/teams', { name: 'Pasted', paste: PASTE }, cookie),
+      )
+      const res = await put(
+        t!.app,
+        `/api/teams/${created.team.id}`,
+        {
+          ...whole,
+          pokemon: created.team.pokemon.map((build: NamedPokemonBuild) =>
+            pokemonBuildSchema.parse(build),
+          ),
+        },
+        cookie,
+      )
+      expect(res.status).toBe(200)
+      expect((await json(res)).pokemon).toEqual(created.team.pokemon)
+    })
+
+    it('leaves a Team snapshot as it was', async () => {
+      const cookie = await asUser()
+      const { id } = await createTeam(cookie)
+      const tournament = await json(
+        await post(
+          t!.app,
+          '/api/tournaments',
+          { name: 'Worlds 2999', startDate: '2999-08-20', eventTier: 'worlds', regulation: 'M-C' },
+          cookie,
+        ),
+      )
+      const link = await put(
+        t!.app,
+        `/api/tournaments/${tournament.id}/team`,
+        { teamId: id },
+        cookie,
+      )
+      expect(link.status).toBe(200)
+
+      await put(
+        t!.app,
+        `/api/teams/${id}`,
+        { ...whole, pokemon: [{ ...INCINEROAR, moves: [] }] },
+        cookie,
+      )
+
+      const after = await json(await get(t!.app, `/api/tournaments/${tournament.id}`, cookie))
+      expect(after.team.pokemon[0].moves).toEqual(['fakeout', 'protect'])
+    })
+
+    it.each([
+      ['an unknown name', { species: 'notapokemon' }, 'pokemon.0.species'],
+      [
+        'a stat over the limit',
+        { statPoints: { ...NO_POINTS, atk: 33 } },
+        'pokemon.0.statPoints.atk',
+      ],
+      [
+        'a total over the limit',
+        { statPoints: { ...NO_POINTS, hp: 32, atk: 32, def: 3 } },
+        'pokemon.0.statPoints',
+      ],
+      ['too many moves', { moves: ['a', 'b', 'c', 'd', 'e'] }, 'pokemon.0.moves'],
+      ['a repeated move', { moves: ['protect', 'protect'] }, 'pokemon.0.moves.1'],
+    ])('rejects %s and changes nothing', async (_, change, field) => {
+      const cookie = await asUser()
+      const { id } = await createTeam(cookie)
+      const res = await put(
+        t!.app,
+        `/api/teams/${id}`,
+        { ...whole, pokemon: [{ ...INCINEROAR, ...change }] },
+        cookie,
+      )
+      expect(res.status).toBe(400)
+      expect(Object.keys((await json(res)).fields)).toEqual([field])
+      expect((await json(await get(t!.app, `/api/teams/${id}`, cookie))).name).toBe('Sun')
+    })
+
+    it.each([
+      ['no Pokémon', []],
+      ['seven Pokémon', Array(7).fill(INCINEROAR)],
+    ])('rejects %s', async (_, pokemon) => {
+      const cookie = await asUser()
+      const { id } = await createTeam(cookie)
+      const res = await put(t!.app, `/api/teams/${id}`, { ...whole, pokemon }, cookie)
+      expect(res.status).toBe(400)
+      expect(Object.keys((await json(res)).fields)).toEqual(['pokemon'])
+    })
+
+    it("answers 404 for another User's Team and leaves it alone", async () => {
+      const cookie = await asUser()
+      const { id } = await createTeam(cookie)
+      const other = await asUser('misty@example.com')
+
+      expect((await put(t!.app, `/api/teams/${id}`, whole, other)).status).toBe(404)
+      expect((await json(await get(t!.app, `/api/teams/${id}`, cookie))).name).toBe('Sun')
+    })
+
+    it('answers 404 for an ID that cannot exist', async () => {
+      const cookie = await asUser()
+      expect((await put(t!.app, '/api/teams/nope', whole, cookie)).status).toBe(404)
+    })
+
+    it('needs a session', async () => {
+      t = await createTestApp()
+      const res = await put(t.app, '/api/teams/00000000-0000-4000-8000-000000000000', whole)
+      expect(res.status).toBe(401)
+    })
+  })
 })

@@ -1,9 +1,11 @@
 import {
   type TeamView,
+  checkPokemon,
   nameBuild,
   newTeamSchema,
   readPaste,
   teamPokemonSchema,
+  teamSchema,
   writePaste,
 } from '@myvgc/core'
 import { and, desc, eq } from 'drizzle-orm'
@@ -11,7 +13,7 @@ import { Hono } from 'hono'
 import type { AppEnv } from '../app'
 import { team } from '../db/schema'
 import type { Database } from '../db/types'
-import { isId, notFound, readBody } from './helpers'
+import { invalid, isId, notFound, readBody } from './helpers'
 
 type TeamRow = typeof team.$inferSelect
 
@@ -46,16 +48,27 @@ export function teamRoutes(db: Database) {
       const input = await readBody(c, newTeamSchema)
       if (!input.ok) return input.response
 
-      const read = readPaste(input.data.paste)
+      const { name, regulation, notes, paste, pokemon } = input.data
+      const owned = { ownerId: c.get('user').id, name, regulation, notes }
+
+      if (pokemon) {
+        const issues = checkPokemon(pokemon)
+        if (issues.length > 0) return invalid(c, issues)
+        const [row] = await db
+          .insert(team)
+          .values({ ...owned, pokemon })
+          .returning()
+        return c.json({ team: toView(row!), warnings: [] }, 201)
+      }
+
+      // The schema makes sure a body without Pokémon builds has a paste.
+      const read = readPaste(paste!)
       if (!read.ok) return c.json({ errors: read.errors, warnings: read.warnings }, 422)
 
       const [row] = await db
         .insert(team)
         .values({
-          ownerId: c.get('user').id,
-          name: input.data.name,
-          regulation: input.data.regulation,
-          notes: input.data.notes,
+          ...owned,
           // The reader already checks every rule; parsing again guards what reaches the database.
           pokemon: teamPokemonSchema.parse(read.pokemon),
         })
@@ -69,6 +82,24 @@ export function teamRoutes(db: Database) {
         .select()
         .from(team)
         .where(ownTeam(id, c.get('user').id))
+      if (!row) return notFound(c)
+      return c.json(toView(row))
+    })
+    .put('/:id', async (c) => {
+      const id = c.req.param('id')
+      if (!isId(id)) return notFound(c)
+      const input = await readBody(c, teamSchema)
+      if (!input.ok) return input.response
+
+      const issues = checkPokemon(input.data.pokemon)
+      if (issues.length > 0) return invalid(c, issues)
+
+      // Team snapshots are copies (ADR 9), so they don't change. The last save wins.
+      const [row] = await db
+        .update(team)
+        .set(input.data)
+        .where(ownTeam(id, c.get('user').id))
+        .returning()
       if (!row) return notFound(c)
       return c.json(toView(row))
     })

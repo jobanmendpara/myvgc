@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { nameBuild, newTeamSchema } from '../src'
+import { nameBuild, newTeamSchema, teamSchema } from '../src'
 
 describe('newTeamSchema', () => {
   it('defaults the Regulation to M-C and the notes to empty', () => {
@@ -25,6 +25,54 @@ describe('newTeamSchema', () => {
     expect(newTeamSchema.safeParse({ name: 'Sun', regulation: 'H', paste: 'x' }).success).toBe(
       false,
     )
+  })
+})
+
+describe('newTeamSchema, either way in', () => {
+  const pokemon = [
+    {
+      species: 'incineroar',
+      moves: [],
+      statPoints: { hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0 },
+    },
+  ]
+
+  it('accepts Pokémon builds in place of a paste', () => {
+    expect(newTeamSchema.parse({ name: 'Sun', pokemon }).pokemon).toEqual(pokemon)
+  })
+
+  it.each([
+    ['neither', { name: 'Sun' }],
+    ['both', { name: 'Sun', paste: 'Incineroar', pokemon }],
+  ])('rejects %s', (_, input) => {
+    expect(newTeamSchema.safeParse(input).error?.issues[0]?.message).toBe(
+      'Send either a paste or Pokémon builds.',
+    )
+  })
+})
+
+describe('teamSchema', () => {
+  const pokemon = [
+    {
+      species: 'incineroar',
+      moves: [],
+      statPoints: { hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0 },
+    },
+  ]
+
+  it('takes the whole Team', () => {
+    expect(teamSchema.parse({ name: ' Sun ', regulation: 'M-B', notes: 'Lead', pokemon })).toEqual({
+      name: 'Sun',
+      regulation: 'M-B',
+      notes: 'Lead',
+      pokemon,
+    })
+  })
+
+  it.each(['name', 'regulation', 'notes', 'pokemon'])('needs %s', (field) => {
+    const whole = { name: 'Sun', regulation: 'M-B', notes: '', pokemon }
+    const input = Object.fromEntries(Object.entries(whole).filter(([key]) => key !== field))
+    expect(teamSchema.safeParse(input).error?.issues[0]?.path).toEqual([field])
   })
 })
 
