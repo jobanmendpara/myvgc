@@ -6,7 +6,15 @@ import tseslint from 'typescript-eslint'
 
 export default tseslint.config(
   {
-    ignores: ['**/node_modules/', '**/dist/', '**/.nuxt/', '**/.output/', '**/.data/', '.scratch/'],
+    ignores: [
+      '**/node_modules/',
+      '**/dist/',
+      '**/.nuxt/',
+      '**/.output/',
+      '**/.data/',
+      '.scratch/',
+      '.claude/skills/',
+    ],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,

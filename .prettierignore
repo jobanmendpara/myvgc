@@ -5,3 +5,5 @@ pnpm-lock.yaml
 **/dist/
 .scratch/
 docs/
+.claude/skills/
+skills-lock.json
