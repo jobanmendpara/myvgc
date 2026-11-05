@@ -6,6 +6,7 @@ import * as championsMod from '@pkmn/mods/champions'
 import * as championsRegMbMod from '@pkmn/mods/championsregmb'
 import type { ChampionsMod } from './calendar'
 import type { ChampionsNames, Named, NamesTable } from './names-list'
+import type { BaseStats } from './stat-values'
 
 // Showdown's Champions data, pinned through exact versions of @pkmn/dex and @pkmn/mods (ADR 12).
 const dex = Dex.mod('champions' as ID, championsMod as unknown as ModData)
@@ -113,10 +114,18 @@ function abilitiesBySpecies(): Record<string, string[]> {
   return abilities
 }
 
+function baseStatsBySpecies(): Record<string, BaseStats> {
+  const baseStats: Record<string, BaseStats> = {}
+  for (const species of allDexes.flatMap((modDex) => modDex.species.all())) {
+    if (inChampions(species)) baseStats[species.id] ??= { ...species.baseStats }
+  }
+  return baseStats
+}
+
 /**
  * The names list for pickers: every species and form, move, item and ability in any Regulation,
- * keyed by Showdown ID, and each species' or form's own abilities. About 52 KB of JSON, 17 KB
- * gzipped, against about 900 KB for the full data. Built once, on first use.
+ * keyed by Showdown ID, and each species' or form's own abilities and base stats. About 80 KB of
+ * JSON, 23 KB gzipped, against about 900 KB for the full data. Built once, on first use.
  */
 export function championsNames(): ChampionsNames {
   names ??= {
@@ -125,6 +134,7 @@ export function championsNames(): ChampionsNames {
     items: table((modDex) => modDex.items.all()),
     abilities: table((modDex) => modDex.abilities.all()),
     abilitiesBySpecies: abilitiesBySpecies(),
+    baseStats: baseStatsBySpecies(),
   }
   return names
 }

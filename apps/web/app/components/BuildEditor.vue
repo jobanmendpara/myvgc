@@ -40,6 +40,8 @@ const moveWarnings = (picker: number) =>
 
 const moreHasError = computed(() => Boolean(error('nickname') || error('gender')))
 const remaining = computed(() => MAX_TOTAL_STAT_POINTS - totalStatPoints(build.value.statPoints))
+// Live as Stat Points, the Stat Alignment or the species change.
+const values = useStatValues(build)
 
 function setStat(stat: StatId, value: string | number) {
   build.value.statPoints[stat] = Math.max(0, Math.trunc(Number(value) || 0))
@@ -174,6 +176,17 @@ function setStat(stat: StatId, value: string | number) {
               >
                 <PlusIcon aria-hidden="true" />
               </Button>
+              <output
+                :for="`build-stat-${stat}`"
+                class="ml-auto flex min-w-14 items-center justify-end gap-1 tabular-nums"
+                :aria-label="`${STAT_LABELS[stat]} stat value`"
+                :data-testid="`stat-value-${stat}`"
+              >
+                <StatAlignmentMark :stat-alignment="build.nature" :stat="stat" />
+                <span :class="values ? 'font-medium' : 'text-muted-foreground'">{{
+                  values?.[stat] ?? '—'
+                }}</span>
+              </output>
             </div>
             <p
               v-if="error(`statPoints.${stat}`)"

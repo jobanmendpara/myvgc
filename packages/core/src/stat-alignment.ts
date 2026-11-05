@@ -37,6 +37,17 @@ export const STAT_ALIGNMENTS: readonly StatAlignment[] = [
   { id: 'timid', name: 'Timid', raises: 'spe', lowers: 'atk' },
 ]
 
+/** Whether a Stat Alignment, given by ID, raises or lowers a stat, if it does either. */
+export function statAlignmentEffect(
+  statAlignment: string | undefined,
+  stat: StatId,
+): 'raises' | 'lowers' | undefined {
+  const alignment = STAT_ALIGNMENTS.find(({ id }) => id === statAlignment)
+  if (alignment?.raises === stat) return 'raises'
+  if (alignment?.lowers === stat) return 'lowers'
+  return undefined
+}
+
 /** A Stat Alignment with its effect, such as "Adamant (+Atk −SpA)". */
 export function statAlignmentLabel({ name, raises, lowers }: StatAlignment): string {
   if (!raises || !lowers) return `${name} (no effect)`

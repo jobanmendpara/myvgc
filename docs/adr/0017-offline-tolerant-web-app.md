@@ -1,6 +1,6 @@
 # 17. Offline-tolerant web app with a queued-write outbox
 
-Date: 2026-11-04 (amended 2026-11-05 for each species' own abilities, DEV-51)
+Date: 2026-11-04 (amended 2026-11-05 for each species' own abilities, DEV-51, and base stats, DEV-50)
 Status: Accepted
 
 ## Context
@@ -17,7 +17,7 @@ Make the web app offline-tolerant, not local-first. The server and Postgres stay
 - **Outbox.** TanStack Query persists the query cache and paused mutations to IndexedDB. Mutations on one Tournament run in series. Replay runs when the app is foregrounded or the browser comes back online, not from the service worker (Background Sync is Chromium-only). A write rejected by validation stays visible so the User can fix or discard it; a write that gets a 401 stays queued until the User logs in again. Nothing is dropped silently.
 - **App shell.** A service worker precaches the generated SPA (`@vite-pwa/nuxt`, which a spike confirmed builds and serves the shell offline on Nuxt 4.6.4). It never caches `/api/*`; API data lives only in the Query cache.
 - **Auth.** When the session check can't reach the server, the app uses the last known User stored on the device instead of showing the 503 page. A reply of "logged out" still logs out.
-- **Reference names.** One endpoint (or build-time JSON from `packages/core`) returns display names for species, moves, items and abilities, plus each species' own abilities, about 17 KB gzipped, and is cached for pickers. `@myvgc/core` stays out of the web bundle, and ADR 14 still holds (IDs stored, names looked up). Paste import keeps validating on the server.
+- **Reference names.** One endpoint (or build-time JSON from `packages/core`) returns display names for species, moves, items and abilities, plus each species' own abilities and base stats (for stat values), about 23 KB gzipped, and is cached for pickers. `@myvgc/core` stays out of the web bundle, and ADR 14 still holds (IDs stored, names looked up). Paste import keeps validating on the server.
 - **Local data is per User and disposable.** The cache is keyed by user id, cleared on logout, and has a "clear data on this device" action. The app asks the browser for persistent storage. The cache carries a version string that is bumped when API shapes change.
 
 ## Consequences

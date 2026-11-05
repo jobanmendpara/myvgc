@@ -7,7 +7,7 @@ describe('GET /api/names', () => {
     await t?.client.close()
   })
 
-  it('returns the names list for pickers, keyed by Showdown ID', async () => {
+  it('returns the names list for pickers and base stats, keyed by Showdown ID', async () => {
     t = await createTestApp()
     const { cookie } = await signUp(t.app, 'ash@example.com')
     const res = await get(t.app, '/api/names', cookie)
@@ -17,6 +17,7 @@ describe('GET /api/names', () => {
     expect(Object.keys(body).sort()).toEqual([
       'abilities',
       'abilitiesBySpecies',
+      'baseStats',
       'items',
       'moves',
       'species',
@@ -26,6 +27,14 @@ describe('GET /api/names', () => {
     expect(body.items.floettite).toBe('Floettite')
     expect(body.abilities.flowerveil).toBe('Flower Veil')
     expect(body.abilitiesBySpecies.incineroar).toEqual(['blaze', 'intimidate'])
+    expect(body.baseStats.incineroar).toEqual({
+      hp: 95,
+      atk: 115,
+      def: 90,
+      spa: 80,
+      spd: 90,
+      spe: 60,
+    })
     expect(Object.keys(body.species)).toHaveLength(392)
   })
 
