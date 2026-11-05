@@ -2,6 +2,16 @@
 
 Checked 2026-11-05 for MyVGC (DEV-30). This resolves open items 2 and 3 in `pokemon-champions-data.md`.
 
+## Correction (2026-11-05, DEV-49)
+
+**The official PDF has no form fields.** The copy inspected below (SHA-256 `643bd4a0…`) is teamsheet.gg's generated output: its Download button adds the fields `f0` to `f150` and saves with pdf-lib. TPCi's own file is flat:
+
+- URL: `https://www.pokemon.com/static-assets/content-assets/cms2/pdf/play-pokemon/rules/play-pokemon-vg-team-list.pdf` (no "-2023"). It answers scripted requests; the "-2023" URL below still answers 403.
+- 247,672 bytes, SHA-256 `4c0bb4ebe74d22edce3dd48d87f8009e0fb2121e43fd2c8cc7c0e01fedad9b56`, created and last modified 2026-05-27, Calibri fonts, two US Letter pages. Byte for byte the same as the blank template teamsheet.gg serves at `/vg-team-list.pdf`.
+- Downloading through a browser's PDF viewer saves a new copy (Producer PDFium) with a different hash, so hash the raw file.
+
+So the field map, the font notes and the flattening notes below describe teamsheet.gg's fillable version, not the official file. They are kept as history. The layout, the labels and the questions for Teamsheet export still hold. Export draws text at measured coordinates on the flat file (ADR 18), and question 5 is settled: the template is bundled.
+
 ## Summary
 
 - **It is the Champions sheet.** It asks for Stat Alignment and a Switch Profile Name, and it has no Tera Type or Level.
@@ -86,5 +96,5 @@ These are not settled here. They belong to DEV-31. Any that need a decision beco
 2. **Battle Team Number / Name.** This refers to the in-game Battle Team. A Team has a name, but no Battle Team number.
 3. **The stat boxes.** The sheet does not say whether to write the Pokémon's stat values (as shown in game at level 50) or its Stat Points. A Pokémon build stores Stat Points, so writing stat values would mean working them out from base stats, Stat Points and Stat Alignment. Check the current VGC Tournament Handbook before choosing. Tracked as DEV-50.
 4. **Support ID.** The sheet does not explain this field. It is probably an ID from the game or from Play! Pokémon support. Check the handbook.
-5. **Shipping the template.** The PDF belongs to The Pokémon Company International. MyVGC can bundle it in the repository and image, download it from the official URL when exporting, or ask the User to supply it. This touches the intellectual property risk in `docs/risks.md`, so it needs a decision. Tracked as DEV-49.
+5. **Shipping the template.** Settled by ADR 18: bundled. Originally: the PDF belongs to The Pokémon Company International. MyVGC can bundle it in the repository and image, download it from the official URL when exporting, or ask the User to supply it. This touches the intellectual property risk in `docs/risks.md`, so it needs a decision. Tracked as DEV-49.
 6. **Display names.** The sheet says Pokémon must be listed exactly as in the Battle Team, so the export should write in-game display names (from `@myvgc/core`'s data), not Showdown IDs.
