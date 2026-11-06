@@ -52,6 +52,22 @@ onMounted(() => {
     </section>
 
     <section
+      id="your-data"
+      aria-labelledby="your-data-heading"
+      class="flex scroll-mt-4 flex-col gap-4"
+    >
+      <div class="flex flex-col gap-1">
+        <h2 id="your-data-heading" class="text-lg font-semibold">Your data</h2>
+        <p class="text-muted-foreground text-sm">
+          Download all of your Teams, Tournaments, Rounds and Opponents as one file, and import it
+          into another MyVGC install, hosted or self-hosted. Your email and password are never in
+          it.
+        </p>
+      </div>
+      <DataExportImport />
+    </section>
+
+    <section
       id="appearance"
       aria-labelledby="appearance-heading"
       class="flex scroll-mt-4 flex-col gap-4"
