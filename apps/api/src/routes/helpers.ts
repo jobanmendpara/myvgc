@@ -69,3 +69,12 @@ export function clash(c: Context, issues: readonly [Issue, ...Issue[]]) {
 
 /** Makes `%`, `_` and `\\` in a search match themselves in a LIKE pattern. */
 export const escapeLike = (text: string) => text.replace(/[\\%_]/g, (char) => `\\${char}`)
+
+/** The constraint a Postgres unique violation names, if the error is one. */
+export function uniqueViolation(error: unknown): string | undefined {
+  for (let e = error; e && typeof e === 'object'; e = (e as { cause?: unknown }).cause) {
+    const { code, constraint } = e as { code?: string; constraint?: string }
+    if (code === '23505') return constraint
+  }
+  return undefined
+}

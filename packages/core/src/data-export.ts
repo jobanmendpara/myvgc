@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { teamPokemonSchema } from './build'
+import { recordIdSchema as recordId } from './client-id'
 import { newNoteEntrySchema } from './note-entry'
 import { newOpponentSchema } from './opponent'
 import { ROUND_RESULTS, TOP_CUT_STAGES, TOP_CUT_STAGE_LABELS, roundInputSchema } from './round'
@@ -14,7 +15,6 @@ export const DATA_EXPORT_FORMAT = 'myvgc-export'
 /** The version this install writes. Each new kind of User data bumps it, with an upgrade step. */
 export const DATA_EXPORT_VERSION = 1
 
-const recordId = z.uuid('IDs are UUIDs.')
 const timestamp = z.iso.datetime('Use a time such as 2026-09-19T10:00:00.000Z.')
 const timestamps = { createdAt: timestamp, updatedAt: timestamp }
 
@@ -121,8 +121,11 @@ export function readDataExport(input: unknown): ReadDataExportResult {
     )
 
   let file = input as Record<string, unknown>
-  for (let from = version; from < DATA_EXPORT_VERSION; from++)
-    file = { ...UPGRADES[from]!(file), version: from + 1 }
+  for (let from = version; from < DATA_EXPORT_VERSION; from++) {
+    const upgrade = UPGRADES[from]
+    if (!upgrade) throw new Error(`No upgrade from Data export version ${from}`)
+    file = { ...upgrade(file), version: from + 1 }
+  }
 
   const read = dataExportSchema.safeParse(file)
   if (read.success) return { ok: true, file: read.data }
@@ -139,7 +142,7 @@ const nameOf = (record: unknown, field: string): string | undefined => {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
 }
 
-const at = (list: unknown, index: string | number | undefined): unknown =>
+const itemAt = (list: unknown, index: string | number | undefined): unknown =>
   Array.isArray(list) && typeof index === 'number' ? list[index] : undefined
 
 /**
@@ -149,7 +152,7 @@ const at = (list: unknown, index: string | number | undefined): unknown =>
 export function recordLabel(file: unknown, path: readonly (string | number)[]): string {
   const [kind, index, child, childIndex] = path
   const named = (what: string, field: string) => {
-    const record = at((file as Record<string, unknown> | null)?.[kind as string], index)
+    const record = itemAt((file as Record<string, unknown> | null)?.[kind as string], index)
     const name = nameOf(record, field)
     return { record, label: name ? `${what} “${name}”` : `${what} ${Number(index) + 1}` }
   }
@@ -158,13 +161,16 @@ export function recordLabel(file: unknown, path: readonly (string | number)[]): 
   if (kind === 'opponents' && typeof index === 'number') {
     const { record, label } = named('Opponent', 'displayName')
     if (child !== 'noteEntries' || typeof childIndex !== 'number') return label
-    const date = nameOf(at((record as Record<string, unknown>)?.noteEntries, childIndex), 'date')
+    const date = nameOf(
+      itemAt((record as Record<string, unknown>)?.noteEntries, childIndex),
+      'date',
+    )
     return `${label}, ${date ? `Note entry of ${date}` : `Note entry ${childIndex + 1}`}`
   }
   if (kind === 'tournaments' && typeof index === 'number') {
     const { record, label } = named('Tournament', 'name')
     if (child !== 'rounds' || typeof childIndex !== 'number') return label
-    const round = at((record as Record<string, unknown>)?.rounds, childIndex) as
+    const round = itemAt((record as Record<string, unknown>)?.rounds, childIndex) as
       Record<string, unknown> | undefined
     const stage = TOP_CUT_STAGES.find((s) => s === round?.stage)
     if (round?.phase === 'top-cut' && stage) return `${label}, ${TOP_CUT_STAGE_LABELS[stage]}`

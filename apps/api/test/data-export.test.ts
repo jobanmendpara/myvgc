@@ -205,7 +205,41 @@ describe('Data export and import', () => {
     expect(await json(await get(a.t.app, '/api/teams', a.cookie))).toHaveLength(1)
   })
 
-  it('answers 409 for an id another User on this install holds, writing nothing', async () => {
+  it('answers 409 for a Top cut stage already logged in that Tournament', async () => {
+    const a = await install()
+    await fill(a)
+    const file = await exportOf(a.t, a.cookie)
+    const top8 = file.tournaments[0].rounds.find((r: { stage: string }) => r.stage === 'top-8')
+    file.tournaments[0].rounds = [{ ...top8, id: crypto.randomUUID() }]
+
+    const res = await importInto(a.t, a.cookie, file)
+    expect(res.status).toBe(409)
+    expect((await json(res)).error).toBe(
+      'Tournament “Worlds”, Top 8: That Top cut stage is already logged.',
+    )
+  })
+
+  it('judges new Rounds on a Tournament the User has by its saved settings, not the file’s', async () => {
+    const a = await install()
+    await fill(a)
+    const file = await exportOf(a.t, a.cookie)
+    // The saved Tournament is best of 3, so a Round with no best-of of its own is too.
+    file.tournaments[0].defaultBestOf = 1
+    const round = { ...file.tournaments[0].rounds[0], id: crypto.randomUUID(), roundNumber: 3 }
+    delete round.bestOf
+    file.tournaments[0].rounds = [round]
+
+    const res = await importInto(a.t, a.cookie, file)
+    expect(res.status, JSON.stringify(await json(res.clone()))).toBe(200)
+    const [saved] = await json(await get(a.t.app, '/api/tournaments', a.cookie))
+    expect(saved.defaultBestOf).toBe(3)
+    expect(saved.rounds.find((r: { roundNumber: number }) => r.roundNumber === 3)).toMatchObject({
+      bestOf: 3,
+      gameScore: { won: 2, lost: 0 },
+    })
+  })
+
+  it('answers 409 for an ID another User on this install holds, writing nothing', async () => {
     const a = await install()
     await fill(a)
     const file = await exportOf(a.t, a.cookie)

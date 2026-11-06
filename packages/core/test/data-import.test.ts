@@ -95,7 +95,7 @@ describe('Checking a Data export before it is imported', () => {
       expect.objectContaining({
         path: ['teams', 1, 'id'],
         record: 'Team “Sun”',
-        message: 'This id is used twice in the file.',
+        message: 'This ID is used twice in the file.',
       }),
     ])
   })

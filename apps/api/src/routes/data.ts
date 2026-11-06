@@ -19,6 +19,8 @@ import { bodyLimit } from 'hono/body-limit'
 import type { AppEnv } from '../app'
 import { opponent, opponentAlias, opponentNoteEntry, round, team, tournament } from '../db/schema'
 import type { Database } from '../db/types'
+import { uniqueViolation } from './helpers'
+import { toNoteEntryView } from './note-entry-data'
 import { entryFeeOf } from './tournaments'
 
 /** The largest Data export an import takes (ADR 23). */
@@ -91,9 +93,7 @@ export async function exportData(db: Database, ownerId: string): Promise<DataExp
       displayName: row.displayName,
       aliases: aliases.filter((a) => a.opponentId === row.id).map((a) => a.name),
       notes: row.notes,
-      noteEntries: noteEntries
-        .filter((n) => n.opponentId === row.id)
-        .map((n) => ({ id: n.id, date: n.date, text: n.text, ...times(n) })),
+      noteEntries: noteEntries.filter((n) => n.opponentId === row.id).map(toNoteEntryView),
       ...times(row),
     })),
     tournaments: tournaments.map((row) => ({
@@ -164,14 +164,15 @@ function refused(c: Context, status: 400 | 409, issues: readonly [ImportIssue, .
   )
 }
 
-/** Ends the import's transaction without writing, with the answer to give. */
+/** Ends the import's transaction without writing, with why it was refused. */
 class Refused extends Error {
-  constructor(readonly answer: { status: 400 | 409; issues: [ImportIssue, ...ImportIssue[]] }) {
+  constructor(readonly refusal: { status: 400 | 409; issues: [ImportIssue, ...ImportIssue[]] }) {
     super('Import refused')
   }
 }
 
-type Owners = Map<string, string>
+/** The owner of each id, for the ids an import uses that this install already has. */
+type OwnerById = Map<string, string>
 type Tx = Parameters<Parameters<Database['transaction']>[0]>[0]
 
 /** Inserts rows a few hundred at a time. */
@@ -196,7 +197,7 @@ async function importData(tx: Tx, ownerId: string, file: ReadDataExport): Promis
   )
 
   // Who owns each id the file uses, on this install.
-  const owners = async (rows: Promise<{ id: string; ownerId: string }[]>): Promise<Owners> =>
+  const owners = async (rows: Promise<{ id: string; ownerId: string }[]>): Promise<OwnerById> =>
     new Map((await rows).map((row) => [row.id, row.ownerId]))
   const teamIds = [
     ...file.teams.map((t) => t.id),
@@ -206,7 +207,7 @@ async function importData(tx: Tx, ownerId: string, file: ReadDataExport): Promis
     ...file.opponents.map((o) => o.id),
     ...fileRounds.flatMap((r) => r.round.opponentId ?? []),
   ]
-  const [teamOwners, opponentOwners, noteEntryOwners, tournamentOwners, roundOwners] =
+  const [teamOwners, opponentOwners, noteEntryOwners, storedTournaments, roundOwners] =
     await Promise.all([
       owners(
         tx
@@ -232,17 +233,19 @@ async function importData(tx: Tx, ownerId: string, file: ReadDataExport): Promis
             ),
           ),
       ),
-      owners(
-        tx
-          .select({ id: tournament.id, ownerId: tournament.ownerId })
-          .from(tournament)
-          .where(
-            inArray(
-              tournament.id,
-              file.tournaments.map((t) => t.id),
-            ),
+      tx
+        .select({
+          id: tournament.id,
+          ownerId: tournament.ownerId,
+          defaultBestOf: tournament.defaultBestOf,
+        })
+        .from(tournament)
+        .where(
+          inArray(
+            tournament.id,
+            file.tournaments.map((t) => t.id),
           ),
-      ),
+        ),
       owners(
         tx
           .select({ id: round.id, ownerId: tournament.ownerId })
@@ -257,8 +260,10 @@ async function importData(tx: Tx, ownerId: string, file: ReadDataExport): Promis
       ),
     ])
 
-  // An id another User holds can't be this User's record, so the whole import stops.
-  const records: { held: Owners; id: string; path: (string | number)[] }[] = [
+  const tournamentOwners: OwnerById = new Map(storedTournaments.map((t) => [t.id, t.ownerId]))
+
+  // An ID another User holds can't be this User's record, so the whole import stops.
+  const records: { held: OwnerById; id: string; path: (string | number)[] }[] = [
     ...file.teams.map((t, i) => ({ held: teamOwners, id: t.id, path: ['teams', i] })),
     ...file.opponents.map((o, i) => ({ held: opponentOwners, id: o.id, path: ['opponents', i] })),
     ...fileNoteEntries.map((n) => ({ held: noteEntryOwners, id: n.entry.id, path: n.path })),
@@ -278,25 +283,34 @@ async function importData(tx: Tx, ownerId: string, file: ReadDataExport): Promis
           {
             path: [...path, 'id'],
             record: recordLabel(file, path),
-            message: 'Its id is already used by another account on this install.',
+            message: 'Its ID is already used by another account on this install.',
           },
         ],
       })
   }
-  const has = (held: Owners, id: string) => held.get(id) === ownerId
+  const isOwn = (held: OwnerById, id: string) => held.get(id) === ownerId
 
-  const issues = checkDataExport(file, {
-    opponentIds: new Set(opponentIds.filter((id) => has(opponentOwners, id))),
-  })
+  // A Tournament the User has keeps its own settings, so new Rounds on it are judged by them.
+  const storedBestOf = new Map(
+    storedTournaments.filter((t) => t.ownerId === ownerId).map((t) => [t.id, t.defaultBestOf]),
+  )
+  const bestOfFor = (t: { id: string; defaultBestOf: 1 | 3 }) =>
+    storedBestOf.get(t.id) ?? t.defaultBestOf
+  const issues = checkDataExport(
+    { ...file, tournaments: file.tournaments.map((t) => ({ ...t, defaultBestOf: bestOfFor(t) })) },
+    {
+      opponentIds: new Set(opponentIds.filter((id) => isOwn(opponentOwners, id))),
+    },
+  )
   const [firstIssue, ...moreIssues] = issues
   if (firstIssue) throw new Refused({ status: 400, issues: [firstIssue, ...moreIssues] })
 
   // New Rounds landing on a Tournament the User has can clash with the Rounds logged there.
-  const newRounds = fileRounds.filter((r) => !has(roundOwners, r.round.id))
-  const kept = [...new Set(newRounds.map((r) => r.tournament.id))].filter((id) =>
-    has(tournamentOwners, id),
+  const newRounds = fileRounds.filter((r) => !isOwn(roundOwners, r.round.id))
+  const existingTournamentIds = [...new Set(newRounds.map((r) => r.tournament.id))].filter((id) =>
+    isOwn(tournamentOwners, id),
   )
-  const logged = kept.length
+  const loggedRounds = existingTournamentIds.length
     ? await tx
         .select({
           tournamentId: round.tournamentId,
@@ -304,19 +318,19 @@ async function importData(tx: Tx, ownerId: string, file: ReadDataExport): Promis
           stage: round.stage,
         })
         .from(round)
-        .where(inArray(round.tournamentId, kept))
+        .where(inArray(round.tournamentId, existingTournamentIds))
     : []
   const clashes: ImportIssue[] = []
   for (const { round: r, tournament: t, path } of newRounds) {
-    const there = logged.filter((l) => l.tournamentId === t.id)
+    const inTournament = loggedRounds.filter((l) => l.tournamentId === t.id)
     const record = recordLabel(file, path)
-    if (r.roundNumber != null && there.some((l) => l.roundNumber === r.roundNumber))
+    if (r.roundNumber != null && inTournament.some((l) => l.roundNumber === r.roundNumber))
       clashes.push({
         path: [...path, 'roundNumber'],
         record,
         message: `Round ${r.roundNumber} is already logged.`,
       })
-    if (r.stage != null && there.some((l) => l.stage === r.stage))
+    if (r.stage != null && inTournament.some((l) => l.stage === r.stage))
       clashes.push({
         path: [...path, 'stage'],
         record,
@@ -332,7 +346,7 @@ async function importData(tx: Tx, ownerId: string, file: ReadDataExport): Promis
     updatedAt: date(row.updatedAt),
   })
 
-  const newTeams = file.teams.filter((t) => !has(teamOwners, t.id))
+  const newTeams = file.teams.filter((t) => !isOwn(teamOwners, t.id))
   await insertAll(newTeams, (chunk) =>
     tx.insert(team).values(
       chunk.map((t) => ({
@@ -347,7 +361,7 @@ async function importData(tx: Tx, ownerId: string, file: ReadDataExport): Promis
     ),
   )
 
-  const newOpponents = file.opponents.filter((o) => !has(opponentOwners, o.id))
+  const newOpponents = file.opponents.filter((o) => !isOwn(opponentOwners, o.id))
   await insertAll(newOpponents, (chunk) =>
     tx.insert(opponent).values(
       chunk.map((o) => ({
@@ -364,7 +378,7 @@ async function importData(tx: Tx, ownerId: string, file: ReadDataExport): Promis
     (chunk) => tx.insert(opponentAlias).values(chunk),
   )
 
-  const newNoteEntries = fileNoteEntries.filter((n) => !has(noteEntryOwners, n.entry.id))
+  const newNoteEntries = fileNoteEntries.filter((n) => !isOwn(noteEntryOwners, n.entry.id))
   await insertAll(newNoteEntries, (chunk) =>
     tx.insert(opponentNoteEntry).values(
       chunk.map(({ entry, opponentId }) => ({
@@ -380,9 +394,9 @@ async function importData(tx: Tx, ownerId: string, file: ReadDataExport): Promis
   // A Team snapshot keeps its link only to a Team the User will have.
   const linkable = new Set([
     ...file.teams.map((t) => t.id),
-    ...teamIds.filter((id) => has(teamOwners, id)),
+    ...teamIds.filter((id) => isOwn(teamOwners, id)),
   ])
-  const newTournaments = file.tournaments.filter((t) => !has(tournamentOwners, t.id))
+  const newTournaments = file.tournaments.filter((t) => !isOwn(tournamentOwners, t.id))
   await insertAll(newTournaments, (chunk) =>
     tx.insert(tournament).values(
       chunk.map((t) => ({
@@ -418,7 +432,7 @@ async function importData(tx: Tx, ownerId: string, file: ReadDataExport): Promis
   await insertAll(newRounds, (chunk) =>
     tx.insert(round).values(
       chunk.map(({ round: r, tournament: t }) => {
-        const settled = settleImportedRound(r, t.defaultBestOf)
+        const settled = settleImportedRound(r, bestOfFor(t))
         return {
           id: r.id,
           tournamentId: t.id,
@@ -449,13 +463,6 @@ async function importData(tx: Tx, ownerId: string, file: ReadDataExport): Promis
   }
 }
 
-/** Whether an error is a Postgres unique violation, such as from an import racing another save. */
-function isUniqueViolation(error: unknown): boolean {
-  for (let e = error; e && typeof e === 'object'; e = (e as { cause?: unknown }).cause)
-    if ((e as { code?: string }).code === '23505') return true
-  return false
-}
-
 /** Data export and import (ADR 23), mounted at /api behind the session middleware. Online only. */
 export function dataRoutes(db: Database) {
   return new Hono<AppEnv>()
@@ -478,8 +485,10 @@ export function dataRoutes(db: Database) {
           const counts = await db.transaction((tx) => importData(tx, c.get('user').id, read.file))
           return c.json(counts)
         } catch (error) {
-          if (error instanceof Refused) return refused(c, error.answer.status, error.answer.issues)
-          if (isUniqueViolation(error))
+          if (error instanceof Refused)
+            return refused(c, error.refusal.status, error.refusal.issues)
+          // Something saved while the import ran took one of its IDs, numbers or stages.
+          if (uniqueViolation(error) !== undefined)
             return c.json(
               { error: 'Something was saved while the file was importing. Import it again.' },
               409,

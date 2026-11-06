@@ -64,11 +64,11 @@ export function checkDataExport(file: ReadDataExport, account: ImportAccount): I
     found: { path: (string | number)[]; message: string }[],
   ) => found.forEach((issue) => add([...prefix, ...issue.path], issue.message))
 
-  // Ids are unique per kind of record, so one file can't hold the same record twice.
+  // IDs are unique per kind of record, so one file can't hold the same record twice.
   const seen = new Map<string, Set<string>>()
   const once = (kind: string, id: string, path: (string | number)[]) => {
     const ids = seen.get(kind) ?? seen.set(kind, new Set()).get(kind)!
-    if (ids.has(id)) add([...path, 'id'], 'This id is used twice in the file.')
+    if (ids.has(id)) add([...path, 'id'], 'This ID is used twice in the file.')
     ids.add(id)
   }
 
