@@ -5,12 +5,15 @@ import {
   TOP_CUT_STAGE_LABELS,
   type OpponentDetailView,
   type OpponentRoundView,
+  type OpponentView,
   formatRecord,
 } from '@myvgc/core/schema'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
+import { useOnline } from '@vueuse/core'
 import { FetchError } from 'ofetch'
 import { fieldErrorsOf, saveFailureMessage } from '@/lib/api'
 import { formatDates } from '@/lib/format'
+import type { OpponentChoice } from '@/components/OpponentPicker.vue'
 
 const route = useRoute()
 const id = computed(() => String(route.params.id))
@@ -77,6 +80,47 @@ const remove = useMutation({
     await queryClient.invalidateQueries({ queryKey: ['opponents'] })
     await navigateTo('/opponents')
   },
+})
+
+// Merging: a duplicate Opponent chosen here is combined into this one, then deleted.
+// Online only (ADR 17 doesn't queue merges).
+const online = useOnline()
+const merging = ref(false)
+const duplicate = ref<OpponentChoice | null>(null)
+const merged = ref<string>()
+const duplicateId = computed(() =>
+  duplicate.value?.kind === 'existing' ? duplicate.value.id : undefined,
+)
+// For the summary: how many Rounds will move.
+const duplicateDetail = useQuery({
+  queryKey: computed(() => ['opponents', 'detail', duplicateId.value]),
+  queryFn: () => $fetch<OpponentView>(`/api/opponents/${duplicateId.value}`),
+  enabled: computed(() => Boolean(duplicateId.value)),
+})
+watch(id, () => (merged.value = undefined))
+function startMerging() {
+  duplicate.value = null
+  merge.reset()
+  merging.value = true
+}
+const merge = useMutation({
+  mutationFn: () => {
+    const url: string = `/api/opponents/${id.value}/merge`
+    return $fetch<OpponentView>(url, { method: 'POST', body: { duplicateId: duplicateId.value } })
+  },
+  onSuccess: async () => {
+    merged.value = `Merged ${duplicate.value?.displayName} into ${opponent.value?.displayName}.`
+    merging.value = false
+    // The duplicate is gone, so stop asking about it.
+    duplicate.value = null
+    await queryClient.invalidateQueries({ queryKey: ['opponents'] })
+    await queryClient.invalidateQueries({ queryKey: ['tournament'] })
+  },
+})
+const mergeErrors = computed(() => fieldErrorsOf(merge.error.value))
+const roundsMoving = computed(() => {
+  const count = duplicateDetail.data.value?.roundCount
+  return count === undefined ? 'their Rounds' : count === 1 ? '1 Round' : `${count} Rounds`
 })
 
 const outcome = (r: OpponentRoundView) =>
@@ -163,6 +207,10 @@ const label = (r: OpponentRoundView) =>
         <p v-if="opponent.notes" class="mt-2 text-sm whitespace-pre-wrap">{{ opponent.notes }}</p>
       </header>
 
+      <Alert v-if="merged" role="status">
+        <AlertDescription>{{ merged }}</AlertDescription>
+      </Alert>
+
       <section aria-labelledby="opponent-rounds" class="flex flex-col gap-3">
         <h2 id="opponent-rounds" class="font-semibold">Rounds against them</h2>
         <p v-if="opponent.rounds.length === 0" class="text-muted-foreground text-sm">None yet.</p>
@@ -184,18 +232,65 @@ const label = (r: OpponentRoundView) =>
         </ol>
       </section>
 
-      <div class="border-t pt-6">
+      <div class="flex flex-col items-start gap-2 border-t pt-6">
+        <Button variant="ghost" :disabled="!online" @click="startMerging"
+          >Merge another Opponent into this one…</Button
+        >
+        <p v-if="!online" class="text-muted-foreground text-xs">Merging needs a connection.</p>
         <Button variant="ghost" class="text-destructive" @click="confirmingDelete = true"
           >Delete Opponent</Button
         >
       </div>
+      <AlertDialog v-model:open="merging">
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Merge into {{ opponent.displayName }}</AlertDialogTitle>
+            <AlertDialogDescription>
+              Choose a duplicate of {{ opponent.displayName }}. Their Rounds, Aliases and notes move
+              here, and the duplicate is deleted.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <OpponentPicker
+            v-model="duplicate"
+            label="Duplicate"
+            :exclude="opponent.id"
+            :allow-new="false"
+            :error="mergeErrors?.duplicateId"
+          />
+          <p v-if="duplicate" class="text-sm" data-testid="merge-summary">
+            Keep <strong>{{ opponent.displayName }}</strong
+            >. Move {{ roundsMoving }} from <strong>{{ duplicate.displayName }}</strong
+            >, add their name and Aliases as Aliases, and add their notes below these. Then delete
+            <strong>{{ duplicate.displayName }}</strong
+            >. This can't be undone.
+          </p>
+          <Alert
+            v-if="merge.isError.value && !mergeErrors?.duplicateId"
+            variant="destructive"
+            role="alert"
+          >
+            <AlertDescription>{{
+              saveFailureMessage(merge.error.value, 'Opponent')
+            }}</AlertDescription>
+          </Alert>
+          <AlertDialogFooter>
+            <AlertDialogCancel :disabled="merge.isPending.value">Cancel</AlertDialogCancel>
+            <Button
+              :disabled="!duplicateId || !online || merge.isPending.value"
+              @click="merge.mutate()"
+              >{{ merge.isPending.value ? 'Merging…' : 'Merge' }}</Button
+            >
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <AlertDialog v-model:open="confirmingDelete">
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete {{ opponent.displayName }}?</AlertDialogTitle>
             <AlertDialogDescription>
               <template v-if="opponent.roundCount">
-                You have Rounds against them, so they can't be deleted. Rename them instead.
+                You have Rounds against them, so they can't be deleted. Rename them, or merge them
+                into another Opponent.
               </template>
               <template v-else>This removes the Opponent and their notes.</template>
             </AlertDialogDescription>

@@ -63,3 +63,60 @@ export type OpponentRoundView = RoundView & {
 export interface OpponentDetailView extends OpponentView {
   rounds: OpponentRoundView[]
 }
+
+/** What a merge combines from each Opponent. */
+export interface MergeableOpponent {
+  displayName: string
+  aliases: string[]
+  notes: string
+}
+
+type MergeIssue = { path: [string]; message: string }
+
+/** The survivor's Aliases and notes after a merge, or why it can't be merged. */
+export type MergedOpponent =
+  | { ok: true; aliases: string[]; notes: string }
+  | { ok: false; issues: [MergeIssue, ...MergeIssue[]] }
+
+/**
+ * Combines a duplicate Opponent into the survivor. The survivor keeps its display name; the
+ * duplicate's name joins its Aliases, and the duplicate's notes follow the survivor's.
+ */
+export function mergeOpponents(
+  survivor: MergeableOpponent,
+  duplicate: MergeableOpponent,
+): MergedOpponent {
+  // Compared in any case; the first spelling is kept, and the survivor's comes first.
+  const seen = new Set([survivor.displayName.toLowerCase()])
+  const aliases = [...survivor.aliases, duplicate.displayName, ...duplicate.aliases].filter(
+    (alias) => {
+      const key = alias.toLowerCase()
+      return !seen.has(key) && Boolean(seen.add(key))
+    },
+  )
+  const notes = [
+    survivor.notes,
+    duplicate.notes && `**From ${duplicate.displayName}:**\n\n${duplicate.notes}`,
+  ]
+    .filter(Boolean)
+    .join('\n\n---\n\n')
+
+  const issues: MergeIssue[] = []
+  if (aliases.length > MAX_ALIASES)
+    issues.push({
+      path: ['aliases'],
+      message: `Together they’d have ${aliases.length} Aliases, and an Opponent can have at most ${MAX_ALIASES}. Remove ${aliases.length - MAX_ALIASES} first.`,
+    })
+  if (notes.length > MAX_NOTES_LENGTH)
+    issues.push({
+      path: ['notes'],
+      message: `Together their notes would be ${notes.length} characters, and notes can be at most ${MAX_NOTES_LENGTH}. Shorten them first.`,
+    })
+  const [first, ...rest] = issues
+  return first ? { ok: false, issues: [first, ...rest] } : { ok: true, aliases, notes }
+}
+
+/** What a User sends to merge a duplicate Opponent into the one in the URL. */
+export const mergeOpponentSchema = z.object({
+  duplicateId: z.uuid('Choose the duplicate Opponent.'),
+})
