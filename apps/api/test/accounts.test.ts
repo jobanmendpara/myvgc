@@ -70,6 +70,62 @@ describe('accounts', () => {
   })
 })
 
+describe('changing a password', () => {
+  let t: TestApp | undefined
+  afterEach(async () => {
+    await t?.client.close()
+    t = undefined
+  })
+
+  const logIn = async (password: string) =>
+    post(t!.app, '/api/auth/sign-in/email', { email: 'ash@example.com', password })
+  const change = (cookie: string, body: object) =>
+    post(t!.app, '/api/auth/change-password', body, cookie)
+
+  it('changes it, keeping other devices logged in unless asked', async () => {
+    t = await createTestApp()
+    const { cookie } = await signUp(t.app, 'ash@example.com', 'pikachu-thunderbolt')
+    const otherDevice = cookieFrom(await logIn('pikachu-thunderbolt'))
+
+    const res = await change(cookie, {
+      currentPassword: 'pikachu-thunderbolt',
+      newPassword: 'raichu-thunderbolt',
+    })
+    expect(res.status).toBe(200)
+    expect((await logIn('pikachu-thunderbolt')).status).toBe(401)
+    expect((await logIn('raichu-thunderbolt')).status).toBe(200)
+    expect((await me(t.app, otherDevice)).status).toBe(200)
+  })
+
+  it('logs out other devices when asked, but not this one', async () => {
+    t = await createTestApp()
+    const { cookie } = await signUp(t.app, 'ash@example.com', 'pikachu-thunderbolt')
+    const otherDevice = cookieFrom(await logIn('pikachu-thunderbolt'))
+
+    const res = await change(cookie, {
+      currentPassword: 'pikachu-thunderbolt',
+      newPassword: 'raichu-thunderbolt',
+      revokeOtherSessions: true,
+    })
+    expect(res.status).toBe(200)
+    expect((await me(t.app, otherDevice)).status).toBe(401)
+    // This device is handed a new session in place of the one revoked with the rest.
+    expect((await me(t.app, cookie)).status).toBe(401)
+    expect((await me(t.app, cookieFrom(res))).status).toBe(200)
+  })
+
+  it('refuses a wrong current password', async () => {
+    t = await createTestApp()
+    const { cookie } = await signUp(t.app, 'ash@example.com', 'pikachu-thunderbolt')
+    const res = await change(cookie, {
+      currentPassword: 'not-the-password',
+      newPassword: 'raichu-thunderbolt',
+    })
+    expect(res.status).toBe(400)
+    expect((await logIn('pikachu-thunderbolt')).status).toBe(200)
+  })
+})
+
 describe('sessions', () => {
   let t: TestApp | undefined
   afterEach(async () => {

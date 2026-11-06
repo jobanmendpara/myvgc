@@ -64,6 +64,13 @@
       "when": 1793986921667,
       "tag": "0008_opponent_note_entries",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1793993262424,
+      "tag": "0009_player_details",
+      "breakpoints": true
     }
   ]
 }

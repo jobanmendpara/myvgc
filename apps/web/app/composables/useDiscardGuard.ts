@@ -1,0 +1,47 @@
+import { useEventListener } from '@vueuse/core'
+import type { Ref } from 'vue'
+
+// Every form on the page with unsaved edits, so logging out can ask before it ends the session.
+const askers = new Set<() => Promise<boolean>>()
+
+/** Asks each form with unsaved edits whether to discard them. False if the User keeps editing. */
+export async function confirmDiscardAll(): Promise<boolean> {
+  for (const ask of askers) {
+    if (!(await ask())) return false
+  }
+  return true
+}
+
+/**
+ * Asks before leaving with unsaved edits: on a route change, on log out and on closing the tab.
+ * Show a "Discard changes?" dialog while `discarding` is true, and call `answer` with the choice.
+ */
+export function useDiscardGuard(dirty: Ref<boolean>) {
+  const discarding = ref(false)
+  // Set once the User chooses to discard, so leaving afterwards doesn't ask again.
+  const discarded = ref(false)
+  let answerDiscard: ((leave: boolean) => void) | undefined
+
+  async function ask(): Promise<boolean> {
+    if (!dirty.value || discarded.value) return true
+    discarding.value = true
+    const leave = await new Promise<boolean>((resolve) => (answerDiscard = resolve))
+    discarded.value = leave
+    return leave
+  }
+
+  function answer(leave: boolean) {
+    discarding.value = false
+    answerDiscard?.(leave)
+    answerDiscard = undefined
+  }
+
+  onBeforeRouteLeave(ask)
+  askers.add(ask)
+  onUnmounted(() => askers.delete(ask))
+  useEventListener(window, 'beforeunload', (event: BeforeUnloadEvent) => {
+    if (dirty.value && !discarded.value) event.preventDefault()
+  })
+
+  return { discarding, answer }
+}
