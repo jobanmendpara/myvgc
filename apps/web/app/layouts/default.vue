@@ -1,9 +1,4 @@
 <script setup lang="ts">
-import { useQueryClient } from '@tanstack/vue-query'
-import { authClient } from '@/lib/auth-client'
-
-const session = authClient.useSession()
-
 // The main areas of the app, in the order a User reaches for them at an event.
 const areas = [
   { to: '/tournaments', label: 'Tournaments' },
@@ -13,15 +8,6 @@ const areas = [
 ]
 const route = useRoute()
 const isCurrent = (to: string) => route.path === to || route.path.startsWith(`${to}/`)
-const queryClient = useQueryClient()
-
-async function logOut() {
-  await authClient.signOut()
-  // Drop everything cached for this User before anyone else logs in on this device.
-  queryClient.clear()
-  forgetChampionsNames()
-  await navigateTo('/login')
-}
 </script>
 
 <template>
@@ -31,20 +17,7 @@ async function logOut() {
         class="mx-auto flex w-full max-w-3xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3"
       >
         <NuxtLink to="/teams" class="text-lg font-semibold">MyVGC</NuxtLink>
-        <div class="flex min-w-0 flex-wrap items-center gap-3">
-          <ThemePicker />
-          <span
-            v-if="session.data"
-            class="text-muted-foreground hidden truncate text-sm sm:inline"
-            data-testid="current-user"
-          >
-            {{ session.data.user.email }}
-          </span>
-          <Button variant="ghost" size="sm" as-child>
-            <NuxtLink to="/your-data">Your data</NuxtLink>
-          </Button>
-          <Button variant="outline" size="sm" @click="logOut">Log out</Button>
-        </div>
+        <AccountMenu />
       </div>
       <nav aria-label="Main" class="mx-auto w-full max-w-3xl overflow-x-auto px-2">
         <ul class="flex gap-1">

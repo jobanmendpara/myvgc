@@ -3,6 +3,7 @@ import { Hono } from 'hono'
 import { type AuthOptions, type SessionUser, createAuth } from './auth'
 import type { Database } from './db/types'
 import { REGULATION_PERIODS, SEASONS, championsNames, currentRegulation, today } from '@myvgc/core'
+import { accountRoutes } from './routes/account'
 import { teamRoutes } from './routes/teams'
 import { dashboardRoutes } from './routes/dashboard'
 import { dataRoutes } from './routes/data'
@@ -57,6 +58,7 @@ export function createApp({ db, auth: authOptions, webDir }: AppOptions): Hono<A
     return c.json({ id, name, email, role })
   })
 
+  app.route('/api/account', accountRoutes(db))
   app.route('/api/teams', teamRoutes(db))
   app.route('/api/tournaments/:tournamentId/rounds', roundRoutes(db))
   app.route('/api/tournaments', tournamentRoutes(db))
