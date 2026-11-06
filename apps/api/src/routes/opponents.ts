@@ -2,6 +2,8 @@ import {
   type OpponentDetailView,
   type OpponentView,
   type Tally,
+  mergeOpponentSchema,
+  mergeOpponents,
   newOpponentSchema,
   opponentChangesSchema,
   tallyResult,
@@ -11,7 +13,7 @@ import { Hono } from 'hono'
 import type { AppEnv } from '../app'
 import { opponent, opponentAlias, round, tournament } from '../db/schema'
 import type { Database } from '../db/types'
-import { deleted, escapeLike, idTaken, isId, notFound, readBody } from './helpers'
+import { clash, deleted, escapeLike, idTaken, invalid, isId, notFound, readBody } from './helpers'
 import { toRoundView } from './round-data'
 
 type OpponentRow = typeof opponent.$inferSelect
@@ -182,6 +184,57 @@ export function opponentRoutes(db: Database) {
         const [view] = await views([row])
         return c.json(view)
       })
+      // Merges a duplicate Opponent into this one: the duplicate's Rounds move here, its name
+      // and Aliases join this one's Aliases, its notes follow these, and it is deleted.
+      .post('/:id/merge', async (c) => {
+        const id = c.req.param('id')
+        if (!isId(id)) return notFound(c)
+        const input = await readBody(c, mergeOpponentSchema)
+        if (!input.ok) return input.response
+        const ownerId = c.get('user').id
+        const { duplicateId } = input.data
+        const notADuplicate = (message: string) => invalid(c, [{ path: ['duplicateId'], message }])
+        if (duplicateId === id) return notADuplicate('An Opponent can’t be merged into themselves.')
+
+        const outcome = await db.transaction(async (tx) => {
+          const rows = await tx
+            .select()
+            .from(opponent)
+            .where(and(eq(opponent.ownerId, ownerId), inArray(opponent.id, [id, duplicateId])))
+            .for('update')
+          const survivor = rows.find((row) => row.id === id)
+          const duplicate = rows.find((row) => row.id === duplicateId)
+          if (!survivor) return { kind: 'not-found' } as const
+          // Gone, another User's, or already merged by an earlier send of this request.
+          if (!duplicate) return { kind: 'gone' } as const
+
+          const { aliases } = await opponentFacts(tx, [id, duplicateId])
+          const merged = mergeOpponents(
+            { ...survivor, aliases: aliases.get(id)! },
+            { ...duplicate, aliases: aliases.get(duplicateId)! },
+          )
+          if (!merged.ok) return { kind: 'clash', issues: merged.issues } as const
+
+          await tx.update(round).set({ opponentId: id }).where(eq(round.opponentId, duplicateId))
+          await tx.delete(opponentAlias).where(eq(opponentAlias.opponentId, id))
+          if (merged.aliases.length)
+            await tx
+              .insert(opponentAlias)
+              .values(merged.aliases.map((name) => ({ opponentId: id, name })))
+          await tx.delete(opponent).where(eq(opponent.id, duplicateId))
+          const [saved] = await tx
+            .update(opponent)
+            .set({ notes: merged.notes })
+            .where(eq(opponent.id, id))
+            .returning()
+          return { kind: 'merged', saved: saved! } as const
+        })
+        if (outcome.kind === 'not-found') return notFound(c)
+        if (outcome.kind === 'gone') return notADuplicate('That Opponent no longer exists.')
+        if (outcome.kind === 'clash') return clash(c, outcome.issues)
+        const [view] = await views([outcome.saved])
+        return c.json(view)
+      })
       .delete('/:id', async (c) => {
         const id = c.req.param('id')
         if (!isId(id)) return notFound(c)
@@ -197,7 +250,7 @@ export function opponentRoutes(db: Database) {
           return c.json(
             {
               error:
-                'You have Rounds against this Opponent, so they can’t be deleted. Rename them instead.',
+                'You have Rounds against this Opponent, so they can’t be deleted. Rename them, or merge them into another Opponent.',
             },
             409,
           )

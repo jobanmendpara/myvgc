@@ -35,7 +35,7 @@ export const round = pgTable(
     result: roundResult('result').notNull(),
     gamesWon: smallint('games_won'),
     gamesLost: smallint('games_lost'),
-    // An Opponent with Rounds can't be deleted (merging comes later).
+    // An Opponent with Rounds can't be deleted; merging moves their Rounds to another Opponent.
     opponentId: uuid('opponent_id').references(() => opponent.id, { onDelete: 'restrict' }),
     notes: text('notes').notNull().default(''),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
