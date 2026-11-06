@@ -8,7 +8,7 @@
 ## Order of work
 1. **Teams:** sign up and log in, import a Champions Showdown paste, save, list and view Teams (ADR 10).
 2. **Teamsheet export:** generate the official Teamsheet from a Team. The official format is checked (see `docs/research/vg-team-list-pdf.md`); its open questions come first.
-3. **Tournaments:** Tournaments, Rounds, Opponents with Aliases, and Opponent Teams entered by choosing species.
+3. **Tournaments:** Tournaments, Rounds, Opponents with Aliases, and Opponent's Teams entered by choosing species (ADR 22).
 4. **Team builder:** a form-based way to build and edit Teams.
 
 ## Later
