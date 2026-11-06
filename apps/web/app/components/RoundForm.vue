@@ -117,6 +117,15 @@ const gameErrors = computed(() => {
   }
   return byNumber
 })
+// The Games are only rendered while their section is open; the drafts above keep them meanwhile.
+// It opens by itself when the API reports a problem with them.
+const gamesOpen = ref(recordedCount.value > 0)
+watch(
+  () => Object.keys(gameErrors.value).length > 0 || Boolean(props.fieldErrors?.games),
+  (problem) => {
+    if (problem) gamesOpen.value = true
+  },
+)
 
 const phaseOptions = [
   { value: 'swiss' as const, label: 'Swiss' },
@@ -214,7 +223,12 @@ function submit() {
         <p v-if="error('result')" class="text-destructive text-sm">{{ error('result') }}</p>
       </div>
 
-      <details class="group flex flex-col gap-3" :open="recordedCount > 0" data-testid="games">
+      <details
+        class="group flex flex-col gap-3"
+        :open="gamesOpen"
+        data-testid="games"
+        @toggle="gamesOpen = ($event.target as HTMLDetailsElement).open"
+      >
         <summary class="flex min-h-11 cursor-pointer items-center text-sm font-medium">
           Games
           <span class="text-muted-foreground ml-1 font-normal"
@@ -225,7 +239,7 @@ function submit() {
           Game results that finish the Round fill in its score and result.
         </p>
         <p v-if="error('games')" class="text-destructive mb-3 text-sm">{{ error('games') }}</p>
-        <GamesEditor :games="shownGames" :yours="yours" :errors="gameErrors" />
+        <GamesEditor v-if="gamesOpen" :games="shownGames" :yours="yours" :errors="gameErrors" />
       </details>
     </template>
 

@@ -139,10 +139,13 @@ test('log a Tournament and a Round against a new Opponent', async ({ page }) => 
   await page.getByRole('combobox', { name: 'Opponent' }).fill('Smoke Opponent')
   await page.getByRole('option', { name: /Add “Smoke Opponent”/ }).click()
   await page.getByText('Win', { exact: true }).click()
+  await page.getByTestId('games').locator('summary').click()
+  await page.getByTestId('game-1').getByText('Win', { exact: true }).click()
   await page.getByRole('button', { name: 'Log Round' }).click()
 
   await expect(page.getByTestId('record')).toContainText('Swiss 1-0-0')
   await expect(page.getByTestId('round')).toContainText('Smoke Opponent')
+  await expect(page.getByTestId('game-line')).toHaveText('Game 1 · Win')
 })
 
 test('the chosen palette and mode survive a reload, also before logging in', async ({ page }) => {

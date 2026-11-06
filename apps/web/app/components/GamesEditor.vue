@@ -152,7 +152,7 @@ const sideError = (game: Game, side: Side) =>
         <ChoiceGroup
           :model-value="game.result ?? 'none'"
           :options="resultOptions"
-          label="Result"
+          label="Game result"
           :name="`game-${game.number}-result`"
           @update:model-value="(value: ResultChoice | undefined) => setResult(game, value)"
         />
