@@ -39,4 +39,5 @@ MyVGC is a hub where a competitive player tracks their Pokémon VGC experience i
 - **Brought Pokémon**: the up to four Pokémon a side picks from its Team for one Game. Usually chosen from the Tournament's Team snapshot (the User's side) or the Opponent's Team (the Opponent's side), but any species can be recorded.
 - **Lead**: one of the up to two Brought Pokémon a side sends out first in a Game.
 - **Team snapshot**: a frozen copy of the User's Team attached to a Tournament. It links back to the original Team.
-- **Notes**: one Markdown notes field on each Opponent, Team, Tournament and Round. An Opponent's page also shows the notes from every Round against them.
+- **Notes**: one Markdown notes field on each Opponent, Team, Tournament and Round. On an Opponent it is a standing summary; dated observations go in Note entries. An Opponent's page shows its Note entries and the notes from every Round against them in one timeline, newest first.
+- **Note entry**: a dated note on an Opponent, such as what they brought or how they played on a given day. Its date is a calendar date the User picks, today by default. It stands alone, linked to no Tournament or Round.
