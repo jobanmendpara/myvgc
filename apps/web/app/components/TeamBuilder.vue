@@ -10,7 +10,7 @@ import {
   teamProblems,
   teamSchema,
 } from '@myvgc/core/schema'
-import { useEventListener, useMediaQuery } from '@vueuse/core'
+import { useMediaQuery } from '@vueuse/core'
 import { useMutation, useQueryClient } from '@tanstack/vue-query'
 import { fieldErrorsOf, saveFailureMessage } from '@/lib/api'
 import { blankBuild, draftErrors, draftToBody, teamToDraft } from '@/lib/team-form'
@@ -112,28 +112,13 @@ function submit() {
 // Leaving with unsaved edits asks first. On a phone the editor is a step inside this page, so
 // the back button closes it rather than leaving.
 const dirty = computed(() => !saved.value && JSON.stringify(draftToBody(draft)) !== savedBody)
-const discarding = ref(false)
-let answerDiscard: ((leave: boolean) => void) | undefined
 
 onBeforeRouteLeave(() => {
-  if (editing.value !== null) {
-    editing.value = null
-    return false
-  }
-  if (!dirty.value) return true
-  discarding.value = true
-  return new Promise<boolean>((resolve) => (answerDiscard = resolve))
+  if (editing.value === null) return true
+  editing.value = null
+  return false
 })
-
-function answer(leave: boolean) {
-  discarding.value = false
-  answerDiscard?.(leave)
-  answerDiscard = undefined
-}
-
-useEventListener(window, 'beforeunload', (event: BeforeUnloadEvent) => {
-  if (dirty.value) event.preventDefault()
-})
+const { discarding, answer } = useDiscardGuard(dirty)
 </script>
 
 <template>
