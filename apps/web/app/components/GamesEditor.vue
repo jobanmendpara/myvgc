@@ -31,7 +31,7 @@ const nameOf = (species: string) => names.data.value?.species[species] ?? specie
 
 const sides: { side: Side; label: string; offered: () => string[] }[] = [
   { side: GAME_SIDES[0], label: 'You', offered: () => props.yours },
-  // Their Team snapshot comes with DEV-55; until then, only what was added here.
+  // Their Opponent's Team (ADR 22) isn't built yet; until then, only what was added here.
   { side: GAME_SIDES[1], label: 'Opponent', offered: () => [] },
 ]
 

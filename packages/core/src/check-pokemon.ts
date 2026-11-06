@@ -34,7 +34,7 @@ export function checkPokemon(pokemon: PokemonBuild[]): PokemonIssue[] {
 
 /**
  * Checks that every Pokémon in some Games is a Champions species, as `checkPokemon` does for
- * builds. Whether it was on that side's Team snapshot is never checked (ADR 21).
+ * builds. Whether it was on that side's Team is never checked (ADR 21).
  */
 export function checkGames(games: Game[]): PokemonIssue[] {
   const issues: PokemonIssue[] = []

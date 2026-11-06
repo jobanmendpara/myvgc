@@ -7,7 +7,17 @@ import { refDebounced } from '@vueuse/core'
 export type OpponentChoice =
   { kind: 'existing'; id: string; displayName: string } | { kind: 'new'; displayName: string }
 
-const props = defineProps<{ error?: string }>()
+const props = withDefaults(
+  defineProps<{
+    error?: string
+    label?: string
+    /** An Opponent to leave out of the suggestions, such as the one being merged into. */
+    exclude?: string
+    /** Whether typing a new name offers to add it as a new Opponent. */
+    allowNew?: boolean
+  }>(),
+  { error: undefined, label: 'Opponent', exclude: undefined, allowNew: true },
+)
 const choice = defineModel<OpponentChoice | null>({ required: true })
 
 const SUGGESTIONS = 8
@@ -15,11 +25,13 @@ const text = ref('')
 const open = ref(false)
 const active = ref(0)
 const search = refDebounced(text, 200)
+// One more when one is left out, so there are still enough to show.
+const limit = computed(() => SUGGESTIONS + (props.exclude ? 1 : 0))
 const matches = useQuery({
-  queryKey: computed(() => ['opponents', 'suggestions', search.value.trim()]),
+  queryKey: computed(() => ['opponents', 'suggestions', search.value.trim(), limit.value]),
   queryFn: () =>
     $fetch<OpponentView[]>('/api/opponents', {
-      query: { q: search.value.trim() || undefined, limit: SUGGESTIONS },
+      query: { q: search.value.trim() || undefined, limit: limit.value },
     }),
   enabled: computed(() => open.value),
   placeholderData: (previous) => previous,
@@ -29,12 +41,14 @@ const typed = computed(() => text.value.trim())
 // "Create" is offered unless an Opponent already has exactly that display name.
 const canCreate = computed(
   () =>
+    props.allowNew &&
     typed.value.length > 0 &&
     !matches.data.value?.some((o) => o.displayName.toLowerCase() === typed.value.toLowerCase()),
 )
 const options = computed(() => [
   ...(matches.data.value ?? [])
-    .slice(0, 8)
+    .filter((o) => o.id !== props.exclude)
+    .slice(0, SUGGESTIONS)
     .map((o) => ({ kind: 'existing' as const, opponent: o })),
   ...(canCreate.value ? [{ kind: 'new' as const }] : []),
 ])
@@ -77,7 +91,7 @@ function matchedAlias(o: OpponentView) {
 
 <template>
   <div class="flex flex-col gap-2">
-    <Label for="opponent">Opponent</Label>
+    <Label for="opponent">{{ props.label }}</Label>
     <div
       v-if="choice"
       class="flex min-h-11 items-center justify-between gap-2 rounded-md border px-3"

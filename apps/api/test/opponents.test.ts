@@ -114,6 +114,101 @@ describe('Opponents', () => {
     expect((await json(res)).error).toMatch(/Rename/)
   })
 
+  describe('merging', () => {
+    const merge = (survivorId: string, duplicateId: unknown, cookie = ash) =>
+      post(t.app, `/api/opponents/${survivorId}/merge`, { duplicateId }, cookie)
+
+    it("moves the duplicate's Rounds to the survivor, combines Aliases and notes, and deletes the duplicate", async () => {
+      await setUp()
+      const survivor = await json(
+        await post(
+          t.app,
+          '/api/opponents',
+          { displayName: 'Wolfe Glick', aliases: ['wolfey'], notes: 'Leads Incineroar' },
+          ash,
+        ),
+      )
+      const duplicate = await json(
+        await post(
+          t.app,
+          '/api/opponents',
+          { displayName: 'WolfeyVGC', aliases: ['Wolfey', 'Wolfe G.'], notes: 'Loves Trick Room' },
+          ash,
+        ),
+      )
+      await playedAt('Locals', '2026-05-01', [
+        { result: 'win', opponentId: survivor.id },
+        { result: 'loss', opponentId: duplicate.id, notes: 'Lost to Trick Room' },
+      ])
+
+      const res = await merge(survivor.id, duplicate.id)
+      expect(res.status).toBe(200)
+      expect(await json(res)).toMatchObject({
+        id: survivor.id,
+        displayName: 'Wolfe Glick',
+        aliases: ['Wolfe G.', 'wolfey', 'WolfeyVGC'],
+        notes: 'Leads Incineroar\n\n---\n\n**From WolfeyVGC:**\n\nLoves Trick Room',
+        headToHead: { wins: 1, losses: 1, ties: 0 },
+        roundCount: 2,
+      })
+
+      const detail = await json(await get(t.app, `/api/opponents/${survivor.id}`, ash))
+      expect(detail.rounds.map((r: { notes: string }) => r.notes)).toContain('Lost to Trick Room')
+      expect((await get(t.app, `/api/opponents/${duplicate.id}`, ash)).status).toBe(404)
+      const search = await json(await get(t.app, '/api/opponents?q=WolfeyVGC', ash))
+      expect(search.map((o: { id: string }) => o.id)).toEqual([survivor.id])
+    })
+
+    it('refuses a merge that would leave too many Aliases, and changes nothing', async () => {
+      await setUp()
+      const many = (prefix: string) => Array.from({ length: 10 }, (_, i) => `${prefix}${i}`)
+      const survivor = await json(
+        await post(t.app, '/api/opponents', { displayName: 'A', aliases: many('a') }, ash),
+      )
+      const duplicate = await json(
+        await post(t.app, '/api/opponents', { displayName: 'B', aliases: many('b') }, ash),
+      )
+      const res = await merge(survivor.id, duplicate.id)
+      expect(res.status).toBe(409)
+      expect((await json(res)).fields).toHaveProperty('aliases')
+      expect((await get(t.app, `/api/opponents/${duplicate.id}`, ash)).status).toBe(200)
+      expect((await json(await get(t.app, `/api/opponents/${survivor.id}`, ash))).aliases).toEqual(
+        survivor.aliases,
+      )
+    })
+
+    it('refuses to merge an Opponent into themselves, or one that is gone', async () => {
+      await setUp()
+      const survivor = await json(await post(t.app, '/api/opponents', { displayName: 'A' }, ash))
+      const duplicate = await json(await post(t.app, '/api/opponents', { displayName: 'B' }, ash))
+
+      const itself = await merge(survivor.id, survivor.id)
+      expect(itself.status).toBe(400)
+      expect((await json(itself)).fields).toHaveProperty('duplicateId')
+
+      expect((await merge(survivor.id, duplicate.id)).status).toBe(200)
+      // A replay finds the duplicate already gone.
+      const replay = await merge(survivor.id, duplicate.id)
+      expect(replay.status).toBe(400)
+      expect((await json(replay)).fields).toHaveProperty('duplicateId')
+
+      expect((await merge(survivor.id, 'not-an-id')).status).toBe(400)
+    })
+
+    it("can't merge another User's Opponents", async () => {
+      await setUp()
+      const misty = (await signUp(t.app, 'misty@example.com')).cookie
+      const ashs = await json(await post(t.app, '/api/opponents', { displayName: 'A' }, ash))
+      const mistys = await json(await post(t.app, '/api/opponents', { displayName: 'M' }, misty))
+
+      expect((await merge(mistys.id, ashs.id, ash)).status).toBe(404)
+      const res = await merge(ashs.id, mistys.id, ash)
+      expect(res.status).toBe(400)
+      expect((await json(res)).fields).toHaveProperty('duplicateId')
+      expect((await get(t.app, `/api/opponents/${mistys.id}`, misty)).status).toBe(200)
+    })
+  })
+
   it('refuses an Opponent with no name', async () => {
     await setUp()
     const res = await post(t.app, '/api/opponents', { displayName: '  ' }, ash)
