@@ -57,6 +57,13 @@
       "when": 1793938312989,
       "tag": "0007_round_games",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1793986921667,
+      "tag": "0008_opponent_note_entries",
+      "breakpoints": true
     }
   ]
 }

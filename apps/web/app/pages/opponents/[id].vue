@@ -1,10 +1,7 @@
 <script setup lang="ts">
 import {
   MAX_NOTES_LENGTH,
-  ROUND_RESULT_LABELS,
-  TOP_CUT_STAGE_LABELS,
   type OpponentDetailView,
-  type OpponentRoundView,
   type OpponentView,
   formatRecord,
 } from '@myvgc/core/schema'
@@ -12,7 +9,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 import { useOnline } from '@vueuse/core'
 import { FetchError } from 'ofetch'
 import { fieldErrorsOf, saveFailureMessage } from '@/lib/api'
-import { formatDates } from '@/lib/format'
+import { formatDates, roundLabel, roundOutcome } from '@/lib/format'
 import type { OpponentChoice } from '@/components/OpponentPicker.vue'
 
 const route = useRoute()
@@ -122,13 +119,6 @@ const roundsMoving = computed(() => {
   const count = duplicateDetail.data.value?.roundCount
   return count === undefined ? 'their Rounds' : count === 1 ? '1 Round' : `${count} Rounds`
 })
-
-const outcome = (r: OpponentRoundView) =>
-  r.gameScore
-    ? `${ROUND_RESULT_LABELS[r.result]} ${r.gameScore.won}-${r.gameScore.lost}`
-    : ROUND_RESULT_LABELS[r.result]
-const label = (r: OpponentRoundView) =>
-  r.phase === 'swiss' ? `Round ${r.roundNumber}` : TOP_CUT_STAGE_LABELS[r.stage!]
 </script>
 
 <template>
@@ -211,6 +201,8 @@ const label = (r: OpponentRoundView) =>
         <AlertDescription>{{ merged }}</AlertDescription>
       </Alert>
 
+      <OpponentTimeline :opponent="opponent" />
+
       <section aria-labelledby="opponent-rounds" class="flex flex-col gap-3">
         <h2 id="opponent-rounds" class="font-semibold">Rounds against them</h2>
         <p v-if="opponent.rounds.length === 0" class="text-muted-foreground text-sm">None yet.</p>
@@ -222,12 +214,12 @@ const label = (r: OpponentRoundView) =>
                 class="min-w-0 font-medium break-words hover:underline"
                 >{{ r.tournament.name }}</NuxtLink
               >
-              <span class="shrink-0 text-sm font-semibold">{{ outcome(r) }}</span>
+              <span class="shrink-0 text-sm font-semibold">{{ roundOutcome(r) }}</span>
             </div>
             <p class="text-muted-foreground text-xs">
-              {{ formatDates(r.tournament.startDate) }} · {{ label(r) }} · Best of {{ r.bestOf }}
+              {{ formatDates(r.tournament.startDate) }} · {{ roundLabel(r) }} · Best of
+              {{ r.bestOf }}
             </p>
-            <p v-if="r.notes" class="text-sm whitespace-pre-wrap">{{ r.notes }}</p>
           </li>
         </ol>
       </section>
@@ -246,8 +238,8 @@ const label = (r: OpponentRoundView) =>
           <AlertDialogHeader>
             <AlertDialogTitle>Merge into {{ opponent.displayName }}</AlertDialogTitle>
             <AlertDialogDescription>
-              Choose a duplicate of {{ opponent.displayName }}. Their Rounds, Aliases and notes move
-              here, and the duplicate is deleted.
+              Choose a duplicate of {{ opponent.displayName }}. Their Rounds, Aliases, notes and
+              Note entries move here, and the duplicate is deleted.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <OpponentPicker
@@ -259,7 +251,8 @@ const label = (r: OpponentRoundView) =>
           />
           <p v-if="duplicate" class="text-sm" data-testid="merge-summary">
             Keep <strong>{{ opponent.displayName }}</strong
-            >. Move {{ roundsMoving }} from <strong>{{ duplicate.displayName }}</strong
+            >. Move {{ roundsMoving }} and their Note entries from
+            <strong>{{ duplicate.displayName }}</strong
             >, add their name and Aliases as Aliases, and add their notes below these. Then delete
             <strong>{{ duplicate.displayName }}</strong
             >. This can't be undone.
@@ -292,7 +285,9 @@ const label = (r: OpponentRoundView) =>
                 You have Rounds against them, so they can't be deleted. Rename them, or merge them
                 into another Opponent.
               </template>
-              <template v-else>This removes the Opponent and their notes.</template>
+              <template v-else
+                >This removes the Opponent, their notes and their Note entries.</template
+              >
             </AlertDialogDescription>
           </AlertDialogHeader>
           <Alert v-if="remove.isError.value" variant="destructive" role="alert">

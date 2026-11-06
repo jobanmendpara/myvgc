@@ -1,4 +1,4 @@
-import { index, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core'
+import { date, index, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core'
 import { user } from './auth-schema'
 
 /** Someone a User played. A private record, not a User (see CONTEXT.md). */
@@ -31,4 +31,23 @@ export const opponentAlias = pgTable(
     name: text('name').notNull(),
   },
   (table) => [index('opponent_alias_opponent_idx').on(table.opponentId)],
+)
+
+/** A dated note on an Opponent (see CONTEXT.md). It belongs to whoever owns the Opponent. */
+export const opponentNoteEntry = pgTable(
+  'opponent_note_entry',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    opponentId: uuid('opponent_id')
+      .notNull()
+      .references(() => opponent.id, { onDelete: 'cascade' }),
+    date: date('date').notNull(),
+    text: text('text').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [index('opponent_note_entry_opponent_idx').on(table.opponentId)],
 )
