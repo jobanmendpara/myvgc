@@ -15,7 +15,16 @@ import type { z } from 'zod'
 import type { AppEnv } from '../app'
 import { opponent, round, tournament } from '../db/schema'
 import type { Database } from '../db/types'
-import { clash, deleted, idTaken, invalid, isId, notFound, readBody } from './helpers'
+import {
+  clash,
+  deleted,
+  idTaken,
+  invalid,
+  isId,
+  notFound,
+  readBody,
+  uniqueViolation,
+} from './helpers'
 import { ownOpponent } from './opponents'
 import { loadRounds } from './round-data'
 import { ownTournament } from './tournaments'
@@ -27,15 +36,6 @@ type Clashes = [Issue, ...Issue[]]
 
 /** Thrown inside a save's transaction when a client-chosen ID belongs to another User. */
 class IdTaken extends Error {}
-
-/** The constraint a Postgres unique violation names, if the error is one. */
-function uniqueViolation(error: unknown): string | undefined {
-  for (let e = error; e && typeof e === 'object'; e = (e as { cause?: unknown }).cause) {
-    const { code, constraint } = e as { code?: string; constraint?: string }
-    if (code === '23505') return constraint
-  }
-  return undefined
-}
 
 /**
  * Round routes, mounted at /api/tournaments/:tournamentId/rounds behind the session
