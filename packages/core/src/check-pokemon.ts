@@ -1,5 +1,6 @@
 import type { PokemonBuild } from './build'
 import { type ChampionsKind, champions, unknownName } from './champions'
+import { GAME_SIDES, type Game } from './round'
 
 /** A problem with one field of the Pokémon builds sent to the API. */
 export interface PokemonIssue {
@@ -27,6 +28,28 @@ export function checkPokemon(pokemon: PokemonBuild[]): PokemonIssue[] {
     check('ability', build.ability, 'ability')
     check('nature', build.nature, 'nature')
     build.moves.forEach((move, moveIndex) => check('move', move, 'moves', moveIndex))
+  })
+  return issues
+}
+
+/**
+ * Checks that every Pokémon in some Games is a Champions species, as `checkPokemon` does for
+ * builds. Whether it was on that side's Team snapshot is never checked (ADR 21).
+ */
+export function checkGames(games: Game[]): PokemonIssue[] {
+  const issues: PokemonIssue[] = []
+  games.forEach((game, index) => {
+    for (const side of GAME_SIDES) {
+      for (const field of [side.brought, side.leads]) {
+        game[field].forEach((species, position) => {
+          if (champions.species(species)?.id !== species)
+            issues.push({
+              path: ['games', index, field, position],
+              message: unknownName('species', species),
+            })
+        })
+      }
+    }
   })
   return issues
 }

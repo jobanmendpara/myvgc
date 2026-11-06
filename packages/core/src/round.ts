@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { showdownId } from './build'
 import { clientIdSchema } from './client-id'
 import { MAX_NOTES_LENGTH } from './team'
 import { BEST_OF, type BestOf } from './tournament'
@@ -36,6 +37,114 @@ export interface GameScore {
 
 export const MAX_OPPONENT_NAME_LENGTH = 100
 
+/** Most Pokémon each side brings to a Game. */
+export const MAX_BROUGHT = 4
+/** Most Pokémon each side leads with. */
+export const MAX_LEADS = 2
+export const GAME_NUMBERS = [1, 2, 3] as const
+export type GameNumber = (typeof GAME_NUMBERS)[number]
+
+/** Each side of a Game: the Brought Pokémon field, and the Leads field that goes with it. */
+export const GAME_SIDES = [
+  { brought: 'brought', leads: 'leads' },
+  { brought: 'opponentBrought', leads: 'opponentLeads' },
+] as const
+
+/** The positions of IDs already listed earlier in the same list. */
+const repeated = (ids: readonly string[]) =>
+  ids.flatMap((id, index) => (ids.indexOf(id) < index ? [index] : []))
+
+const speciesList = (max: number, message: string) =>
+  z.array(showdownId).max(max, message).default([])
+
+/**
+ * A single battle within a Round, as far as the User recorded it. Pokémon are species IDs
+ * (ADR 14), and every field is optional (ADR 21).
+ */
+export const gameSchema = z
+  .object({
+    number: z.union(
+      GAME_NUMBERS.map((n) => z.literal(n)) as [z.ZodLiteral<1>, z.ZodLiteral<2>, z.ZodLiteral<3>],
+      'Games are numbered 1 to 3.',
+    ),
+    brought: speciesList(MAX_BROUGHT, `Each side brings at most ${MAX_BROUGHT} Pokémon.`),
+    leads: speciesList(MAX_LEADS, `Each side leads with at most ${MAX_LEADS} Pokémon.`),
+    opponentBrought: speciesList(MAX_BROUGHT, `Each side brings at most ${MAX_BROUGHT} Pokémon.`),
+    opponentLeads: speciesList(MAX_LEADS, `Each side leads with at most ${MAX_LEADS} Pokémon.`),
+    result: z.enum(ROUND_RESULTS).nullable().default(null),
+    notes: z
+      .string()
+      .max(MAX_NOTES_LENGTH, `Notes can be at most ${MAX_NOTES_LENGTH} characters.`)
+      .default(''),
+  })
+  .superRefine((game, ctx) => {
+    for (const side of GAME_SIDES) {
+      for (const index of repeated(game[side.brought]))
+        ctx.addIssue({ code: 'custom', path: [side.brought, index], message: 'Already brought.' })
+      for (const index of repeated(game[side.leads]))
+        ctx.addIssue({ code: 'custom', path: [side.leads, index], message: 'Already a Lead.' })
+      game[side.leads].forEach((lead, index) => {
+        if (!game[side.brought].includes(lead))
+          ctx.addIssue({
+            code: 'custom',
+            path: [side.leads, index],
+            message: 'A Lead must be one of the Brought Pokémon.',
+          })
+      })
+    }
+  })
+
+export type Game = z.output<typeof gameSchema>
+export type GameInput = z.input<typeof gameSchema>
+
+/** Whether nothing about a Game was recorded. */
+export const isEmptyGame = (game: Omit<Game, 'number'>) =>
+  GAME_SIDES.every((side) => !game[side.brought].length && !game[side.leads].length) &&
+  game.result === null &&
+  !game.notes.trim()
+
+/** What a Game result counts for in a Round's Game score. */
+type GameFacts = Pick<Game, 'number' | 'result'>
+
+/**
+ * How far the Game results go. A best-of-3 Round is decided once a side has won 2 Games, or
+ * after Game 3, counting only Games with no unrecorded Game before them. `decidedAfter` is the
+ * Game that decided it, if the results go that far; `won` and `lost` count every Game.
+ */
+function readGames(games: readonly GameFacts[]) {
+  const results = new Map(games.map((game) => [game.number, game.result]))
+  let won = 0
+  let lost = 0
+  let decidedAfter: GameNumber | undefined
+  for (const number of GAME_NUMBERS) {
+    const result = results.get(number)
+    if (!result) break
+    if (result === 'win') won++
+    if (result === 'loss') lost++
+    if (won === 2 || lost === 2 || number === 3) {
+      decidedAfter = number
+      break
+    }
+  }
+  const total = (result: RoundResult) => games.filter((game) => game.result === result).length
+  return {
+    score: decidedAfter ? { won, lost } : null,
+    decidedAfter,
+    won: total('win'),
+    lost: total('loss'),
+  }
+}
+
+/**
+ * The Game score the Game results add up to in a best-of-3 Round, or nothing while they are
+ * partial. In a best-of-1 Round, Game 1's result is the Round's instead (see `settleRound`).
+ */
+export function gameScoreFromGames(round: { bestOf: BestOf; games: readonly GameFacts[] }) {
+  return round.bestOf === 3 ? readGames(round.games).score : null
+}
+
+const scoreText = ({ won, lost }: GameScore) => `${won}-${lost}`
+
 /** What decides whether a Round is valid and what its result is. */
 export interface RoundFacts {
   phase: RoundPhase
@@ -47,6 +156,7 @@ export interface RoundFacts {
   result: RoundResult | null
   gameScore: GameScore | null
   hasOpponent: boolean
+  games: GameFacts[]
 }
 
 type Issue = { path: string[]; message: string }
@@ -68,19 +178,68 @@ export function roundIssues(round: RoundFacts): Issue[] {
   if (round.bye) {
     if (round.hasOpponent) add('opponent', 'A Bye has no Opponent.')
     if (round.gameScore) add('gameScore', 'A Bye has no Game score.')
+    if (round.games.length) add('games', 'A Bye has no Games.')
     return issues
   }
 
   if (!round.hasOpponent) add('opponent', 'Choose who you played, or add them.')
+  // Changing best-of never drops recorded Games (ADR 21).
+  const beyond = round.games.filter((game) => game.number > round.bestOf).map((g) => g.number)
+  if (beyond.length)
+    add(
+      'bestOf',
+      `This Round has Game ${beyond.join(' and ')} recorded. Remove ${beyond.length > 1 ? 'them' : 'it'} first.`,
+    )
+
+  const games = readGames(round.games)
+  if (round.bestOf === 1) {
+    const game = round.games.find((g) => g.number === 1)?.result ?? null
+    if (round.gameScore) add('gameScore', 'Only best-of-3 Rounds have a Game score.')
+    else if (game && round.result && game !== round.result)
+      add('result', `Game 1 was a ${ROUND_RESULT_LABELS[game]}.`)
+    else if (!game && round.result === null) add('result', 'Choose Win, Loss or Tie.')
+    return issues
+  }
+
+  if (games.won > 2 || games.lost > 2) add('games', 'Only 2 Games can be won or lost in best of 3.')
+  else if (
+    games.decidedAfter &&
+    round.games.some((g) => g.number > games.decidedAfter! && g.result)
+  )
+    add('games', `The Round was over after Game ${games.decidedAfter}.`)
+
   if (round.gameScore) {
     const { won, lost } = round.gameScore
-    if (round.bestOf === 1) add('gameScore', 'Only best-of-3 Rounds have a Game score.')
-    else if (won > 2 || lost > 2 || won + lost > 3 || (won === 2 && lost === 2))
+    if (won > 2 || lost > 2 || won + lost > 3 || (won === 2 && lost === 2))
       add('gameScore', 'That Game score isn’t possible in best of 3.')
+    else if (games.score && scoreText(games.score) !== scoreText(round.gameScore))
+      add('gameScore', `The Games add up to ${scoreText(games.score)}.`)
+    else if (games.won > won || games.lost > lost)
+      add('gameScore', `The Games already have ${games.won} won and ${games.lost} lost.`)
+  } else if (games.score) {
+    const decided = roundResult({ bye: false, result: null, gameScore: games.score })
+    if (round.result && round.result !== decided)
+      add(
+        'result',
+        `The Games add up to ${scoreText(games.score)}, a ${ROUND_RESULT_LABELS[decided]}.`,
+      )
   } else if (round.result === null) {
     add('result', 'Choose Win, Loss or Tie.')
   }
   return issues
+}
+
+/**
+ * A valid Round with what its Games decide filled in: the Game score in best of 3, or the result
+ * in best of 1. A Game score or result the User gave stays, as `roundIssues` checked it agrees.
+ */
+export function settleRound<R extends RoundFacts>(round: R): R {
+  if (round.bye) return round
+  if (round.bestOf === 1) {
+    const game = round.games.find((g) => g.number === 1)?.result ?? null
+    return { ...round, result: round.result ?? game }
+  }
+  return { ...round, gameScore: round.gameScore ?? gameScoreFromGames(round) }
 }
 
 /** A Round's result: a Bye is a win, and a Game score decides over the chosen result. */
@@ -197,6 +356,20 @@ export const roundInputSchema = z.object({
     .string()
     .max(MAX_NOTES_LENGTH, `Notes can be at most ${MAX_NOTES_LENGTH} characters.`)
     .default(''),
+  // Saved with the Round, so they travel through the outbox with it (ADR 17, ADR 21).
+  games: z
+    .array(gameSchema)
+    .max(GAME_NUMBERS.length, `A Round has at most ${GAME_NUMBERS.length} Games.`)
+    .default([])
+    .superRefine((games, ctx) => {
+      repeated(games.map((game) => String(game.number))).forEach((index) =>
+        ctx.addIssue({
+          code: 'custom',
+          path: [index, 'number'],
+          message: `Game ${games[index]!.number} is listed twice.`,
+        }),
+      )
+    }),
 })
 
 export type RoundInput = z.input<typeof roundInputSchema>
@@ -219,6 +392,8 @@ export interface RoundView {
   gameScore: GameScore | null
   opponent: { id: string; displayName: string } | null
   notes: string
+  /** Its recorded Games, by number. Numbers can be missing. */
+  games: Game[]
   createdAt: string
   updatedAt: string
 }

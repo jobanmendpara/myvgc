@@ -83,6 +83,88 @@ describe('Rounds', () => {
     expect(body.round).toMatchObject({ result: 'loss', gameScore: { won: 1, lost: 2 } })
   })
 
+  it('records Games, which fill in the Game score once they decide the Round', async () => {
+    await setUp()
+    const res = await logRound({
+      newOpponentName: 'Wolfe Glick',
+      games: [
+        { number: 2, result: 'loss', opponentBrought: ['kingambit'] },
+        {
+          number: 1,
+          result: 'win',
+          brought: ['incineroar', 'rillaboom', 'sneasler'],
+          leads: ['incineroar', 'rillaboom'],
+          opponentLeads: [],
+          notes: 'Fake Out pressure',
+        },
+        { number: 3, result: 'win' },
+      ],
+    })
+
+    expect(res.status).toBe(201)
+    const { round, record } = await json(res)
+    expect(round).toMatchObject({ result: 'win', gameScore: { won: 2, lost: 1 } })
+    expect(round.games.map((g: { number: number }) => g.number)).toEqual([1, 2, 3])
+    expect(round.games[0]).toEqual({
+      number: 1,
+      brought: ['incineroar', 'rillaboom', 'sneasler'],
+      leads: ['incineroar', 'rillaboom'],
+      opponentBrought: [],
+      opponentLeads: [],
+      result: 'win',
+      notes: 'Fake Out pressure',
+    })
+    expect(record.swiss.wins).toBe(1)
+    const shown = await json(await get(t.app, `/api/tournaments/${tournamentId}`, ash))
+    expect(shown.rounds[0].games).toEqual(round.games)
+  })
+
+  it('keeps a Game score the User gave while the Games are partial', async () => {
+    await setUp()
+    const body = await json(
+      await logRound({
+        newOpponentName: 'X',
+        gameScore: { won: 2, lost: 1 },
+        games: [{ number: 3, result: 'win', brought: ['incineroar'] }],
+      }),
+    )
+    expect(body.round).toMatchObject({ result: 'win', gameScore: { won: 2, lost: 1 } })
+  })
+
+  it.each<[string, object, string]>([
+    ['a Bye with Games', { bye: true, newOpponentName: null, games: [{ number: 1 }] }, 'games'],
+    [
+      'Games that contradict the Game score',
+      { gameScore: { won: 2, lost: 0 }, games: [{ number: 1, result: 'loss' }] },
+      'gameScore',
+    ],
+    [
+      'a best-of-1 Round with a Game 2',
+      { bestOf: 1, result: 'win', games: [{ number: 2, brought: ['incineroar'] }] },
+      'bestOf',
+    ],
+    [
+      'a Lead that wasn’t brought',
+      { result: 'win', games: [{ number: 1, brought: ['incineroar'], leads: ['rillaboom'] }] },
+      'games.0.leads.0',
+    ],
+    [
+      'a species not in Champions',
+      { result: 'win', games: [{ number: 1, opponentBrought: ['missingno'] }] },
+      'games.0.opponentBrought.0',
+    ],
+    [
+      'the same Game twice',
+      { result: 'win', games: [{ number: 1 }, { number: 1 }] },
+      'games.1.number',
+    ],
+  ])('refuses %s', async (_, body, field) => {
+    await setUp()
+    const res = await logRound({ newOpponentName: 'X', ...body })
+    expect(res.status).toBe(400)
+    expect((await json(res)).fields).toHaveProperty([field])
+  })
+
   it('logs Top cut Rounds by stage and suggests a Placement after a loss', async () => {
     await setUp()
     await logRound({ result: 'win', newOpponentName: 'A' })

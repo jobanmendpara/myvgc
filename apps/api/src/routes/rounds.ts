@@ -1,10 +1,12 @@
 import {
   type SavedRound,
+  checkGames,
   newRoundSchema,
   recordOf,
   roundInputSchema,
   roundIssues,
   roundResult,
+  settleRound,
   suggestedPlacement,
 } from '@myvgc/core'
 import { and, eq, ne } from 'drizzle-orm'
@@ -20,7 +22,7 @@ import { ownTournament } from './tournaments'
 
 // A PATCH has no `id`; it only names the Round to create.
 type RoundSave = z.output<typeof newRoundSchema>
-type Issue = { path: string[]; message: string }
+type Issue = { path: (string | number)[]; message: string }
 type Clashes = [Issue, ...Issue[]]
 
 /** Thrown inside a save's transaction when a client-chosen ID belongs to another User. */
@@ -74,10 +76,11 @@ export function roundRoutes(db: Database) {
       result: input.result ?? null,
       gameScore: input.gameScore ?? null,
       hasOpponent: Boolean(input.opponentId || input.newOpponentName),
+      games: input.games.toSorted((a, b) => a.number - b.number),
     }
     // The User didn't type the number, so any free one will do.
     const numberIsFree = input.phase === 'swiss' && input.roundNumber == null && !existingId
-    const issues: Issue[] = roundIssues(facts)
+    const issues: Issue[] = [...roundIssues(facts), ...checkGames(input.games)]
     if (input.opponentId && input.newOpponentName)
       issues.push({ path: ['opponent'], message: 'Choose an Opponent or add one, not both.' })
     if (input.opponentId && !input.bye) {
@@ -88,6 +91,7 @@ export function roundRoutes(db: Database) {
       if (!own) issues.push({ path: ['opponentId'], message: 'Choose one of your Opponents.' })
     }
     if (issues.length) return { issues }
+    const settled = settleRound(facts)
 
     // Checked once the Round is valid, as fixing it may change the clash.
     const numberClash: Issue = {
@@ -143,11 +147,12 @@ export function roundRoutes(db: Database) {
           stage: facts.stage,
           bestOf: facts.bestOf,
           bye: facts.bye,
-          result: roundResult(facts),
-          gamesWon: facts.gameScore?.won ?? null,
-          gamesLost: facts.gameScore?.lost ?? null,
+          result: roundResult(settled),
+          gamesWon: settled.gameScore?.won ?? null,
+          gamesLost: settled.gameScore?.lost ?? null,
           opponentId,
           notes: input.notes,
+          games: settled.games,
         }
         const [row] = existingId
           ? await tx.update(round).set(values).where(eq(round.id, existingId)).returning()

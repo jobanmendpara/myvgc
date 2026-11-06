@@ -24,6 +24,7 @@ export function toRoundView(
         : null,
     opponent: against,
     notes: row.notes,
+    games: row.games,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   }

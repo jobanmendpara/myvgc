@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import {
   BEST_OF,
+  GAME_NUMBERS,
   MAX_NOTES_LENGTH,
   ROUND_RESULTS,
   ROUND_RESULT_LABELS,
   TOP_CUT_STAGES,
   TOP_CUT_STAGE_LABELS,
   type BestOf,
+  type Game,
   type GameScore,
   type RoundInput,
   type RoundPhase,
@@ -14,6 +16,7 @@ import {
   type RoundView,
   type TopCutStage,
   type TournamentView,
+  isEmptyGame,
 } from '@myvgc/core/schema'
 import type { OpponentChoice } from './OpponentPicker.vue'
 
@@ -73,6 +76,48 @@ const opponent = ref<OpponentChoice | null>(
 )
 const notes = ref(r?.notes ?? '')
 
+// A draft of every Game. Only those with something recorded are sent.
+const emptyGame = (number: Game['number']): Game => ({
+  number,
+  brought: [],
+  leads: [],
+  opponentBrought: [],
+  opponentLeads: [],
+  result: null,
+  notes: '',
+})
+const copyGame = (game: Game): Game => ({
+  ...game,
+  brought: [...game.brought],
+  leads: [...game.leads],
+  opponentBrought: [...game.opponentBrought],
+  opponentLeads: [...game.opponentLeads],
+})
+const games = ref<Game[]>(
+  GAME_NUMBERS.map((n) => {
+    const saved = r?.games.find((g) => g.number === n)
+    return saved ? copyGame(saved) : emptyGame(n)
+  }),
+)
+// Games beyond best-of stay in view while they hold anything, so they're never dropped unseen.
+const shownGames = computed(() =>
+  games.value.filter((g) => g.number <= bestOf.value || !isEmptyGame(g)),
+)
+const recordedCount = computed(() => games.value.filter((g) => !isEmptyGame(g)).length)
+const yours = computed(() => props.tournament.team?.pokemon.map((p) => p.species) ?? [])
+// The numbers of the Games last sent, as the API names their fields by position.
+const sentNumbers = ref<number[]>([])
+const gameErrors = computed(() => {
+  const byNumber: Record<number, Record<string, string>> = {}
+  for (const [field, message] of Object.entries(props.fieldErrors ?? {})) {
+    const [, position, ...rest] = field.split('.')
+    const number = sentNumbers.value[Number(position)]
+    if (!field.startsWith('games.') || number === undefined || !rest.length) continue
+    ;(byNumber[number] ??= {})[rest.join('.')] = message
+  }
+  return byNumber
+})
+
 const phaseOptions = [
   { value: 'swiss' as const, label: 'Swiss' },
   { value: 'top-cut' as const, label: 'Top cut' },
@@ -92,6 +137,8 @@ function submit() {
     localError.value = { roundNumber: 'Use a round number such as 3.' }
     return
   }
+  const recorded = games.value.filter((g) => !isEmptyGame(g)).map(copyGame)
+  sentNumbers.value = recorded.map((g) => g.number)
   emit('submit', {
     phase: phase.value,
     roundNumber: phase.value === 'swiss' ? number : null,
@@ -104,6 +151,8 @@ function submit() {
     newOpponentName:
       !bye.value && opponent.value?.kind === 'new' ? opponent.value.displayName : null,
     notes: notes.value,
+    // Sent even with a Bye, so the API says to remove them rather than them vanishing.
+    games: recorded,
   })
 }
 </script>
@@ -135,6 +184,9 @@ function submit() {
       <input v-model="bye" type="checkbox" class="size-5" />
       Bye (no Opponent, counts as a win)
     </label>
+    <p v-if="bye && error('games')" class="text-destructive text-sm">
+      {{ error('games') }} Untick Bye to see them.
+    </p>
 
     <template v-if="!bye">
       <OpponentPicker
@@ -142,7 +194,10 @@ function submit() {
         :error="error('opponent') ?? error('opponentId') ?? error('newOpponentName')"
       />
 
-      <ChoiceGroup v-model="bestOf" :options="bestOfOptions" label="Best of" name="best-of" />
+      <div class="flex flex-col gap-2">
+        <ChoiceGroup v-model="bestOf" :options="bestOfOptions" label="Best of" name="best-of" />
+        <p v-if="error('bestOf')" class="text-destructive text-sm">{{ error('bestOf') }}</p>
+      </div>
 
       <div v-if="bestOf === 3" class="flex flex-col gap-2">
         <ChoiceGroup
@@ -158,6 +213,20 @@ function submit() {
         <ChoiceGroup v-model="result" :options="resultOptions" label="Result" name="result" />
         <p v-if="error('result')" class="text-destructive text-sm">{{ error('result') }}</p>
       </div>
+
+      <details class="group flex flex-col gap-3" :open="recordedCount > 0" data-testid="games">
+        <summary class="flex min-h-11 cursor-pointer items-center text-sm font-medium">
+          Games
+          <span class="text-muted-foreground ml-1 font-normal"
+            >({{ recordedCount ? `${recordedCount} recorded` : 'optional' }})</span
+          >
+        </summary>
+        <p class="text-muted-foreground mb-3 text-sm">
+          Game results that finish the Round fill in its score and result.
+        </p>
+        <p v-if="error('games')" class="text-destructive mb-3 text-sm">{{ error('games') }}</p>
+        <GamesEditor :games="shownGames" :yours="yours" :errors="gameErrors" />
+      </details>
     </template>
 
     <div class="flex flex-col gap-2">
@@ -169,7 +238,7 @@ function submit() {
         v-model="notes"
         rows="4"
         :maxlength="MAX_NOTES_LENGTH"
-        placeholder="Leads, what they brought, key turns…"
+        placeholder="Key turns, what to remember for next time…"
       />
     </div>
 
