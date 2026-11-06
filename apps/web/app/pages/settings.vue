@@ -6,6 +6,13 @@ useHead({ title: 'Settings · MyVGC' })
 // Account settings are kept on the User; Device settings in this browser (see CONTEXT.md).
 const session = authClient.useSession()
 const logOut = useLogOut()
+
+// Opening /settings#player-details from outside the app: the browser looks for the section
+// before this page exists, so scroll to it here.
+const route = useRoute()
+onMounted(() => {
+  if (route.hash) document.getElementById(route.hash.slice(1))?.scrollIntoView()
+})
 </script>
 
 <template>
