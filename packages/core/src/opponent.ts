@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { clientIdSchema } from './client-id'
+import type { NoteEntryView } from './note-entry'
 import { MAX_OPPONENT_NAME_LENGTH, type RoundView, type Tally } from './round'
 import { MAX_NOTES_LENGTH } from './team'
 
@@ -59,9 +60,10 @@ export type OpponentRoundView = RoundView & {
   tournament: { id: string; name: string; startDate: string }
 }
 
-/** An Opponent with every Round against them, newest first. */
+/** An Opponent with every Round against them and their Note entries, each newest first. */
 export interface OpponentDetailView extends OpponentView {
   rounds: OpponentRoundView[]
+  noteEntries: NoteEntryView[]
 }
 
 /** What a merge combines from each Opponent. */

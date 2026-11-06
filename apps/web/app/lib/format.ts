@@ -1,4 +1,15 @@
 // Display helpers shared by the Tournament, Opponent and dashboard pages.
+import { ROUND_RESULT_LABELS, TOP_CUT_STAGE_LABELS, type RoundView } from '@myvgc/core/schema'
+
+/** A Round's place in its Tournament, such as "Round 3" or "Top 8". */
+export const roundLabel = (r: RoundView) =>
+  r.phase === 'swiss' ? `Round ${r.roundNumber}` : TOP_CUT_STAGE_LABELS[r.stage!]
+
+/** A Round's result, with its Game score when there is one, such as "Win 2-1". */
+export const roundOutcome = (r: RoundView) =>
+  r.gameScore
+    ? `${ROUND_RESULT_LABELS[r.result]} ${r.gameScore.won}-${r.gameScore.lost}`
+    : ROUND_RESULT_LABELS[r.result]
 
 const dayMonthYear = new Intl.DateTimeFormat('en-GB', {
   day: 'numeric',
