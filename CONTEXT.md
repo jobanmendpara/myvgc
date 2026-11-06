@@ -28,10 +28,13 @@ MyVGC is a hub where a competitive player tracks their Pokémon VGC experience i
 - **Championship Points (CP)**: the Play! Pokémon points a User earned at a Tournament, entered by hand. MyVGC does not calculate them. Because CP resets each Season, CP is only ever totalled within one Season.
 - **Event tier**: the kind of Tournament, from a fixed list: Premier Challenge, Regional, International, Worlds, Grassroots, Online, Other.
 - **Teamsheet**: the official Play! Pokémon team list for a Tournament. It can be generated in the app from a Team, or uploaded as a PDF.
-- **Round**: one pairing in a Tournament. Never called "Match". It has a phase (Swiss or Top cut) and, within it, a round number (Swiss) or a Top cut stage, is best of 1 or best of 3 (defaulting to the Tournament's setting), and has a result, an Opponent and notes (for example leads). Every Round except a Bye has an Opponent.
+- **Round**: one pairing in a Tournament. Never called "Match". It has a phase (Swiss or Top cut) and, within it, a round number (Swiss) or a Top cut stage, is best of 1 or best of 3 (defaulting to the Tournament's setting), and has a result, an Opponent, notes and, optionally, its Games. Every Round except a Bye has an Opponent.
 - **Round result**: Win, Loss or Tie. Intentional draws and time-outs count as Ties.
 - **Bye**: a Round with no Opponent, which counts as a win.
-- **Game score**: how many Games each side won in a best-of-3 Round, such as 2-1. It is optional; when it is given, it decides the Round result.
-- **Game**: a single battle within a Round. Tracking individual Games is planned, not in the first slice.
+- **Game score**: how many Games each side won in a best-of-3 Round, such as 2-1. It is optional; when it is given, it decides the Round result. Game results fill it in once they decide the Round.
+- **Game**: a single battle within a Round, numbered 1 to 3. A best-of-1 Round has at most one, a best-of-3 Round at most three, and a Bye none. A Game records each side's Brought Pokémon and Leads, a Game result and notes, all optional, and a Round can record Game 3 without Game 2.
+- **Game result**: Win, Loss or Tie for one Game. In best of 3, Game results fill in the Game score once a side has won 2 or Game 3 is recorded, with no Game before it left blank; in best of 1, Game 1's result is the Round's. They never contradict a Game score or result the User gave.
+- **Brought Pokémon**: the up to four Pokémon a side picks from its Team for one Game. Usually chosen from that side's Team snapshot, but any species can be recorded.
+- **Lead**: one of the up to two Brought Pokémon a side sends out first in a Game.
 - **Team snapshot**: a frozen copy of a Team attached to a Tournament (the User's Team) or to a Round (the Opponent's Team). It links back to the original Team.
 - **Notes**: one Markdown notes field on each Opponent, Team, Tournament and Round. An Opponent's page also shows the notes from every Round against them.
