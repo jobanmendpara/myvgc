@@ -5,6 +5,7 @@ import type { Database } from './db/types'
 import { REGULATION_PERIODS, SEASONS, championsNames, currentRegulation, today } from '@myvgc/core'
 import { teamRoutes } from './routes/teams'
 import { dashboardRoutes } from './routes/dashboard'
+import { dataRoutes } from './routes/data'
 import { noteEntryRoutes } from './routes/note-entries'
 import { opponentRoutes } from './routes/opponents'
 import { roundRoutes } from './routes/rounds'
@@ -62,6 +63,7 @@ export function createApp({ db, auth: authOptions, webDir }: AppOptions): Hono<A
   app.route('/api/opponents', opponentRoutes(db))
   app.route('/api/note-entries', noteEntryRoutes(db))
   app.route('/api/dashboard', dashboardRoutes(db))
+  app.route('/api', dataRoutes(db))
 
   // Seasons and Regulation dates ship with the app (ADR 16). The web app reads them from here
   // so it never has to load `@myvgc/core`, and "today" is the server's day.

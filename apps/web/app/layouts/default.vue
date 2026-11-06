@@ -40,6 +40,9 @@ async function logOut() {
           >
             {{ session.data.user.email }}
           </span>
+          <Button variant="ghost" size="sm" as-child>
+            <NuxtLink to="/your-data">Your data</NuxtLink>
+          </Button>
           <Button variant="outline" size="sm" @click="logOut">Log out</Button>
         </div>
       </div>
