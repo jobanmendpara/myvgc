@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import {
+  type Game,
   ROUND_RESULT_LABELS,
   TOP_CUT_STAGE_LABELS,
   type RoundView,
@@ -15,6 +16,23 @@ const resultClass: Record<RoundView['result'], string> = {
   win: 'bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200',
   loss: 'bg-red-100 text-red-900 dark:bg-red-950 dark:text-red-200',
   tie: 'bg-muted text-foreground',
+}
+const names = useChampionsNames()
+const nameOf = (species: string) => names.data.value?.species[species] ?? species
+// One line per Game, such as "Game 1 · Win · Incineroar + Rillaboom vs Kingambit + Sneasler".
+// It shows Leads, or the Brought Pokémon when no Leads were recorded.
+const sideText = (leads: string[], brought: string[]) =>
+  (leads.length ? leads : brought).map(nameOf).join(' + ')
+function gameLine(game: Game) {
+  const yours = sideText(game.leads, game.brought)
+  const theirs = sideText(game.opponentLeads, game.opponentBrought)
+  return [
+    `Game ${game.number}`,
+    game.result && ROUND_RESULT_LABELS[game.result],
+    (yours || theirs) && `${yours || '?'} vs ${theirs || '?'}`,
+  ]
+    .filter(Boolean)
+    .join(' · ')
 }
 const hasTopCut = computed(() => props.tournament.rounds.some((r) => r.phase === 'top-cut'))
 </script>
@@ -54,6 +72,13 @@ const hasTopCut = computed(() => props.tournament.rounds.some((r) => r.phase ===
             <span v-if="r.notes" class="text-muted-foreground line-clamp-2 text-xs">{{
               r.notes
             }}</span>
+            <span
+              v-for="game in r.games"
+              :key="game.number"
+              class="text-muted-foreground text-xs break-words"
+              data-testid="game-line"
+              >{{ gameLine(game) }}</span
+            >
           </span>
           <span class="flex shrink-0 flex-col items-end gap-1">
             <span

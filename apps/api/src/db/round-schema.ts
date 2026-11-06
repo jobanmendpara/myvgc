@@ -1,7 +1,8 @@
-import { ROUND_PHASES, ROUND_RESULTS, TOP_CUT_STAGES } from '@myvgc/core'
+import { type Game, ROUND_PHASES, ROUND_RESULTS, TOP_CUT_STAGES } from '@myvgc/core'
 import {
   boolean,
   index,
+  jsonb,
   pgEnum,
   pgTable,
   smallint,
@@ -38,6 +39,8 @@ export const round = pgTable(
     // An Opponent with Rounds can't be deleted; merging moves their Rounds to another Opponent.
     opponentId: uuid('opponent_id').references(() => opponent.id, { onDelete: 'restrict' }),
     notes: text('notes').notNull().default(''),
+    // Its Games by number (ADR 21), validated by the core schema before every write.
+    games: jsonb('games').$type<Game[]>().notNull().default([]),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true })
       .notNull()

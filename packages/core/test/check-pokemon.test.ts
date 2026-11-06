@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { type PokemonBuild, championsNames, checkPokemon } from '../src'
+import { type PokemonBuild, championsNames, checkGames, checkPokemon, gameSchema } from '../src'
 
 const NO_POINTS = { hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0 }
 
@@ -75,5 +75,17 @@ describe('checkPokemon', () => {
       ...moves.map((move) => build({ moves: [move] })),
     ]
     expect(checkPokemon(builds)).toEqual([])
+  })
+})
+
+describe('checkGames', () => {
+  it('reports each Brought Pokémon or Lead that is not a Champions species, by path', () => {
+    const game = gameSchema.parse({
+      number: 1,
+      brought: ['incineroar', 'notamon'],
+      opponentBrought: ['kingambit'],
+      opponentLeads: ['kingambit'],
+    })
+    expect(checkGames([game]).map((issue) => issue.path)).toEqual([['games', 0, 'brought', 1]])
   })
 })
