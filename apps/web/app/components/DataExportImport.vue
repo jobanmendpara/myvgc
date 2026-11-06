@@ -4,9 +4,7 @@ import { useMutation, useQueryClient } from '@tanstack/vue-query'
 import { useOnline } from '@vueuse/core'
 import { FetchError } from 'ofetch'
 
-useHead({ title: 'Your data · MyVGC' })
-
-// Export and import are online only (ADR 17, ADR 23).
+/** Settings' Your data section: the Data export and its import. Online only (ADR 17, ADR 23). */
 const online = useOnline()
 
 interface Problem {
@@ -59,20 +57,12 @@ function chooseFile(event: Event) {
 
 <template>
   <div class="flex flex-col gap-6">
-    <div>
-      <h1 class="text-2xl font-semibold">Your data</h1>
-      <p class="text-muted-foreground text-sm">
-        Download all of your Teams, Tournaments, Rounds and Opponents as one file, and import it
-        into another MyVGC install, hosted or self-hosted. Your email and password are never in it.
-      </p>
-    </div>
-
     <p v-if="!online" class="text-muted-foreground text-sm" role="status">
       Export and import need a connection.
     </p>
 
     <section class="flex flex-col gap-3" aria-labelledby="export-title">
-      <h2 id="export-title" class="text-lg font-medium">Export</h2>
+      <h3 id="export-title" class="font-medium">Export</h3>
       <Alert>
         <AlertDescription>
           Changes still waiting to be sent from this device aren’t in the export. Let them sync
@@ -88,7 +78,7 @@ function chooseFile(event: Event) {
     </section>
 
     <section class="flex flex-col gap-3" aria-labelledby="import-title">
-      <h2 id="import-title" class="text-lg font-medium">Import</h2>
+      <h3 id="import-title" class="font-medium">Import</h3>
       <p class="text-muted-foreground text-sm">
         Importing only adds what your account doesn’t have yet. Anything already here stays as it
         is, so importing the same file twice is harmless.
