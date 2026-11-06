@@ -2,16 +2,14 @@
 import {
   type Game,
   ROUND_RESULT_LABELS,
-  TOP_CUT_STAGE_LABELS,
   type RoundView,
   type TournamentView,
   formatRecord,
 } from '@myvgc/core/schema'
+import { roundLabel } from '@/lib/format'
 
 const props = defineProps<{ tournament: TournamentView }>()
 
-const label = (r: RoundView) =>
-  r.phase === 'swiss' ? `Round ${r.roundNumber}` : TOP_CUT_STAGE_LABELS[r.stage!]
 const resultClass: Record<RoundView['result'], string> = {
   win: 'bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200',
   loss: 'bg-red-100 text-red-900 dark:bg-red-950 dark:text-red-200',
@@ -64,7 +62,7 @@ const hasTopCut = computed(() => props.tournament.rounds.some((r) => r.phase ===
           class="hover:bg-muted/50 focus-visible:ring-ring/50 flex items-start gap-3 p-3 outline-none focus-visible:ring-3"
           data-testid="round"
         >
-          <span class="text-muted-foreground w-16 shrink-0 text-sm">{{ label(r) }}</span>
+          <span class="text-muted-foreground w-16 shrink-0 text-sm">{{ roundLabel(r) }}</span>
           <span class="flex min-w-0 flex-1 flex-col">
             <span class="font-medium break-words">{{
               r.bye ? 'Bye' : (r.opponent?.displayName ?? 'Unknown')

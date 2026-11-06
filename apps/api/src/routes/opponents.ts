@@ -4,6 +4,7 @@ import {
   type Tally,
   mergeOpponentSchema,
   mergeOpponents,
+  newNoteEntrySchema,
   newOpponentSchema,
   opponentChangesSchema,
   tallyResult,
@@ -11,9 +12,10 @@ import {
 import { and, asc, desc, eq, exists, ilike, inArray, or, sql } from 'drizzle-orm'
 import { Hono } from 'hono'
 import type { AppEnv } from '../app'
-import { opponent, opponentAlias, round, tournament } from '../db/schema'
+import { opponent, opponentAlias, opponentNoteEntry, round, tournament } from '../db/schema'
 import type { Database } from '../db/types'
 import { clash, deleted, escapeLike, idTaken, invalid, isId, notFound, readBody } from './helpers'
+import { loadNoteEntries, toNoteEntryView } from './note-entry-data'
 import { toRoundView } from './round-data'
 
 type OpponentRow = typeof opponent.$inferSelect
@@ -156,6 +158,7 @@ export function opponentRoutes(db: Database) {
             ...toRoundView(r.round, { id: row.id, displayName: row.displayName }),
             tournament: r.tournament,
           })),
+          noteEntries: await loadNoteEntries(db, id),
         }
         return c.json(detail)
       })
@@ -184,8 +187,9 @@ export function opponentRoutes(db: Database) {
         const [view] = await views([row])
         return c.json(view)
       })
-      // Merges a duplicate Opponent into this one: the duplicate's Rounds move here, its name
-      // and Aliases join this one's Aliases, its notes follow these, and it is deleted.
+      // Merges a duplicate Opponent into this one: the duplicate's Rounds and Note entries move
+      // here, its name and Aliases join this one's Aliases, its notes follow these, and it is
+      // deleted.
       .post('/:id/merge', async (c) => {
         const id = c.req.param('id')
         if (!isId(id)) return notFound(c)
@@ -216,6 +220,10 @@ export function opponentRoutes(db: Database) {
           if (!merged.ok) return { kind: 'clash', issues: merged.issues } as const
 
           await tx.update(round).set({ opponentId: id }).where(eq(round.opponentId, duplicateId))
+          await tx
+            .update(opponentNoteEntry)
+            .set({ opponentId: id })
+            .where(eq(opponentNoteEntry.opponentId, duplicateId))
           await tx.delete(opponentAlias).where(eq(opponentAlias.opponentId, id))
           if (merged.aliases.length)
             await tx
@@ -234,6 +242,34 @@ export function opponentRoutes(db: Database) {
         if (outcome.kind === 'clash') return clash(c, outcome.issues)
         const [view] = await views([outcome.saved])
         return c.json(view)
+      })
+      // Adds a Note entry. Changing or deleting one goes through /api/note-entries/:id.
+      .post('/:id/note-entries', async (c) => {
+        const id = c.req.param('id')
+        if (!isId(id)) return notFound(c)
+        const [row] = await db
+          .select({ id: opponent.id })
+          .from(opponent)
+          .where(ownOpponent(id, c.get('user').id))
+        if (!row) return notFound(c)
+        const input = await readBody(c, newNoteEntrySchema)
+        if (!input.ok) return input.response
+        const { id: entryId, date, text } = input.data
+        const [created] = await db
+          .insert(opponentNoteEntry)
+          .values({ id: entryId, opponentId: id, date, text })
+          .onConflictDoNothing({ target: opponentNoteEntry.id })
+          .returning()
+        if (created) return c.json(toNoteEntryView(created), 201)
+
+        // A replay: the Note entry is already saved, and the saved version wins. The same ID on
+        // another Opponent, or another User's, can't be a replay of this one.
+        const [saved] = await db
+          .select()
+          .from(opponentNoteEntry)
+          .where(eq(opponentNoteEntry.id, entryId!))
+        if (!saved || saved.opponentId !== id) return idTaken(c)
+        return c.json(toNoteEntryView(saved))
       })
       .delete('/:id', async (c) => {
         const id = c.req.param('id')

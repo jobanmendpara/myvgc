@@ -23,7 +23,7 @@ Make the web app offline-tolerant, not local-first. The server and Postgres stay
 ## Consequences
 - No new containers, licences or client database. Compose, the image and the tests (ADR 13: Vitest plus `app.request()` against PGlite) stay as they are. The outbox logic is a small pure module with Vitest tests, which needs a `test` script in `apps/web`.
 - Contradicts no ADR. It supplements ADR 5 and ADR 7, because accounts and sessions still exist everywhere.
-- DEV-32 grows by client IDs, idempotent writes and the offline Round-logging flow. DEV-33 needs the names endpoint. DEV-39 (JSON export) matters more, since data now sits on phones.
+- DEV-32 grows by client IDs, idempotent writes and the offline Round-logging flow. DEV-35's Note entries get client IDs and idempotent writes; queuing them waits for the outbox (DEV-48). They are changed and deleted by ID alone, so a change queued before a merge still reaches the Note entry on the survivor. DEV-33 needs the names endpoint. DEV-39 (JSON export) matters more, since data now sits on phones.
 - Account deletion removes server rows at once, but a device's local copy is only wiped when it next connects and sees the deletion. The privacy text must say so. On a shared device, anyone can read the cache until it is cleared.
 - Browsers may evict storage, so a queued write can be lost on a device that is never reopened. The persistent-storage request reduces this risk but doesn't remove it.
 - Two devices still only agree eventually, not live.
