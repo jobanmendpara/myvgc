@@ -22,6 +22,7 @@ const swiss = (overrides: Partial<RoundFacts> = {}): RoundFacts => ({
   gameScore: null,
   hasOpponent: true,
   games: [],
+  hasOpponentTeam: false,
   ...overrides,
 })
 const topCut = (stage: RoundFacts['stage'], result: RoundFacts['result']): RoundFacts =>

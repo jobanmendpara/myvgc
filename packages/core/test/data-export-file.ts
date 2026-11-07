@@ -6,6 +6,7 @@ export const ids = {
   noteEntry: '00000000-0000-4000-8000-000000000003',
   tournament: '00000000-0000-4000-8000-000000000004',
   round: '00000000-0000-4000-8000-000000000005',
+  opponentTeam: '00000000-0000-4000-8000-000000000006',
 }
 export const pokemon = [
   {
@@ -95,3 +96,18 @@ export const versionOne = () => ({
     },
   ],
 })
+
+/** A file in the current version, version 2: version 1 plus Opponent's Teams (ADR 22). */
+export const current = () => {
+  const file = versionOne()
+  return {
+    ...file,
+    version: 2,
+    tournaments: file.tournaments.map((tournament) => ({
+      ...tournament,
+      opponentTeams: [
+        { id: ids.opponentTeam, opponentId: ids.opponent, pokemon, createdAt: at, updatedAt: at },
+      ],
+    })),
+  }
+}

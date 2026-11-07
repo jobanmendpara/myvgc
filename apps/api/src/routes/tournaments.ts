@@ -1,5 +1,6 @@
 import {
   type EntryFee,
+  type OpponentTeamView,
   type RoundView,
   type TeamSnapshotView,
   type TournamentView,
@@ -23,6 +24,7 @@ import type { AppEnv } from '../app'
 import { team, tournament } from '../db/schema'
 import type { Database } from '../db/types'
 import { deleted, escapeLike, idTaken, invalid, isId, notFound, readBody } from './helpers'
+import { loadOpponentTeams } from './opponent-team-data'
 import { loadRounds } from './round-data'
 
 type TournamentRow = typeof tournament.$inferSelect
@@ -48,6 +50,7 @@ export const entryFeeOf = (row: TournamentRow): EntryFee | null =>
 export function toTournamentView(
   row: TournamentRow,
   rounds: RoundView[],
+  opponentTeams: OpponentTeamView[],
   on = today(),
 ): TournamentView {
   const snapshot = toSnapshotView(row)
@@ -72,6 +75,7 @@ export function toTournamentView(
     upcoming: isUpcoming(row.startDate, on),
     team: snapshot,
     rounds,
+    opponentTeams,
     record: recordOf(rounds),
     warnings: tournamentWarnings({ regulation: row.regulation, team: snapshot }),
     createdAt: row.createdAt.toISOString(),
@@ -98,7 +102,11 @@ export const ownTournament = (id: string, ownerId: string) =>
 /** Tournament routes, mounted at /api/tournaments behind the session middleware. */
 export function tournamentRoutes(db: Database) {
   const viewWithRounds = async (row: TournamentRow) =>
-    toTournamentView(row, (await loadRounds(db, [row.id])).get(row.id)!)
+    toTournamentView(
+      row,
+      (await loadRounds(db, [row.id])).get(row.id)!,
+      (await loadOpponentTeams(db, [row.id])).get(row.id)!,
+    )
 
   return (
     new Hono<AppEnv>()
@@ -126,11 +134,14 @@ export function tournamentRoutes(db: Database) {
           .where(eq(tournament.ownerId, c.get('user').id))
           .orderBy(desc(tournament.startDate), desc(tournament.createdAt))
         const on = today()
-        const rounds = await loadRounds(
-          db,
-          rows.map((row) => row.id),
+        const ids = rows.map((row) => row.id)
+        const rounds = await loadRounds(db, ids)
+        const opponentTeams = await loadOpponentTeams(db, ids)
+        return c.json(
+          rows.map((row) =>
+            toTournamentView(row, rounds.get(row.id)!, opponentTeams.get(row.id)!, on),
+          ),
         )
-        return c.json(rows.map((row) => toTournamentView(row, rounds.get(row.id)!, on)))
       })
       .post('/', async (c) => {
         const input = await readBody(c, newTournamentSchema)
@@ -150,7 +161,7 @@ export function tournamentRoutes(db: Database) {
           })
           .onConflictDoNothing({ target: tournament.id })
           .returning()
-        if (row) return c.json(toTournamentView(row, []), 201)
+        if (row) return c.json(toTournamentView(row, [], []), 201)
 
         // A replay: the Tournament is already saved, and the saved version wins.
         const [saved] = await db.select().from(tournament).where(ownTournament(id!, ownerId))
@@ -187,7 +198,7 @@ export function tournamentRoutes(db: Database) {
           .set(toColumns(input.data))
           .where(where)
           .returning()
-        return c.json(toTournamentView(row!, view.rounds))
+        return c.json(toTournamentView(row!, view.rounds, view.opponentTeams))
       })
       .put('/:id/team', async (c) => {
         const id = c.req.param('id')

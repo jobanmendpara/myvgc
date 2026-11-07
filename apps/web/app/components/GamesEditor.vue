@@ -14,25 +14,29 @@ type Side = (typeof GAME_SIDES)[number]
 
 /**
  * The Games of one Round (ADR 21). Each side's Pokémon are tap targets: tap once for Brought,
- * again for Lead, again to clear. The User's side offers their Team snapshot first; any other
- * species can be added from the names list, which works with no signal.
+ * again for Lead, again to clear. Each side offers its Team first: the Tournament's Team snapshot
+ * for the User, the Opponent's Team for the Opponent. Any other species can be added from the
+ * names list, which works with no signal; one added for the Opponent is reported with
+ * `pick-opponent`, so it can join their Team (ADR 22).
  */
 const props = defineProps<{
   /** The Games to show, by number. Each is changed in place. */
   games: Game[]
   /** Species IDs to offer the User first: the Tournament's Team snapshot. */
   yours: string[]
+  /** Species IDs to offer for the Opponent first: their Opponent's Team. */
+  opponentTeam: string[]
   /** Messages for each Game's fields, keyed by Game number, then field such as `leads.0`. */
   errors: Record<number, Record<string, string>>
 }>()
+const emit = defineEmits<{ 'pick-opponent': [species: string] }>()
 
 const names = useChampionsNames()
 const nameOf = (species: string) => names.data.value?.species[species] ?? species
 
 const sides: { side: Side; label: string; offered: () => string[] }[] = [
   { side: GAME_SIDES[0], label: 'You', offered: () => props.yours },
-  // Their Opponent's Team (ADR 22) isn't built yet; until then, only what was added here.
-  { side: GAME_SIDES[1], label: 'Opponent', offered: () => [] },
+  { side: GAME_SIDES[1], label: 'Opponent', offered: () => props.opponentTeam },
 ]
 
 type ResultChoice = RoundResult | 'none'
@@ -78,7 +82,9 @@ const adding = reactive<Record<string, string | null>>({})
 const addKey = (game: Game, side: Side) => `${game.number}-${side.brought}`
 function add(game: Game, side: Side, species: string | null) {
   adding[addKey(game, side)] = null
-  if (species && !game[side.brought].includes(species) && game[side.brought].length < MAX_BROUGHT)
+  if (!species) return
+  if (side === GAME_SIDES[1]) emit('pick-opponent', species)
+  if (!game[side.brought].includes(species) && game[side.brought].length < MAX_BROUGHT)
     game[side.brought].push(species)
 }
 

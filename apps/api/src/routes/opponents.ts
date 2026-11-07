@@ -3,6 +3,7 @@ import {
   type OpponentView,
   type Tally,
   mergeOpponentSchema,
+  mergeOpponentTeams,
   mergeOpponents,
   newNoteEntrySchema,
   newOpponentSchema,
@@ -12,7 +13,14 @@ import {
 import { and, asc, desc, eq, exists, ilike, inArray, or, sql } from 'drizzle-orm'
 import { Hono } from 'hono'
 import type { AppEnv } from '../app'
-import { opponent, opponentAlias, opponentNoteEntry, round, tournament } from '../db/schema'
+import {
+  opponent,
+  opponentAlias,
+  opponentNoteEntry,
+  opponentTeam,
+  round,
+  tournament,
+} from '../db/schema'
 import type { Database } from '../db/types'
 import { clash, deleted, escapeLike, idTaken, invalid, isId, notFound, readBody } from './helpers'
 import { loadNoteEntries, toNoteEntryView } from './note-entry-data'
@@ -187,9 +195,9 @@ export function opponentRoutes(db: Database) {
         const [view] = await views([row])
         return c.json(view)
       })
-      // Merges a duplicate Opponent into this one: the duplicate's Rounds and Note entries move
-      // here, its name and Aliases join this one's Aliases, its notes follow these, and it is
-      // deleted.
+      // Merges a duplicate Opponent into this one: the duplicate's Rounds, Note entries and
+      // Opponent's Teams move here, its name and Aliases join this one's Aliases, its notes follow
+      // these, and it is deleted.
       .post('/:id/merge', async (c) => {
         const id = c.req.param('id')
         if (!isId(id)) return notFound(c)
@@ -220,6 +228,28 @@ export function opponentRoutes(db: Database) {
           if (!merged.ok) return { kind: 'clash', issues: merged.issues } as const
 
           await tx.update(round).set({ opponentId: id }).where(eq(round.opponentId, duplicateId))
+          // Opponent's Teams move too, combined with the survivor's in the same Tournament.
+          const teams = await tx
+            .select()
+            .from(opponentTeam)
+            .where(inArray(opponentTeam.opponentId, [id, duplicateId]))
+          for (const duplicate of teams.filter((team) => team.opponentId === duplicateId)) {
+            const kept = teams.find(
+              (team) => team.opponentId === id && team.tournamentId === duplicate.tournamentId,
+            )
+            if (!kept) {
+              await tx
+                .update(opponentTeam)
+                .set({ opponentId: id })
+                .where(eq(opponentTeam.id, duplicate.id))
+              continue
+            }
+            await tx
+              .update(opponentTeam)
+              .set({ pokemon: mergeOpponentTeams(kept.pokemon, duplicate.pokemon) })
+              .where(eq(opponentTeam.id, kept.id))
+            await tx.delete(opponentTeam).where(eq(opponentTeam.id, duplicate.id))
+          }
           await tx
             .update(opponentNoteEntry)
             .set({ opponentId: id })

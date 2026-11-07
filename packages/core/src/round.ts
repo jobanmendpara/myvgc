@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { showdownId } from './build'
 import { clientIdSchema } from './client-id'
+import { type OpponentTeamView, opponentTeamSchema } from './opponent-team'
 import { MAX_NOTES_LENGTH } from './team'
 import { BEST_OF, type BestOf } from './tournament'
 
@@ -157,6 +158,8 @@ export interface RoundFacts {
   gameScore: GameScore | null
   hasOpponent: boolean
   games: GameFacts[]
+  /** Whether an Opponent's Team with Pokémon in it was sent with the Round (ADR 22). */
+  hasOpponentTeam: boolean
 }
 
 type Issue = { path: string[]; message: string }
@@ -179,10 +182,13 @@ export function roundIssues(round: RoundFacts): Issue[] {
     if (round.hasOpponent) add('opponent', 'A Bye has no Opponent.')
     if (round.gameScore) add('gameScore', 'A Bye has no Game score.')
     if (round.games.length) add('games', 'A Bye has no Games.')
+    if (round.hasOpponentTeam) add('opponentTeam', 'A Bye has no Opponent’s Team.')
     return issues
   }
 
   if (!round.hasOpponent) add('opponent', 'Choose who you played, or add them.')
+  if (!round.hasOpponent && round.hasOpponentTeam)
+    add('opponentTeam', 'Choose who you played before their Team.')
   // Changing best-of never drops recorded Games (ADR 21).
   const beyond = round.games.filter((game) => game.number > round.bestOf).map((g) => g.number)
   if (beyond.length)
@@ -370,6 +376,9 @@ export const roundInputSchema = z.object({
         }),
       )
     }),
+  // The Opponent's Team in this Tournament, shared by every Round against them (ADR 22). Left
+  // out, it stays as it is.
+  opponentTeam: opponentTeamSchema.optional(),
 })
 
 export type RoundInput = z.input<typeof roundInputSchema>
@@ -404,4 +413,6 @@ export interface SavedRound {
   record: TournamentRecord
   /** Offered when the Top cut implies a Placement the Tournament doesn't have yet. */
   suggestedPlacement: number | null
+  /** The Opponent's Team of the Round's Opponent in this Tournament, if any. */
+  opponentTeam: OpponentTeamView | null
 }

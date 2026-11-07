@@ -89,3 +89,11 @@ describe('checkGames', () => {
     expect(checkGames([game]).map((issue) => issue.path)).toEqual([['games', 0, 'brought', 1]])
   })
 })
+
+describe('checkPokemon on an Opponent’s Team', () => {
+  it('reports names the Champions data does not recognize under the field it was sent in', () => {
+    expect(
+      checkPokemon([build(), build({ species: 'rillaboom', moves: ['notamove'] })], 'opponentTeam'),
+    ).toEqual([{ path: ['opponentTeam', 1, 'moves', 0], message: expect.any(String) }])
+  })
+})

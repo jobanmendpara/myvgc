@@ -3,6 +3,7 @@ import {
   BEST_OF,
   GAME_NUMBERS,
   MAX_NOTES_LENGTH,
+  MAX_TEAM_SIZE,
   ROUND_RESULTS,
   ROUND_RESULT_LABELS,
   TOP_CUT_STAGES,
@@ -10,6 +11,7 @@ import {
   type BestOf,
   type Game,
   type GameScore,
+  type OpponentTeamInput,
   type RoundInput,
   type RoundPhase,
   type RoundResult,
@@ -17,8 +19,19 @@ import {
   type TopCutStage,
   type TournamentView,
   isEmptyGame,
+  latestOpponentTeam,
+  losesOpponentTeam,
+  opponentTeamOf,
 } from '@myvgc/core/schema'
+import { useQuery } from '@tanstack/vue-query'
+import { formatDates } from '@/lib/format'
 import type { OpponentChoice } from './OpponentPicker.vue'
+import {
+  type OpponentBuildDraft,
+  newOpponentBuild,
+  toOpponentBuildDraft,
+  toOpponentTeamInput,
+} from '@/lib/opponent-team'
 
 const props = defineProps<{
   tournament: TournamentView
@@ -105,6 +118,115 @@ const shownGames = computed(() =>
 )
 const recordedCount = computed(() => games.value.filter((g) => !isEmptyGame(g)).length)
 const yours = computed(() => props.tournament.team?.pokemon.map((p) => p.species) ?? [])
+
+// The Opponent's Team (ADR 22), shared by every Round against them in this Tournament. Each
+// Opponent chosen has their own draft of it and of their side of the Games, loaded from what is
+// saved and kept while the User picks someone else, so picking them again brings it back.
+const opponentId = computed(() =>
+  opponent.value?.kind === 'existing' ? opponent.value.id : undefined,
+)
+const savedTeamOf = (id: string | undefined) =>
+  opponentTeamOf(props.tournament.opponentTeams, id)?.pokemon.map(toOpponentBuildDraft) ?? []
+const opponentTeam = ref<OpponentBuildDraft[]>(savedTeamOf(opponentId.value))
+const opponentSpecies = computed(() => opponentTeam.value.map((p) => p.species))
+const opponentTeamOpen = ref(opponentTeam.value.length > 0)
+
+type OpponentSide = Pick<Game, 'opponentBrought' | 'opponentLeads'>
+interface OpponentDraft {
+  team: OpponentBuildDraft[]
+  sides: Map<Game['number'], OpponentSide>
+}
+const opponentSideOf = (game: Game): OpponentSide => ({
+  opponentBrought: [...game.opponentBrought],
+  opponentLeads: [...game.opponentLeads],
+})
+const drafts = new Map<string, OpponentDraft>()
+const NO_OPPONENT = 'none'
+const draftKey = (choice: OpponentChoice | null) =>
+  choice?.kind === 'existing' ? choice.id : (choice?.kind ?? NO_OPPONENT)
+watch(
+  () => draftKey(opponent.value),
+  (key, before) => {
+    if (key === before) return
+    // With no Opponent chosen yet, what was picked for their side is about whoever is chosen.
+    const carried = before === NO_OPPONENT
+    if (!carried)
+      drafts.set(before, {
+        team: opponentTeam.value,
+        sides: new Map(games.value.map((g) => [g.number, opponentSideOf(g)])),
+      })
+    const back = drafts.get(key)
+    const saved = savedTeamOf(opponentId.value)
+    const picked = carried
+      ? opponentTeam.value.filter((p) => !saved.some((s) => s.species === p.species))
+      : []
+    opponentTeam.value = back?.team ?? [...saved, ...picked].slice(0, MAX_TEAM_SIZE)
+    if (carried && !back) return
+    for (const game of games.value)
+      Object.assign(
+        game,
+        back?.sides.get(game.number) ?? { opponentBrought: [], opponentLeads: [] },
+      )
+  },
+)
+// A species picked for their side of a Game joins their Team, up to six (ADR 22).
+function addToOpponentTeam(species: string) {
+  if (opponentTeam.value.length >= MAX_TEAM_SIZE || opponentSpecies.value.includes(species)) return
+  opponentTeam.value.push(newOpponentBuild(species))
+}
+
+const otherRoundsAgainst = (id: string | undefined) =>
+  id ? logged.value.filter((r) => r.opponent?.id === id) : []
+// Read from the cached Tournaments list, so the offer works with no signal. It is only made while
+// the Opponent has no Team saved here.
+const tournaments = useQuery({
+  queryKey: ['tournaments'],
+  queryFn: () => $fetch<TournamentView[]>('/api/tournaments'),
+})
+const copyable = computed(() => {
+  const id = opponentId.value
+  if (!id || savedTeamOf(id).length || opponentTeam.value.length) return undefined
+  return latestOpponentTeam(tournaments.data.value ?? [], {
+    opponentId: id,
+    regulation: props.tournament.regulation,
+    tournamentId: props.tournament.id,
+  })
+})
+function copyOpponentTeam() {
+  if (!copyable.value) return
+  opponentTeam.value = copyable.value.pokemon.map(toOpponentBuildDraft)
+  opponentTeamOpen.value = true
+}
+const opponentName = computed(() => opponent.value?.displayName ?? 'them')
+// What saving this Round with another Opponent loses: the old Opponent's Team, if no other
+// Round here is against them.
+const losesTeamOf = computed(() => {
+  const before = r?.opponent
+  if (!before || before.id === opponentId.value) return undefined
+  return losesOpponentTeam(props.tournament, r?.id, before.id) ? before.displayName : undefined
+})
+const opponentTeamErrors = computed(() => {
+  const errors: Record<string, string> = {}
+  for (const [field, message] of Object.entries(props.fieldErrors ?? {}))
+    if (field.startsWith('opponentTeam.')) errors[field.slice('opponentTeam.'.length)] = message
+  return errors
+})
+watch(
+  () =>
+    Object.keys(opponentTeamErrors.value).length > 0 || Boolean(props.fieldErrors?.opponentTeam),
+  (problem) => {
+    if (problem) opponentTeamOpen.value = true
+  },
+)
+/**
+ * Their Team as the API takes it, only when it differs from what is saved: a save without it
+ * leaves the saved Team as it is, so an untouched form never overwrites one saved meanwhile.
+ */
+function changedOpponentTeam(): OpponentTeamInput | undefined {
+  const team = toOpponentTeamInput(opponentTeam.value)
+  const saved = toOpponentTeamInput(savedTeamOf(opponentId.value))
+  return JSON.stringify(team) === JSON.stringify(saved) ? undefined : team
+}
 // The numbers of the Games last sent, as the API names their fields by position.
 const sentNumbers = ref<number[]>([])
 const gameErrors = computed(() => {
@@ -162,6 +284,8 @@ function submit() {
     notes: notes.value,
     // Sent even with a Bye, so the API says to remove them rather than them vanishing.
     games: recorded,
+    // A list replaces their Team, and an empty one deletes it. Left out on a Bye.
+    ...(!bye.value && opponent.value ? { opponentTeam: changedOpponentTeam() } : {}),
   })
 }
 </script>
@@ -202,6 +326,49 @@ function submit() {
         v-model="opponent"
         :error="error('opponent') ?? error('opponentId') ?? error('newOpponentName')"
       />
+      <p v-if="losesTeamOf" class="text-destructive text-sm" data-testid="loses-team">
+        Saving deletes {{ losesTeamOf }}’s Team in this Tournament, as no other Round here is
+        against them.
+      </p>
+
+      <details
+        v-if="opponent"
+        class="flex flex-col gap-3"
+        :open="opponentTeamOpen"
+        data-testid="their-team-section"
+        @toggle="opponentTeamOpen = ($event.target as HTMLDetailsElement).open"
+      >
+        <summary class="flex min-h-11 cursor-pointer items-center text-sm font-medium">
+          Their Team
+          <span class="text-muted-foreground ml-1 font-normal"
+            >({{
+              opponentTeam.length ? `${opponentTeam.length} of ${MAX_TEAM_SIZE}` : 'optional'
+            }})</span
+          >
+        </summary>
+        <p v-if="otherRoundsAgainst(opponentId).length" class="text-muted-foreground mb-3 text-sm">
+          Shared by every Round against {{ opponentName }} in this Tournament.
+        </p>
+        <div v-if="copyable" class="mb-3 flex flex-col gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            class="self-start"
+            data-testid="copy-their-team"
+            @click="copyOpponentTeam"
+            >Copy their Team from {{ copyable.tournament.name }},
+            {{ formatDates(copyable.tournament.startDate) }}</Button
+          >
+        </div>
+        <p v-if="error('opponentTeam')" class="text-destructive mb-3 text-sm">
+          {{ error('opponentTeam') }}
+        </p>
+        <OpponentTeamEditor
+          v-if="opponentTeamOpen"
+          v-model="opponentTeam"
+          :errors="opponentTeamErrors"
+        />
+      </details>
 
       <div class="flex flex-col gap-2">
         <ChoiceGroup v-model="bestOf" :options="bestOfOptions" label="Best of" name="best-of" />
@@ -239,7 +406,14 @@ function submit() {
           Game results that finish the Round fill in its score and result.
         </p>
         <p v-if="error('games')" class="text-destructive mb-3 text-sm">{{ error('games') }}</p>
-        <GamesEditor v-if="gamesOpen" :games="shownGames" :yours="yours" :errors="gameErrors" />
+        <GamesEditor
+          v-if="gamesOpen"
+          :games="shownGames"
+          :yours="yours"
+          :opponent-team="opponentSpecies"
+          :errors="gameErrors"
+          @pick-opponent="addToOpponentTeam"
+        />
       </details>
     </template>
 

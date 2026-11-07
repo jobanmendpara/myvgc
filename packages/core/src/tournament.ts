@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { clientIdSchema } from './client-id'
 import type { RoundView, TournamentRecord } from './round'
+import type { OpponentTeamView } from './opponent-team'
 import {
   type Legality,
   MAX_NOTES_LENGTH,
@@ -234,6 +235,8 @@ export interface TournamentView {
   team: TeamSnapshotView | null
   /** Its Rounds as they were played: Swiss by number, then Top cut by stage. */
   rounds: RoundView[]
+  /** The Team each Opponent the User played here brought (ADR 22). */
+  opponentTeams: OpponentTeamView[]
   record: TournamentRecord
   /** Things worth a second look that don't stop a save, such as a Regulation mismatch. */
   warnings: string[]

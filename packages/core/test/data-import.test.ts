@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { checkDataExport, readDataExport } from '../src'
-import { ids, pokemon, versionOne } from './data-export-file'
+import { current, ids, pokemon, versionOne } from './data-export-file'
 
 const noAccount = { opponentIds: new Set<string>() }
 
@@ -16,6 +16,37 @@ const otherId = '00000000-0000-4000-8000-0000000000ff'
 describe('Checking a Data export before it is imported', () => {
   it('finds nothing wrong with a file whose records all hold together', () => {
     expect(check(versionOne())).toEqual([])
+    expect(check(current())).toEqual([])
+  })
+
+  it('refuses names the install doesn’t know in an Opponent’s Team', () => {
+    const file = current()
+    file.tournaments[0]!.opponentTeams[0]!.pokemon = [{ ...pokemon[0]!, ability: 'notanability' }]
+    expect(check(file)).toEqual([
+      expect.objectContaining({
+        path: ['tournaments', 0, 'opponentTeams', 0, 'pokemon', 0, 'ability'],
+        record: 'Tournament “Worlds”',
+      }),
+    ])
+  })
+
+  it('refuses an Opponent’s Team for an Opponent with no Round in that Tournament, or listed twice', () => {
+    const file = current()
+    const [team] = file.tournaments[0]!.opponentTeams
+    file.tournaments[0]!.opponentTeams.push(
+      { ...team!, id: '00000000-0000-4000-8000-000000000020' },
+      { ...team!, id: '00000000-0000-4000-8000-000000000021', opponentId: otherId },
+    )
+    expect(check(file).map((issue) => [issue.path.join('.'), issue.message])).toEqual([
+      [
+        'tournaments.0.opponentTeams.1.opponentId',
+        'This Opponent’s Team is listed twice in this Tournament.',
+      ],
+      [
+        'tournaments.0.opponentTeams.2.opponentId',
+        'No Round in this Tournament is against this Opponent.',
+      ],
+    ])
   })
 
   it('refuses species, items and moves the install doesn’t know, in Teams and Team snapshots', () => {
@@ -86,6 +117,22 @@ describe('Checking a Data export before it is imported', () => {
     const file = versionOne()
     file.tournaments[0]!.team!.teamId = otherId
     expect(check(file)).toEqual([])
+  })
+
+  it('refuses the same id twice for an Opponent’s Team', () => {
+    const file = current()
+    file.tournaments.push({
+      ...file.tournaments[0]!,
+      id: otherId,
+      name: 'Euros',
+      rounds: [{ ...file.tournaments[0]!.rounds[0]!, id: '00000000-0000-4000-8000-000000000022' }],
+    })
+    expect(check(file)).toEqual([
+      expect.objectContaining({
+        path: ['tournaments', 1, 'opponentTeams', 0, 'id'],
+        message: 'This ID is used twice in the file.',
+      }),
+    ])
   })
 
   it('refuses the same id twice for one kind of record', () => {
