@@ -3,6 +3,9 @@ import {
   MAX_ALIASES,
   MAX_NOTES_LENGTH,
   type MergeableOpponent,
+  type OpponentRoundView,
+  type PokemonBuild,
+  groupByTournament,
   mergeOpponents,
 } from '../src/schema'
 
@@ -72,5 +75,70 @@ describe('mergeOpponents', () => {
       opponent({ displayName: 'wolfey', notes: 'b'.repeat(MAX_NOTES_LENGTH / 2) }),
     )
     expect(merged).toMatchObject({ ok: false, issues: [{ path: ['notes'] }] })
+  })
+})
+
+const tournaments = {
+  toronto: { id: 't1', name: 'Toronto Regional', startDate: '2026-09-19', regulation: 'M-C' },
+  online: { id: 't2', name: 'Online Challenge', startDate: '2026-10-03', regulation: 'M-C' },
+} as const
+
+const round = (
+  tournament: OpponentRoundView['tournament'],
+  overrides: Partial<OpponentRoundView> = {},
+): OpponentRoundView => ({
+  id: `r-${Math.random()}`,
+  tournamentId: tournament.id,
+  phase: 'swiss',
+  roundNumber: 1,
+  stage: null,
+  bestOf: 3,
+  bye: false,
+  result: 'win',
+  gameScore: null,
+  opponent: { id: 'o1', displayName: 'Wolfe Glick' },
+  notes: '',
+  games: [],
+  createdAt: '2026-11-01T00:00:00.000Z',
+  updatedAt: '2026-11-01T00:00:00.000Z',
+  tournament,
+  ...overrides,
+})
+
+const NO_POINTS = { hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0 }
+const mon = (species: string): PokemonBuild => ({ species, moves: [], statPoints: NO_POINTS })
+
+describe('groupByTournament', () => {
+  it('puts the newest Tournament first, each with its Opponent’s Team', () => {
+    const groups = groupByTournament({
+      rounds: [round(tournaments.toronto), round(tournaments.online)],
+      opponentTeams: [{ tournamentId: 't1', pokemon: [mon('incineroar')] }],
+    })
+    expect(groups.map((g) => [g.tournament.name, g.opponentTeam])).toEqual([
+      ['Online Challenge', null],
+      ['Toronto Regional', [mon('incineroar')]],
+    ])
+  })
+
+  it('orders Rounds as they were played and tallies the Head-to-head record there', () => {
+    const [group] = groupByTournament({
+      rounds: [
+        round(tournaments.toronto, {
+          phase: 'top-cut',
+          roundNumber: null,
+          stage: 'top-8',
+          result: 'loss',
+        }),
+        round(tournaments.toronto, { roundNumber: 6 }),
+        round(tournaments.toronto, { roundNumber: 2, result: 'tie' }),
+      ],
+      opponentTeams: [],
+    })
+    expect(group!.rounds.map((r) => r.roundNumber ?? r.stage)).toEqual([2, 6, 'top-8'])
+    expect(group!.headToHead).toEqual({ wins: 1, losses: 1, ties: 1 })
+  })
+
+  it('gives nothing for an Opponent with no Rounds', () => {
+    expect(groupByTournament({ rounds: [], opponentTeams: [] })).toEqual([])
   })
 })

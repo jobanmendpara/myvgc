@@ -4,6 +4,7 @@ import {
   type OpponentDetailView,
   type OpponentView,
   formatRecord,
+  groupByTournament,
 } from '@myvgc/core/schema'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 import { useOnline } from '@vueuse/core'
@@ -20,6 +21,8 @@ const query = useQuery({
   retry: (count, error) => !(error instanceof FetchError && error.statusCode === 404) && count < 1,
 })
 const opponent = query.data
+// Their Rounds by Tournament, each with the Opponent's Team they brought there (ADR 22).
+const tournaments = computed(() => (opponent.value ? groupByTournament(opponent.value) : []))
 const notFound = computed(
   () => query.error.value instanceof FetchError && query.error.value.statusCode === 404,
 )
@@ -203,23 +206,50 @@ const roundsMoving = computed(() => {
 
       <OpponentTimeline :opponent="opponent" />
 
-      <section aria-labelledby="opponent-rounds" class="flex flex-col gap-3">
-        <h2 id="opponent-rounds" class="font-semibold">Rounds against them</h2>
-        <p v-if="opponent.rounds.length === 0" class="text-muted-foreground text-sm">None yet.</p>
-        <ol v-else class="flex flex-col divide-y rounded-lg border">
-          <li v-for="r in opponent.rounds" :key="r.id" class="flex flex-col gap-1 p-3">
+      <section aria-labelledby="opponent-tournaments" class="flex flex-col gap-3">
+        <h2 id="opponent-tournaments" class="font-semibold">Tournaments against them</h2>
+        <p v-if="tournaments.length === 0" class="text-muted-foreground text-sm">None yet.</p>
+        <ol v-else class="flex flex-col gap-3">
+          <li
+            v-for="group in tournaments"
+            :key="group.tournament.id"
+            class="flex flex-col gap-3 rounded-lg border p-3"
+            data-testid="opponent-tournament"
+          >
             <div class="flex items-start justify-between gap-3">
-              <NuxtLink
-                :to="`/tournaments/${r.tournament.id}/rounds/${r.id}`"
-                class="min-w-0 font-medium break-words hover:underline"
-                >{{ r.tournament.name }}</NuxtLink
-              >
-              <span class="shrink-0 text-sm font-semibold">{{ roundOutcome(r) }}</span>
+              <div class="flex min-w-0 flex-col gap-0.5">
+                <NuxtLink
+                  :to="`/tournaments/${group.tournament.id}`"
+                  class="font-medium break-words hover:underline"
+                  >{{ group.tournament.name }}</NuxtLink
+                >
+                <p class="text-muted-foreground text-xs">
+                  {{ formatDates(group.tournament.startDate) }} · {{ group.tournament.regulation }}
+                </p>
+              </div>
+              <span class="shrink-0 text-sm font-semibold">{{
+                formatRecord(group.headToHead)
+              }}</span>
             </div>
-            <p class="text-muted-foreground text-xs">
-              {{ formatDates(r.tournament.startDate) }} · {{ roundLabel(r) }} · Best of
-              {{ r.bestOf }}
-            </p>
+            <OpponentTeamSummary v-if="group.opponentTeam" :pokemon="group.opponentTeam" />
+            <p v-else class="text-muted-foreground text-sm">Team not recorded</p>
+            <ol class="flex flex-col divide-y border-t">
+              <li
+                v-for="r in group.rounds"
+                :key="r.id"
+                class="flex items-center justify-between gap-3 py-2 last:pb-0"
+              >
+                <NuxtLink
+                  :to="`/tournaments/${r.tournament.id}/rounds/${r.id}`"
+                  class="min-w-0 text-sm hover:underline"
+                  >{{ roundLabel(r) }}
+                  <span class="text-muted-foreground text-xs"
+                    >· Best of {{ r.bestOf }}</span
+                  ></NuxtLink
+                >
+                <span class="shrink-0 text-sm font-semibold">{{ roundOutcome(r) }}</span>
+              </li>
+            </ol>
           </li>
         </ol>
       </section>
