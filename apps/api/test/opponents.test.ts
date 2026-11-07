@@ -77,6 +77,36 @@ describe('Opponents', () => {
     expect(list[0].headToHead).toEqual({ wins: 1, losses: 1, ties: 1 })
   })
 
+  it("shows the Opponent's Team they brought to each Tournament, and no one else's", async () => {
+    await setUp()
+    const { id } = await json(
+      await post(t.app, '/api/opponents', { displayName: 'Wolfe Glick' }, ash),
+    )
+    const toronto = await playedAt('Toronto Regional', '2026-09-19', [
+      { result: 'win', opponentId: id, opponentTeam: [{ species: 'incineroar' }] },
+      { result: 'loss', newOpponentName: 'Aaron Zheng', opponentTeam: [{ species: 'kingambit' }] },
+    ])
+    await playedAt('Online Challenge', '2026-10-03', [{ result: 'loss', opponentId: id }])
+
+    const body = await json(await get(t.app, `/api/opponents/${id}`, ash))
+    expect(body.opponentTeams).toEqual([
+      {
+        tournamentId: toronto,
+        pokemon: [
+          {
+            species: 'incineroar',
+            moves: [],
+            statPoints: { hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0 },
+          },
+        ],
+      },
+    ])
+    expect(body.rounds.map((r: { tournament: object }) => r.tournament)).toEqual([
+      expect.objectContaining({ name: 'Online Challenge', regulation: expect.any(String) }),
+      expect.objectContaining({ id: toronto, regulation: expect.any(String) }),
+    ])
+  })
+
   it('renames an Opponent and replaces their Aliases', async () => {
     await setUp()
     const { id } = await json(

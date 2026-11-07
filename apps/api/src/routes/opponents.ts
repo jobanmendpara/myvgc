@@ -154,6 +154,7 @@ export function opponentRoutes(db: Database) {
               id: tournament.id,
               name: tournament.name,
               startDate: tournament.startDate,
+              regulation: tournament.regulation,
             },
           })
           .from(round)
@@ -167,6 +168,10 @@ export function opponentRoutes(db: Database) {
             tournament: r.tournament,
           })),
           noteEntries: await loadNoteEntries(db, id),
+          opponentTeams: await db
+            .select({ tournamentId: opponentTeam.tournamentId, pokemon: opponentTeam.pokemon })
+            .from(opponentTeam)
+            .where(eq(opponentTeam.opponentId, id)),
         }
         return c.json(detail)
       })

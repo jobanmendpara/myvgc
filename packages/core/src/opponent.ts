@@ -1,8 +1,15 @@
 import { z } from 'zod'
 import { clientIdSchema } from './client-id'
 import type { NoteEntryView } from './note-entry'
-import { MAX_OPPONENT_NAME_LENGTH, type RoundView, type Tally } from './round'
-import { MAX_NOTES_LENGTH } from './team'
+import type { PokemonBuild } from './build'
+import {
+  MAX_OPPONENT_NAME_LENGTH,
+  type RoundView,
+  type Tally,
+  compareRounds,
+  tallyResult,
+} from './round'
+import { MAX_NOTES_LENGTH, type Regulation } from './team'
 
 export const MAX_ALIASES = 20
 
@@ -57,13 +64,62 @@ export interface OpponentView {
 
 /** A Round against an Opponent, with the Tournament it was in. */
 export type OpponentRoundView = RoundView & {
-  tournament: { id: string; name: string; startDate: string }
+  tournament: { id: string; name: string; startDate: string; regulation: Regulation }
 }
 
-/** An Opponent with every Round against them and their Note entries, each newest first. */
+/** An Opponent's Team in one Tournament, from the Opponent's side. */
+export interface OpponentTeamInTournament {
+  tournamentId: string
+  pokemon: PokemonBuild[]
+}
+
+/**
+ * An Opponent with every Round against them and their Note entries, each newest first, and the
+ * Opponent's Team they brought to each Tournament where one was recorded (ADR 22).
+ */
 export interface OpponentDetailView extends OpponentView {
   rounds: OpponentRoundView[]
   noteEntries: NoteEntryView[]
+  opponentTeams: OpponentTeamInTournament[]
+}
+
+/** One Tournament the User played an Opponent in, as their page shows it. */
+export interface TournamentAgainstOpponent {
+  tournament: OpponentRoundView['tournament']
+  /** What they brought there, or null when it wasn't recorded. */
+  opponentTeam: PokemonBuild[] | null
+  /** The User's results against them there. */
+  headToHead: Tally
+  /** Its Rounds against them, as they were played. */
+  rounds: OpponentRoundView[]
+}
+
+/**
+ * An Opponent's Rounds grouped by Tournament, newest first by start date, each with the
+ * Opponent's Team they brought there.
+ */
+export function groupByTournament(
+  detail: Pick<OpponentDetailView, 'rounds' | 'opponentTeams'>,
+): TournamentAgainstOpponent[] {
+  const groups = new Map<string, TournamentAgainstOpponent>()
+  for (const round of detail.rounds) {
+    let group = groups.get(round.tournament.id)
+    if (!group) {
+      const team = detail.opponentTeams.find((t) => t.tournamentId === round.tournament.id)
+      group = {
+        tournament: round.tournament,
+        opponentTeam: team?.pokemon ?? null,
+        headToHead: { wins: 0, losses: 0, ties: 0 },
+        rounds: [],
+      }
+      groups.set(round.tournament.id, group)
+    }
+    tallyResult(group.headToHead, round.result)
+    group.rounds.push(round)
+  }
+  return [...groups.values()]
+    .sort((a, b) => b.tournament.startDate.localeCompare(a.tournament.startDate))
+    .map((group) => ({ ...group, rounds: group.rounds.sort(compareRounds) }))
 }
 
 /** What a merge combines from each Opponent. */

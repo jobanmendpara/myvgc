@@ -28,4 +28,4 @@ ADR 9 said an Opponent's Team on a Round would be a Team snapshot linking back t
 - ADR 9 now covers only the User's Team on a Tournament.
 - Merging Opponents (DEV-36) must merge Opponent's Teams held in the same Tournament.
 - Statistics by species are left to a follow-up issue.
-- An Opponent's page doesn't show their Opponent's Teams yet; that is DEV-59.
+- An Opponent's page groups the Rounds against them by Tournament, newest first, and shows the Opponent's Team they brought to each, read-only (DEV-59).
