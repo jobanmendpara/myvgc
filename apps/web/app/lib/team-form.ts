@@ -3,6 +3,7 @@ import {
   type LegalityCheck,
   MAX_MOVES,
   type NamedPokemonBuild,
+  type ReadTeamView,
   type Regulation,
   type StatPoints,
   type TeamBody,
@@ -22,6 +23,8 @@ export interface BuildDraft {
   nature: string
   moves: (string | null)[]
   statPoints: StatPoints
+  /** What the reader wasn't sure of, for a slot read from a file (ADR 24). Never sent. */
+  readFlags: string[]
 }
 
 export interface TeamDraft {
@@ -44,6 +47,7 @@ export function blankBuild(): BuildDraft {
     nature: '',
     moves: Array<null>(MAX_MOVES).fill(null),
     statPoints: { hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0 },
+    readFlags: [],
   }
 }
 
@@ -68,6 +72,22 @@ export function teamToDraft(team?: TeamView): TeamDraft {
     regulation: team?.regulation ?? DEFAULT_REGULATION,
     notes: team?.notes ?? '',
     pokemon: team?.pokemon.map(buildToDraft) ?? [],
+  }
+}
+
+/** The form for a Team read from a file, each slot carrying what the reader wasn't sure of. */
+export function readTeamToDraft(read: ReadTeamView): TeamDraft {
+  return {
+    ...teamToDraft(),
+    name: read.name,
+    pokemon: read.pokemon.map((build, index) => ({
+      ...buildToDraft(build),
+      // A species the reader couldn't match leaves the slot empty for the User to choose.
+      species: build.species || null,
+      readFlags: read.flags
+        .filter(({ path }) => path[0] === 'pokemon' && path[1] === index)
+        .map(({ message }) => message),
+    })),
   }
 }
 

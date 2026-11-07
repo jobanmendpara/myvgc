@@ -14,7 +14,7 @@ import {
   totalStatPoints,
   wholeBuildProblems,
 } from '@myvgc/core/schema'
-import { MinusIcon, PlusIcon } from '@lucide/vue'
+import { MinusIcon, PlusIcon, ScanSearchIcon } from '@lucide/vue'
 import { DialogContent, DialogOverlay, DialogPortal, DialogRoot, DialogTitle } from 'reka-ui'
 import { type BuildDraft, moveField, sentMoveIndex } from '@/lib/team-form'
 
@@ -61,6 +61,17 @@ function setStat(stat: StatId, value: string | number) {
           <DialogTitle class="text-lg font-semibold">Pokémon {{ props.index + 1 }}</DialogTitle>
           <Button type="button" @click="open = false">Done</Button>
         </div>
+
+        <ul
+          v-if="build.readFlags.length"
+          class="text-muted-foreground flex flex-col gap-1 text-sm"
+          data-testid="read-flags"
+        >
+          <li v-for="flag in build.readFlags" :key="flag" class="flex items-start gap-1.5">
+            <ScanSearchIcon class="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+            {{ flag }}
+          </li>
+        </ul>
 
         <LegalityWarnings v-if="buildWarnings.length" :problems="buildWarnings" />
 

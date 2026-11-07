@@ -126,3 +126,22 @@ export interface TeamView {
   createdAt: string
   updatedAt: string
 }
+
+/** The largest Teamsheet PDF MyVGC reads. */
+export const MAX_TEAMSHEET_MB = 5
+export const MAX_TEAMSHEET_BYTES = MAX_TEAMSHEET_MB * 1024 * 1024
+export const TEAMSHEET_TOO_LARGE = `The file is larger than ${MAX_TEAMSHEET_MB} MB.`
+
+/** Something a reader wasn't sure of in a Team it read from a file, shown next to that field. */
+export interface ReadFlag {
+  /** The field it's about, such as `['pokemon', 2, 'item']`. */
+  path: [string, ...(string | number)[]]
+  message: string
+}
+
+/** A draft Team read from a file (ADR 24), as the API returns it. Nothing is saved yet. */
+export interface ReadTeamView {
+  name: string
+  pokemon: NamedPokemonBuild[]
+  flags: ReadFlag[]
+}

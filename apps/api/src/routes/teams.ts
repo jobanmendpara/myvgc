@@ -1,4 +1,7 @@
 import {
+  MAX_TEAMSHEET_BYTES,
+  type ReadTeamView,
+  TEAMSHEET_TOO_LARGE,
   type TeamView,
   checkPokemon,
   judgeTeam,
@@ -6,12 +9,14 @@ import {
   nameBuild,
   newTeamSchema,
   readPaste,
+  readTeamsheet,
   teamPokemonSchema,
   teamSchema,
   writePaste,
 } from '@myvgc/core'
 import { and, desc, eq } from 'drizzle-orm'
 import { Hono } from 'hono'
+import { bodyLimit } from 'hono/body-limit'
 import type { AppEnv } from '../app'
 import { team } from '../db/schema'
 import type { Database } from '../db/types'
@@ -79,6 +84,32 @@ export function teamRoutes(db: Database) {
           .returning()
         return c.json({ team: toView(row!), warnings: read.warnings }, 201)
       })
+      // Reads a Teamsheet PDF into a draft Team for the Team builder (ADR 24). Nothing is saved,
+      // and the file is never stored or logged.
+      .post(
+        '/read',
+        bodyLimit({
+          // Room for the multipart wrapping around the file itself.
+          maxSize: MAX_TEAMSHEET_BYTES + 64 * 1024,
+          onError: (c) => c.json({ error: TEAMSHEET_TOO_LARGE }, 413),
+        }),
+        async (c) => {
+          const form = await c.req.parseBody().catch(() => undefined)
+          const file = form?.file
+          if (!(file instanceof File))
+            return c.json({ error: 'Choose a Teamsheet PDF to read.' }, 400)
+          if (file.size > MAX_TEAMSHEET_BYTES) return c.json({ error: TEAMSHEET_TOO_LARGE }, 413)
+
+          const read = await readTeamsheet(new Uint8Array(await file.arrayBuffer()))
+          if (!read.ok) return c.json({ error: read.error }, 422)
+          const draft: ReadTeamView = {
+            name: read.name,
+            pokemon: read.pokemon.map(nameBuild),
+            flags: read.flags,
+          }
+          return c.json(draft)
+        },
+      )
       // Judges unsaved Pokémon builds for the Team builder, which can't load the data (ADR 18).
       .post('/check', async (c) => {
         const input = await readBody(c, legalityCheckSchema)

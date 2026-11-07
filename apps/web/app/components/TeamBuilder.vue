@@ -4,6 +4,7 @@ import {
   MAX_TEAM_NAME_LENGTH,
   MAX_TEAM_SIZE,
   REGULATIONS,
+  type ReadTeamView,
   type TeamBody,
   type TeamView,
   buildProblems,
@@ -13,17 +14,21 @@ import {
 import { useMediaQuery } from '@vueuse/core'
 import { useMutation, useQueryClient } from '@tanstack/vue-query'
 import { fieldErrorsOf, saveFailureMessage } from '@/lib/api'
-import { blankBuild, draftErrors, draftToBody, teamToDraft } from '@/lib/team-form'
+import { blankBuild, draftErrors, draftToBody, readTeamToDraft, teamToDraft } from '@/lib/team-form'
 
 /** The one form that creates and edits a Team. `save` sends it; this form does the rest. */
 const props = defineProps<{
   initial?: TeamView
+  /** A draft read from a file (ADR 24), to review before it's saved. */
+  read?: ReadTeamView
   save: (body: TeamBody) => Promise<TeamView>
   cancelTo: string
 }>()
 
-const draft = reactive(teamToDraft(props.initial))
-const savedBody = JSON.stringify(draftToBody(draft))
+const draft = reactive(props.read ? readTeamToDraft(props.read) : teamToDraft(props.initial))
+// A draft read from a file isn't saved anywhere yet, so leaving it always asks.
+const savedBody = props.read ? '' : JSON.stringify(draftToBody(draft))
+const flagged = computed(() => draft.pokemon.some((build) => build.readFlags.length > 0))
 
 const editing = ref<number | null>(null)
 const editorOpen = computed({
@@ -148,6 +153,12 @@ const { discarding, answer } = useDiscardGuard(dirty)
 
     <section class="flex flex-col gap-2" aria-labelledby="slots-title">
       <h2 id="slots-title" class="text-sm leading-none font-medium">Pokémon</h2>
+      <Alert v-if="flagged" data-testid="read-flags-note">
+        <AlertDescription
+          >MyVGC wasn't sure of everything on the file. Check the Pokémon marked below before
+          saving.</AlertDescription
+        >
+      </Alert>
       <ol class="flex flex-col gap-2" data-testid="build-slots">
         <BuildSlot
           v-for="(build, index) in draft.pokemon"
@@ -157,6 +168,7 @@ const { discarding, answer } = useDiscardGuard(dirty)
           :count="draft.pokemon.length"
           :error="slotError(index)"
           :problems="problemsOf(index)"
+          :flags="build.readFlags"
           :draggable="finePointer"
           @dragstart="startDrag($event, index)"
           @dragend="dragging = null"
