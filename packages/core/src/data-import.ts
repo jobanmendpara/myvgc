@@ -25,6 +25,8 @@ function factsOf(round: ImportedRound, defaultBestOf: BestOf): RoundFacts & { ga
     result: round.result,
     gameScore: round.gameScore ?? null,
     hasOpponent: Boolean(round.opponentId),
+    // An imported Round's Opponent's Team is checked with its Tournament instead.
+    hasOpponentTeam: false,
     games: round.games.toSorted((a, b) => a.number - b.number),
   }
 }
@@ -33,7 +35,7 @@ function factsOf(round: ImportedRound, defaultBestOf: BestOf): RoundFacts & { ga
 export function settleImportedRound(
   round: ImportedRound,
   defaultBestOf: BestOf,
-): Omit<RoundFacts, 'result' | 'gameScore' | 'hasOpponent' | 'games'> & {
+): Omit<RoundFacts, 'result' | 'gameScore' | 'hasOpponent' | 'hasOpponentTeam' | 'games'> & {
   result: RoundResult
   gameScore: GameScore | null
   games: Game[]
@@ -123,6 +125,7 @@ export function checkDataExport(file: ReadDataExport, account: ImportAccount): I
     const teamsOf = new Set<string>()
     tournament.opponentTeams.forEach((team, o) => {
       const path = ['tournaments', t, 'opponentTeams', o]
+      once('opponentTeam', team.id, path)
       addAll(path, checkPokemon(team.pokemon))
       if (teamsOf.has(team.opponentId))
         add([...path, 'opponentId'], 'This Opponent’s Team is listed twice in this Tournament.')

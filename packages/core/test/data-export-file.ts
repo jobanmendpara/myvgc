@@ -6,6 +6,7 @@ export const ids = {
   noteEntry: '00000000-0000-4000-8000-000000000003',
   tournament: '00000000-0000-4000-8000-000000000004',
   round: '00000000-0000-4000-8000-000000000005',
+  opponentTeam: '00000000-0000-4000-8000-000000000006',
 }
 export const pokemon = [
   {
@@ -104,7 +105,9 @@ export const current = () => {
     version: 2,
     tournaments: file.tournaments.map((tournament) => ({
       ...tournament,
-      opponentTeams: [{ opponentId: ids.opponent, pokemon }],
+      opponentTeams: [
+        { id: ids.opponentTeam, opponentId: ids.opponent, pokemon, createdAt: at, updatedAt: at },
+      ],
     })),
   }
 }

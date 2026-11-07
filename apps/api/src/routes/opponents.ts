@@ -233,22 +233,22 @@ export function opponentRoutes(db: Database) {
             .select()
             .from(opponentTeam)
             .where(inArray(opponentTeam.opponentId, [id, duplicateId]))
-          for (const dupe of teams.filter((team) => team.opponentId === duplicateId)) {
+          for (const duplicate of teams.filter((team) => team.opponentId === duplicateId)) {
             const kept = teams.find(
-              (team) => team.opponentId === id && team.tournamentId === dupe.tournamentId,
+              (team) => team.opponentId === id && team.tournamentId === duplicate.tournamentId,
             )
             if (!kept) {
               await tx
                 .update(opponentTeam)
                 .set({ opponentId: id })
-                .where(eq(opponentTeam.id, dupe.id))
+                .where(eq(opponentTeam.id, duplicate.id))
               continue
             }
             await tx
               .update(opponentTeam)
-              .set({ pokemon: mergeOpponentTeams(kept.pokemon, dupe.pokemon) })
+              .set({ pokemon: mergeOpponentTeams(kept.pokemon, duplicate.pokemon) })
               .where(eq(opponentTeam.id, kept.id))
-            await tx.delete(opponentTeam).where(eq(opponentTeam.id, dupe.id))
+            await tx.delete(opponentTeam).where(eq(opponentTeam.id, duplicate.id))
           }
           await tx
             .update(opponentNoteEntry)

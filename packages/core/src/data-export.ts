@@ -51,8 +51,10 @@ const exportedSnapshotSchema = z.object({
 })
 
 const exportedOpponentTeamSchema = z.object({
+  id: recordId,
   opponentId: recordId,
   pokemon: opponentTeamSchema.min(1, 'An Opponent’s Team needs at least one Pokémon.'),
+  ...timestamps,
 })
 
 const exportedTournamentSchema = newTournamentSchema.safeExtend({

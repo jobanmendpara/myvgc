@@ -2,7 +2,6 @@
 import {
   BEST_OF,
   GAME_NUMBERS,
-  MAX_MOVES,
   MAX_NOTES_LENGTH,
   MAX_TEAM_SIZE,
   ROUND_RESULTS,
@@ -13,7 +12,6 @@ import {
   type Game,
   type GameScore,
   type OpponentTeamInput,
-  type PokemonBuild,
   type RoundInput,
   type RoundPhase,
   type RoundResult,
@@ -22,11 +20,18 @@ import {
   type TournamentView,
   isEmptyGame,
   latestOpponentTeam,
+  losesOpponentTeam,
+  opponentTeamOf,
 } from '@myvgc/core/schema'
 import { useQuery } from '@tanstack/vue-query'
 import { formatDates } from '@/lib/format'
 import type { OpponentChoice } from './OpponentPicker.vue'
-import type { TheirBuild } from './OpponentTeamEditor.vue'
+import {
+  type OpponentBuildDraft,
+  newOpponentBuild,
+  toOpponentBuildDraft,
+  toOpponentTeamInput,
+} from '@/lib/opponent-team'
 
 const props = defineProps<{
   tournament: TournamentView
@@ -114,57 +119,83 @@ const shownGames = computed(() =>
 const recordedCount = computed(() => games.value.filter((g) => !isEmptyGame(g)).length)
 const yours = computed(() => props.tournament.team?.pokemon.map((p) => p.species) ?? [])
 
-// The Opponent's Team (ADR 22), shared by every Round against them in this Tournament. It
-// follows the Opponent chosen: each Opponent's saved Team is loaded when they are picked.
-const toTheirBuild = (build: PokemonBuild): TheirBuild => ({
-  species: build.species,
-  ability: build.ability ?? null,
-  item: build.item ?? null,
-  moves: Array.from({ length: MAX_MOVES }, (_, i) => build.moves[i] ?? null),
-})
+// The Opponent's Team (ADR 22), shared by every Round against them in this Tournament. Each
+// Opponent chosen has their own draft of it and of their side of the Games, loaded from what is
+// saved and kept while the User picks someone else, so picking them again brings it back.
 const opponentId = computed(() =>
   opponent.value?.kind === 'existing' ? opponent.value.id : undefined,
 )
 const savedTeamOf = (id: string | undefined) =>
-  props.tournament.opponentTeams.find((team) => team.opponentId === id)?.pokemon ?? []
-const theirTeam = ref<TheirBuild[]>(savedTeamOf(opponentId.value).map(toTheirBuild))
-const theirs = computed(() => theirTeam.value.map((p) => p.species))
-const theirTeamOpen = ref(theirTeam.value.length > 0)
-watch(opponentId, (id, before) => {
-  if (id === before) return
-  theirTeam.value = savedTeamOf(id).map(toTheirBuild)
-  if (before === undefined) return
-  // Their side of each Game was about the Opponent before.
-  for (const game of games.value) {
-    game.opponentBrought = []
-    game.opponentLeads = []
-  }
+  opponentTeamOf(props.tournament.opponentTeams, id)?.pokemon.map(toOpponentBuildDraft) ?? []
+const opponentTeam = ref<OpponentBuildDraft[]>(savedTeamOf(opponentId.value))
+const opponentSpecies = computed(() => opponentTeam.value.map((p) => p.species))
+const opponentTeamOpen = ref(opponentTeam.value.length > 0)
+
+type OpponentSide = Pick<Game, 'opponentBrought' | 'opponentLeads'>
+interface OpponentDraft {
+  team: OpponentBuildDraft[]
+  sides: Map<Game['number'], OpponentSide>
+}
+const opponentSideOf = (game: Game): OpponentSide => ({
+  opponentBrought: [...game.opponentBrought],
+  opponentLeads: [...game.opponentLeads],
 })
+const drafts = new Map<string, OpponentDraft>()
+const NO_OPPONENT = 'none'
+const draftKey = (choice: OpponentChoice | null) =>
+  choice?.kind === 'existing' ? choice.id : (choice?.kind ?? NO_OPPONENT)
+watch(
+  () => draftKey(opponent.value),
+  (key, before) => {
+    if (key === before) return
+    // With no Opponent chosen yet, what was picked for their side is about whoever is chosen.
+    const carried = before === NO_OPPONENT
+    if (!carried)
+      drafts.set(before, {
+        team: opponentTeam.value,
+        sides: new Map(games.value.map((g) => [g.number, opponentSideOf(g)])),
+      })
+    const back = drafts.get(key)
+    const saved = savedTeamOf(opponentId.value)
+    const picked = carried
+      ? opponentTeam.value.filter((p) => !saved.some((s) => s.species === p.species))
+      : []
+    opponentTeam.value = back?.team ?? [...saved, ...picked].slice(0, MAX_TEAM_SIZE)
+    if (carried && !back) return
+    for (const game of games.value)
+      Object.assign(
+        game,
+        back?.sides.get(game.number) ?? { opponentBrought: [], opponentLeads: [] },
+      )
+  },
+)
 // A species picked for their side of a Game joins their Team, up to six (ADR 22).
-function addTheirs(species: string) {
-  if (theirTeam.value.length >= MAX_TEAM_SIZE || theirs.value.includes(species)) return
-  theirTeam.value.push({ species, ability: null, item: null, moves: Array(MAX_MOVES).fill(null) })
+function addToOpponentTeam(species: string) {
+  if (opponentTeam.value.length >= MAX_TEAM_SIZE || opponentSpecies.value.includes(species)) return
+  opponentTeam.value.push(newOpponentBuild(species))
 }
 
 const otherRoundsAgainst = (id: string | undefined) =>
   id ? logged.value.filter((r) => r.opponent?.id === id) : []
-// Read from the cached Tournaments list, so the offer works with no signal.
+// Read from the cached Tournaments list, so the offer works with no signal. It is only made while
+// the Opponent has no Team saved here.
 const tournaments = useQuery({
   queryKey: ['tournaments'],
   queryFn: () => $fetch<TournamentView[]>('/api/tournaments'),
 })
 const copyable = computed(() => {
-  if (!opponentId.value || theirTeam.value.length) return undefined
+  const id = opponentId.value
+  if (!id || savedTeamOf(id).length || opponentTeam.value.length) return undefined
   return latestOpponentTeam(tournaments.data.value ?? [], {
-    opponentId: opponentId.value,
+    opponentId: id,
     regulation: props.tournament.regulation,
     tournamentId: props.tournament.id,
   })
 })
-function copyTheirTeam() {
+function copyOpponentTeam() {
   if (!copyable.value) return
-  theirTeam.value = copyable.value.pokemon.map(toTheirBuild)
-  theirTeamOpen.value = true
+  opponentTeam.value = copyable.value.pokemon.map(toOpponentBuildDraft)
+  opponentTeamOpen.value = true
 }
 const opponentName = computed(() => opponent.value?.displayName ?? 'them')
 // What saving this Round with another Opponent loses: the old Opponent's Team, if no other
@@ -172,35 +203,30 @@ const opponentName = computed(() => opponent.value?.displayName ?? 'them')
 const losesTeamOf = computed(() => {
   const before = r?.opponent
   if (!before || before.id === opponentId.value) return undefined
-  if (otherRoundsAgainst(before.id).length || !savedTeamOf(before.id).length) return undefined
-  return before.displayName
+  return losesOpponentTeam(props.tournament, r?.id, before.id) ? before.displayName : undefined
 })
-const theirTeamErrors = computed(() => {
+const opponentTeamErrors = computed(() => {
   const errors: Record<string, string> = {}
   for (const [field, message] of Object.entries(props.fieldErrors ?? {}))
     if (field.startsWith('opponentTeam.')) errors[field.slice('opponentTeam.'.length)] = message
   return errors
 })
 watch(
-  () => Object.keys(theirTeamErrors.value).length > 0 || Boolean(props.fieldErrors?.opponentTeam),
+  () =>
+    Object.keys(opponentTeamErrors.value).length > 0 || Boolean(props.fieldErrors?.opponentTeam),
   (problem) => {
-    if (problem) theirTeamOpen.value = true
+    if (problem) opponentTeamOpen.value = true
   },
 )
-/** Their Team as the API takes it, with each build's moves moved up to fill the gaps. */
-const theirTeamInput = (): OpponentTeamInput =>
-  theirTeam.value.map((build) => {
-    build.moves = Array.from(
-      { length: MAX_MOVES },
-      (_, i) => build.moves.filter((m) => m)[i] ?? null,
-    )
-    return {
-      species: build.species,
-      ...(build.ability ? { ability: build.ability } : {}),
-      ...(build.item ? { item: build.item } : {}),
-      moves: build.moves.filter((m): m is string => Boolean(m)),
-    }
-  })
+/**
+ * Their Team as the API takes it, only when it differs from what is saved: a save without it
+ * leaves the saved Team as it is, so an untouched form never overwrites one saved meanwhile.
+ */
+function changedOpponentTeam(): OpponentTeamInput | undefined {
+  const team = toOpponentTeamInput(opponentTeam.value)
+  const saved = toOpponentTeamInput(savedTeamOf(opponentId.value))
+  return JSON.stringify(team) === JSON.stringify(saved) ? undefined : team
+}
 // The numbers of the Games last sent, as the API names their fields by position.
 const sentNumbers = ref<number[]>([])
 const gameErrors = computed(() => {
@@ -259,7 +285,7 @@ function submit() {
     // Sent even with a Bye, so the API says to remove them rather than them vanishing.
     games: recorded,
     // A list replaces their Team, and an empty one deletes it. Left out on a Bye.
-    ...(!bye.value && opponent.value ? { opponentTeam: theirTeamInput() } : {}),
+    ...(!bye.value && opponent.value ? { opponentTeam: changedOpponentTeam() } : {}),
   })
 }
 </script>
@@ -308,14 +334,16 @@ function submit() {
       <details
         v-if="opponent"
         class="flex flex-col gap-3"
-        :open="theirTeamOpen"
+        :open="opponentTeamOpen"
         data-testid="their-team-section"
-        @toggle="theirTeamOpen = ($event.target as HTMLDetailsElement).open"
+        @toggle="opponentTeamOpen = ($event.target as HTMLDetailsElement).open"
       >
         <summary class="flex min-h-11 cursor-pointer items-center text-sm font-medium">
           Their Team
           <span class="text-muted-foreground ml-1 font-normal"
-            >({{ theirTeam.length ? `${theirTeam.length} of ${MAX_TEAM_SIZE}` : 'optional' }})</span
+            >({{
+              opponentTeam.length ? `${opponentTeam.length} of ${MAX_TEAM_SIZE}` : 'optional'
+            }})</span
           >
         </summary>
         <p v-if="otherRoundsAgainst(opponentId).length" class="text-muted-foreground mb-3 text-sm">
@@ -327,7 +355,7 @@ function submit() {
             variant="outline"
             class="self-start"
             data-testid="copy-their-team"
-            @click="copyTheirTeam"
+            @click="copyOpponentTeam"
             >Copy their Team from {{ copyable.tournament.name }},
             {{ formatDates(copyable.tournament.startDate) }}</Button
           >
@@ -335,7 +363,11 @@ function submit() {
         <p v-if="error('opponentTeam')" class="text-destructive mb-3 text-sm">
           {{ error('opponentTeam') }}
         </p>
-        <OpponentTeamEditor v-if="theirTeamOpen" v-model="theirTeam" :errors="theirTeamErrors" />
+        <OpponentTeamEditor
+          v-if="opponentTeamOpen"
+          v-model="opponentTeam"
+          :errors="opponentTeamErrors"
+        />
       </details>
 
       <div class="flex flex-col gap-2">
@@ -378,9 +410,9 @@ function submit() {
           v-if="gamesOpen"
           :games="shownGames"
           :yours="yours"
-          :theirs="theirs"
+          :opponent-team="opponentSpecies"
           :errors="gameErrors"
-          @pick-theirs="addTheirs"
+          @pick-opponent="addToOpponentTeam"
         />
       </details>
     </template>

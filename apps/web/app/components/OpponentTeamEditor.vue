@@ -1,20 +1,12 @@
 <script setup lang="ts">
 import { MAX_MOVES, MAX_TEAM_SIZE } from '@myvgc/core/schema'
-
-/** One Pokémon of an Opponent's Team as the form holds it: empty fields are null. */
-export interface TheirBuild {
-  species: string
-  ability: string | null
-  item: string | null
-  /** Always `MAX_MOVES` slots, so each has its own picker. */
-  moves: (string | null)[]
-}
+import { type OpponentBuildDraft, newOpponentBuild } from '@/lib/opponent-team'
 
 /**
  * The Opponent's Team of one Opponent in one Tournament (ADR 22). Species are chips; tapping one
  * opens what an open teamsheet shows: ability, held item and moves.
  */
-const pokemon = defineModel<TheirBuild[]>({ required: true })
+const pokemon = defineModel<OpponentBuildDraft[]>({ required: true })
 const props = defineProps<{
   /** Messages keyed by field, such as `0.species` or `1.moves.2`. */
   errors: Record<string, string>
@@ -30,7 +22,7 @@ function add(species: string | null) {
   adding.value = null
   if (!species || pokemon.value.some((p) => p.species === species)) return
   if (pokemon.value.length >= MAX_TEAM_SIZE) return
-  pokemon.value.push({ species, ability: null, item: null, moves: Array(MAX_MOVES).fill(null) })
+  pokemon.value.push(newOpponentBuild(species))
 }
 
 function remove(index: number) {

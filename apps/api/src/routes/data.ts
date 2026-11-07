@@ -160,7 +160,7 @@ export async function exportData(db: Database, ownerId: string): Promise<DataExp
         })),
       opponentTeams: opponentTeams
         .filter((o) => o.tournamentId === row.id)
-        .map((o) => ({ opponentId: o.opponentId, pokemon: o.pokemon })),
+        .map((o) => ({ id: o.id, opponentId: o.opponentId, pokemon: o.pokemon, ...times(o) })),
       ...times(row),
     })),
   }
@@ -205,6 +205,13 @@ async function importData(tx: Tx, ownerId: string, file: ReadDataExport): Promis
   const fileRounds = file.tournaments.flatMap((t, ti) =>
     t.rounds.map((r, ri) => ({ round: r, tournament: t, path: ['tournaments', ti, 'rounds', ri] })),
   )
+  const fileOpponentTeams = file.tournaments.flatMap((t, ti) =>
+    t.opponentTeams.map((o, oi) => ({
+      team: o,
+      tournamentId: t.id,
+      path: ['tournaments', ti, 'opponentTeams', oi],
+    })),
+  )
   const fileNoteEntries = file.opponents.flatMap((o, oi) =>
     o.noteEntries.map((n, ni) => ({
       entry: n,
@@ -224,58 +231,73 @@ async function importData(tx: Tx, ownerId: string, file: ReadDataExport): Promis
     ...file.opponents.map((o) => o.id),
     ...fileRounds.flatMap((r) => r.round.opponentId ?? []),
   ]
-  const [teamOwners, opponentOwners, noteEntryOwners, storedTournaments, roundOwners] =
-    await Promise.all([
-      owners(
-        tx
-          .select({ id: team.id, ownerId: team.ownerId })
-          .from(team)
-          .where(inArray(team.id, teamIds)),
-      ),
-      owners(
-        tx
-          .select({ id: opponent.id, ownerId: opponent.ownerId })
-          .from(opponent)
-          .where(inArray(opponent.id, opponentIds)),
-      ),
-      owners(
-        tx
-          .select({ id: opponentNoteEntry.id, ownerId: opponent.ownerId })
-          .from(opponentNoteEntry)
-          .innerJoin(opponent, eq(opponentNoteEntry.opponentId, opponent.id))
-          .where(
-            inArray(
-              opponentNoteEntry.id,
-              fileNoteEntries.map((n) => n.entry.id),
-            ),
-          ),
-      ),
+  const [
+    teamOwners,
+    opponentOwners,
+    noteEntryOwners,
+    storedTournaments,
+    roundOwners,
+    opponentTeamOwners,
+  ] = await Promise.all([
+    owners(
+      tx.select({ id: team.id, ownerId: team.ownerId }).from(team).where(inArray(team.id, teamIds)),
+    ),
+    owners(
       tx
-        .select({
-          id: tournament.id,
-          ownerId: tournament.ownerId,
-          defaultBestOf: tournament.defaultBestOf,
-        })
-        .from(tournament)
+        .select({ id: opponent.id, ownerId: opponent.ownerId })
+        .from(opponent)
+        .where(inArray(opponent.id, opponentIds)),
+    ),
+    owners(
+      tx
+        .select({ id: opponentNoteEntry.id, ownerId: opponent.ownerId })
+        .from(opponentNoteEntry)
+        .innerJoin(opponent, eq(opponentNoteEntry.opponentId, opponent.id))
         .where(
           inArray(
-            tournament.id,
-            file.tournaments.map((t) => t.id),
+            opponentNoteEntry.id,
+            fileNoteEntries.map((n) => n.entry.id),
           ),
         ),
-      owners(
-        tx
-          .select({ id: round.id, ownerId: tournament.ownerId })
-          .from(round)
-          .innerJoin(tournament, eq(round.tournamentId, tournament.id))
-          .where(
-            inArray(
-              round.id,
-              fileRounds.map((r) => r.round.id),
-            ),
-          ),
+    ),
+    tx
+      .select({
+        id: tournament.id,
+        ownerId: tournament.ownerId,
+        defaultBestOf: tournament.defaultBestOf,
+      })
+      .from(tournament)
+      .where(
+        inArray(
+          tournament.id,
+          file.tournaments.map((t) => t.id),
+        ),
       ),
-    ])
+    owners(
+      tx
+        .select({ id: round.id, ownerId: tournament.ownerId })
+        .from(round)
+        .innerJoin(tournament, eq(round.tournamentId, tournament.id))
+        .where(
+          inArray(
+            round.id,
+            fileRounds.map((r) => r.round.id),
+          ),
+        ),
+    ),
+    owners(
+      tx
+        .select({ id: opponentTeam.id, ownerId: tournament.ownerId })
+        .from(opponentTeam)
+        .innerJoin(tournament, eq(opponentTeam.tournamentId, tournament.id))
+        .where(
+          inArray(
+            opponentTeam.id,
+            fileOpponentTeams.map((o) => o.team.id),
+          ),
+        ),
+    ),
+  ])
 
   const tournamentOwners: OwnerById = new Map(storedTournaments.map((t) => [t.id, t.ownerId]))
 
@@ -290,6 +312,7 @@ async function importData(tx: Tx, ownerId: string, file: ReadDataExport): Promis
       path: ['tournaments', i],
     })),
     ...fileRounds.map((r) => ({ held: roundOwners, id: r.round.id, path: r.path })),
+    ...fileOpponentTeams.map((o) => ({ held: opponentTeamOwners, id: o.team.id, path: o.path })),
   ]
   for (const { held, id, path } of records) {
     const owner = held.get(id)
@@ -470,15 +493,29 @@ async function importData(tx: Tx, ownerId: string, file: ReadDataExport): Promis
     ),
   )
 
-  // An Opponent's Team the User already has for that Opponent there is kept (ADR 22).
+  // An Opponent's Team the User already has for that Opponent there is kept, and one is only
+  // added for an Opponent a Round there is against, which a Round the User has may no longer be
+  // (ADR 22).
+  const played = new Set(
+    (
+      await tx
+        .selectDistinct({ tournamentId: round.tournamentId, opponentId: round.opponentId })
+        .from(round)
+        .where(
+          inArray(round.tournamentId, [...new Set(fileOpponentTeams.map((o) => o.tournamentId))]),
+        )
+    ).map((r) => `${r.tournamentId} ${r.opponentId}`),
+  )
   await insertAll(
-    file.tournaments.flatMap((t) =>
-      t.opponentTeams.map((o) => ({
-        tournamentId: t.id,
+    fileOpponentTeams
+      .filter((o) => played.has(`${o.tournamentId} ${o.team.opponentId}`))
+      .map(({ team: o, tournamentId }) => ({
+        id: o.id,
+        tournamentId,
         opponentId: o.opponentId,
         pokemon: o.pokemon,
+        ...times(o),
       })),
-    ),
     (chunk) => tx.insert(opponentTeam).values(chunk).onConflictDoNothing(),
   )
 

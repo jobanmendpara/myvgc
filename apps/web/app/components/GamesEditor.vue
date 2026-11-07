@@ -17,7 +17,7 @@ type Side = (typeof GAME_SIDES)[number]
  * again for Lead, again to clear. Each side offers its Team first: the Tournament's Team snapshot
  * for the User, the Opponent's Team for the Opponent. Any other species can be added from the
  * names list, which works with no signal; one added for the Opponent is reported with
- * `pick-theirs`, so it can join their Team (ADR 22).
+ * `pick-opponent`, so it can join their Team (ADR 22).
  */
 const props = defineProps<{
   /** The Games to show, by number. Each is changed in place. */
@@ -25,18 +25,18 @@ const props = defineProps<{
   /** Species IDs to offer the User first: the Tournament's Team snapshot. */
   yours: string[]
   /** Species IDs to offer for the Opponent first: their Opponent's Team. */
-  theirs: string[]
+  opponentTeam: string[]
   /** Messages for each Game's fields, keyed by Game number, then field such as `leads.0`. */
   errors: Record<number, Record<string, string>>
 }>()
-const emit = defineEmits<{ 'pick-theirs': [species: string] }>()
+const emit = defineEmits<{ 'pick-opponent': [species: string] }>()
 
 const names = useChampionsNames()
 const nameOf = (species: string) => names.data.value?.species[species] ?? species
 
 const sides: { side: Side; label: string; offered: () => string[] }[] = [
   { side: GAME_SIDES[0], label: 'You', offered: () => props.yours },
-  { side: GAME_SIDES[1], label: 'Opponent', offered: () => props.theirs },
+  { side: GAME_SIDES[1], label: 'Opponent', offered: () => props.opponentTeam },
 ]
 
 type ResultChoice = RoundResult | 'none'
@@ -83,7 +83,7 @@ const addKey = (game: Game, side: Side) => `${game.number}-${side.brought}`
 function add(game: Game, side: Side, species: string | null) {
   adding[addKey(game, side)] = null
   if (!species) return
-  if (side === GAME_SIDES[1]) emit('pick-theirs', species)
+  if (side === GAME_SIDES[1]) emit('pick-opponent', species)
   if (!game[side.brought].includes(species) && game[side.brought].length < MAX_BROUGHT)
     game[side.brought].push(species)
 }

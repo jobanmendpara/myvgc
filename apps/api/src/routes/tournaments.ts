@@ -24,7 +24,8 @@ import type { AppEnv } from '../app'
 import { team, tournament } from '../db/schema'
 import type { Database } from '../db/types'
 import { deleted, escapeLike, idTaken, invalid, isId, notFound, readBody } from './helpers'
-import { loadOpponentTeams, loadRounds } from './round-data'
+import { loadOpponentTeams } from './opponent-team-data'
+import { loadRounds } from './round-data'
 
 type TournamentRow = typeof tournament.$inferSelect
 

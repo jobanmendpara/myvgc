@@ -5,6 +5,7 @@ import {
   type RoundView,
   type TournamentView,
   formatRecord,
+  opponentTeamOf,
 } from '@myvgc/core/schema'
 import { roundLabel } from '@/lib/format'
 
@@ -34,8 +35,7 @@ function gameLine(game: Game) {
 }
 // The Opponent's Team (ADR 22) as one line of species, such as "Incineroar, Rillaboom".
 const teamLine = (opponentId: string | undefined) =>
-  props.tournament.opponentTeams
-    .find((team) => team.opponentId === opponentId)
+  opponentTeamOf(props.tournament.opponentTeams, opponentId)
     ?.pokemon.map((build) => nameOf(build.species))
     .join(', ')
 const hasTopCut = computed(() => props.tournament.rounds.some((r) => r.phase === 'top-cut'))

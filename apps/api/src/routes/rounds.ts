@@ -1,9 +1,10 @@
 import {
-  type Game,
   type SavedRound,
   checkGames,
   checkPokemon,
+  clearOpponentSide,
   newRoundSchema,
+  opponentTeamOf,
   recordOf,
   roundInputSchema,
   roundIssues,
@@ -28,23 +29,9 @@ import {
   uniqueViolation,
 } from './helpers'
 import { ownOpponent } from './opponents'
-import { dropUnplayedTeam, loadOpponentTeams, loadRounds } from './round-data'
+import { deleteOpponentTeam, dropUnplayedTeam, loadOpponentTeams } from './opponent-team-data'
+import { loadRounds } from './round-data'
 import { ownTournament } from './tournaments'
-
-/**
- * A Round's Games once its Opponent changed: the Opponent's side of each Game, as it was saved
- * against the old Opponent, is cleared (ADR 22). Picks sent for the new Opponent are kept.
- */
-function clearOpponentSide(games: Game[], saved: readonly Game[]): Game[] {
-  return games.map((game) => {
-    const old = saved.find((g) => g.number === game.number)
-    const same = (a: string[], b: string[] | undefined) =>
-      a.length === b?.length && a.every((species, i) => species === b[i])
-    if (!old || !same(game.opponentBrought, old.opponentBrought)) return game
-    if (!same(game.opponentLeads, old.opponentLeads)) return game
-    return { ...game, opponentBrought: [], opponentLeads: [] }
-  })
-}
 
 // A PATCH has no `id`; it only names the Round to create.
 type RoundSave = z.output<typeof newRoundSchema>
@@ -198,12 +185,7 @@ export function roundRoutes(db: Database) {
               target: [opponentTeam.tournamentId, opponentTeam.opponentId],
               set: { pokemon: input.opponentTeam, updatedAt: new Date() },
             })
-        else if (opponentId && input.opponentTeam)
-          await tx
-            .delete(opponentTeam)
-            .where(
-              and(eq(opponentTeam.tournamentId, t.id), eq(opponentTeam.opponentId, opponentId)),
-            )
+        else if (opponentId && input.opponentTeam) await deleteOpponentTeam(tx, t.id, opponentId)
         if (changedOpponent) await dropUnplayedTeam(tx, t.id, before!.opponentId!)
         return row!.id
       })
@@ -243,7 +225,7 @@ export function roundRoutes(db: Database) {
       round: saved,
       record: recordOf(rounds),
       suggestedPlacement: t.placement === null ? (suggestedPlacement(rounds) ?? null) : null,
-      opponentTeam: teams.find((team) => team.opponentId === saved.opponent?.id) ?? null,
+      opponentTeam: opponentTeamOf(teams, saved.opponent?.id) ?? null,
     }
   }
 

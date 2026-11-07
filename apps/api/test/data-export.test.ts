@@ -117,11 +117,14 @@ describe('Data export and import', () => {
     expect(file.tournaments[0].team).toMatchObject({ name: 'Rain' })
     expect(file.tournaments[0].opponentTeams).toEqual([
       {
+        id: expect.any(String),
         opponentId: file.tournaments[0].rounds[0].opponentId,
         pokemon: [
           expect.objectContaining({ species: 'incineroar', item: 'sitrusberry' }),
           expect.objectContaining({ species: 'rillaboom' }),
         ],
+        createdAt: expect.any(String),
+        updatedAt: expect.any(String),
       },
     ])
   })
@@ -144,6 +147,28 @@ describe('Data export and import', () => {
     const [team] = (await json(await get(a.t.app, `/api/tournaments/${tournament.id}`, a.cookie)))
       .opponentTeams
     expect(team.pokemon.map((p: { species: string }) => p.species)).toEqual(['kingambit'])
+  })
+
+  it('leaves out an Opponent’s Team for an Opponent the User no longer played there', async () => {
+    const a = await install()
+    const { opponent, tournament } = await fill(a)
+    const exported = await exportOf(a.t, a.cookie)
+    const [first] = (await json(await get(a.t.app, `/api/tournaments/${tournament.id}`, a.cookie)))
+      .rounds
+    // Their only Round there is now against someone else, which deletes their Team.
+    await patch(
+      a.t.app,
+      `/api/tournaments/${tournament.id}/rounds/${first.id}`,
+      { newOpponentName: 'Cynthia', games: first.games },
+      a.cookie,
+    )
+
+    expect((await importInto(a.t, a.cookie, exported)).status).toBe(200)
+    const after = await json(await get(a.t.app, `/api/tournaments/${tournament.id}`, a.cookie))
+    expect(after.opponentTeams).toEqual([])
+    expect(
+      after.rounds.some((r: { opponent?: { id: string } }) => r.opponent?.id === opponent.id),
+    ).toBe(false)
   })
 
   it('moves everything to a User on another install, ids and timestamps included', async () => {

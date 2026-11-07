@@ -22,7 +22,7 @@ ADR 9 said an Opponent's Team on a Round would be a Team snapshot linking back t
 - **Removal.** Any Round write or delete that leaves no Round against that Opponent in the Tournament deletes their Opponent's Team in the same transaction. The client warns from its cache before sending; the server never asks, because a queued replay can't answer.
 - **Reading.** Each Tournament (in the list and alone) carries its Opponent's Teams, and a saved Round answers with its Opponent's Team. The copy offer reads the cached Tournaments list, so it works offline: the latest other Tournament in the same Regulation by start date.
 - **Merging** Opponents who both have an Opponent's Team in one Tournament keeps the survivor's builds first, adds the duplicate's species the survivor lacks, up to six, and fills the survivor's empty ability, held item and moves for a species both have from the duplicate's.
-- **Data export** carries each Tournament's Opponent's Teams; importing adds one only where the account has none for that Tournament and Opponent.
+- **Data export** carries each Tournament's Opponent's Teams, with their ids and timestamps (ADR 23); importing adds one only where the account has none for that Tournament and Opponent, and a Round there is against that Opponent.
 
 ## Consequences
 - ADR 9 now covers only the User's Team on a Tournament.

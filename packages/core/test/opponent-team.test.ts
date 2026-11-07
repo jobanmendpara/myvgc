@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 import {
   type PokemonBuild,
   type RoundFacts,
+  clearOpponentSide,
   latestOpponentTeam,
+  losesOpponentTeam,
   mergeOpponentTeams,
   roundInputSchema,
   roundIssues,
@@ -182,5 +184,52 @@ describe('latestOpponentTeam', () => {
         tournamentId: 'b',
       }),
     ).toBeUndefined()
+  })
+})
+
+describe('losesOpponentTeam', () => {
+  const tournament = {
+    rounds: [
+      { id: 'r1', opponent: { id: 'wolfe' } },
+      { id: 'r2', opponent: { id: 'wolfe' } },
+      { id: 'r3', opponent: { id: 'aaron' } },
+    ],
+    opponentTeams: [
+      { opponentId: 'wolfe', pokemon: [mon('incineroar')] },
+      { opponentId: 'aaron', pokemon: [mon('rillaboom')] },
+    ],
+  }
+
+  it('is true when no other Round in the Tournament is against them', () => {
+    expect(losesOpponentTeam(tournament, 'r3', 'aaron')).toBe(true)
+  })
+
+  it('is false while another Round is against them, or when they have no Team there', () => {
+    expect(losesOpponentTeam(tournament, 'r1', 'wolfe')).toBe(false)
+    expect(losesOpponentTeam({ ...tournament, opponentTeams: [] }, 'r3', 'aaron')).toBe(false)
+    expect(losesOpponentTeam(tournament, 'r3', undefined)).toBe(false)
+  })
+})
+
+describe('clearOpponentSide', () => {
+  const game = (opponentBrought: string[], opponentLeads: string[] = []) => ({
+    number: 1 as const,
+    brought: ['rillaboom'],
+    leads: [],
+    opponentBrought,
+    opponentLeads,
+    result: null,
+    notes: '',
+  })
+
+  it('clears the Opponent’s side of a Game as it was saved against the old Opponent', () => {
+    const saved = [game(['incineroar', 'kingambit'], ['incineroar'])]
+    expect(clearOpponentSide(saved, saved)).toEqual([game([])])
+  })
+
+  it('keeps picks sent for the new Opponent, and Games that weren’t saved', () => {
+    const saved = [game(['incineroar'])]
+    expect(clearOpponentSide([game(['kingambit'])], saved)).toEqual([game(['kingambit'])])
+    expect(clearOpponentSide([game(['kingambit'])], [])).toEqual([game(['kingambit'])])
   })
 })

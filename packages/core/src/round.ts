@@ -159,7 +159,7 @@ export interface RoundFacts {
   hasOpponent: boolean
   games: GameFacts[]
   /** Whether an Opponent's Team with Pokémon in it was sent with the Round (ADR 22). */
-  hasOpponentTeam?: boolean
+  hasOpponentTeam: boolean
 }
 
 type Issue = { path: string[]; message: string }

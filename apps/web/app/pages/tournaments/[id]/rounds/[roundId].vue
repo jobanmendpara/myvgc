@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { RoundInput, SavedRound } from '@myvgc/core/schema'
+import { type RoundInput, type SavedRound, losesOpponentTeam } from '@myvgc/core/schema'
 import { useMutation, useQueryClient } from '@tanstack/vue-query'
 import { fieldErrorsOf, saveFailureMessage } from '@/lib/api'
 
@@ -9,14 +9,11 @@ const roundId = computed(() => String(route.params.roundId))
 const { query, tournament } = useTournament(id)
 const round = computed(() => tournament.value?.rounds.find((r) => r.id === roundId.value))
 // Deleting the last Round against an Opponent deletes their Opponent's Team here too (ADR 22).
-const losesTeam = computed(() => {
-  const against = round.value?.opponent?.id
-  if (!against || !tournament.value) return false
-  const others = tournament.value.rounds.filter(
-    (r) => r.id !== roundId.value && r.opponent?.id === against,
-  )
-  return !others.length && tournament.value.opponentTeams.some((t) => t.opponentId === against)
-})
+const losesTeam = computed(
+  () =>
+    !!tournament.value &&
+    losesOpponentTeam(tournament.value, roundId.value, round.value?.opponent?.id),
+)
 useHead({ title: 'Edit Round · MyVGC' })
 
 const queryClient = useQueryClient()

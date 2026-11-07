@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { MAX_TEAM_SIZE, type PokemonBuild, pokemonBuildSchema, statPointsSchema } from './build'
+import type { Game } from './round'
 import type { Regulation } from './team'
 
 const NO_STAT_POINTS = { hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0 }
@@ -37,6 +38,44 @@ export type OpponentTeamInput = z.input<typeof opponentTeamSchema>
 export interface OpponentTeamView {
   opponentId: string
   pokemon: PokemonBuild[]
+}
+
+/** One Opponent's Team among a Tournament's, if they have one there. */
+export const opponentTeamOf = <T extends { opponentId: string }>(
+  teams: readonly T[],
+  opponentId: string | undefined,
+): T | undefined => teams.find((team) => team.opponentId === opponentId)
+
+/**
+ * Whether a Round no longer being against an Opponent, deleted or given another, deletes their
+ * Opponent's Team: when they have one in the Tournament and no other Round there is against them
+ * (ADR 22).
+ */
+export function losesOpponentTeam(
+  tournament: {
+    rounds: readonly { id: string; opponent: { id: string } | null }[]
+    opponentTeams: readonly { opponentId: string }[]
+  },
+  roundId: string | undefined,
+  opponentId: string | undefined,
+): boolean {
+  if (!opponentId || !opponentTeamOf(tournament.opponentTeams, opponentId)) return false
+  return !tournament.rounds.some((r) => r.id !== roundId && r.opponent?.id === opponentId)
+}
+
+/**
+ * A Round's Games once its Opponent changed: the Opponent's side of each Game, as it was saved
+ * against the old Opponent, is cleared (ADR 22). Picks sent for the new Opponent are kept.
+ */
+export function clearOpponentSide(games: readonly Game[], saved: readonly Game[]): Game[] {
+  const same = (a: readonly string[], b: readonly string[]) =>
+    a.length === b.length && a.every((species, i) => species === b[i])
+  return games.map((game) => {
+    const old = saved.find((g) => g.number === game.number)
+    if (!old || !same(game.opponentBrought, old.opponentBrought)) return game
+    if (!same(game.opponentLeads, old.opponentLeads)) return game
+    return { ...game, opponentBrought: [], opponentLeads: [] }
+  })
 }
 
 /**
@@ -92,7 +131,7 @@ export function latestOpponentTeam<T extends TournamentTeams>(
   let latest: { tournament: T; pokemon: PokemonBuild[] } | undefined
   for (const tournament of tournaments) {
     if (tournament.id === tournamentId || tournament.regulation !== regulation) continue
-    const team = tournament.opponentTeams.find((t) => t.opponentId === opponentId)
+    const team = opponentTeamOf(tournament.opponentTeams, opponentId)
     if (team && (!latest || tournament.startDate > latest.tournament.startDate))
       latest = { tournament, pokemon: team.pokemon }
   }
