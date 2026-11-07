@@ -1,15 +1,23 @@
 import { describe, expect, it } from 'vitest'
 import { DATA_EXPORT_VERSION, readDataExport } from '../src/schema'
-import { ids, versionOne } from './data-export-file'
+import { current, ids, versionOne } from './data-export-file'
 
 describe('Reading a Data export', () => {
   it('reads a file in the current version', () => {
-    const read = readDataExport(versionOne())
+    const read = readDataExport(current())
     expect(read).toMatchObject({ ok: true })
     if (!read.ok) return
     expect(read.file.version).toBe(DATA_EXPORT_VERSION)
     expect(read.file.tournaments[0]!.rounds[0]!.opponentId).toBe(ids.opponent)
     expect(read.file.opponents[0]!.noteEntries).toHaveLength(1)
+    expect(read.file.tournaments[0]!.opponentTeams[0]!.opponentId).toBe(ids.opponent)
+  })
+
+  it('upgrades a version 1 file, whose Tournaments have no Opponent’s Teams', () => {
+    const read = readDataExport(versionOne())
+    if (!read.ok) throw new Error('should read')
+    expect(read.file.version).toBe(DATA_EXPORT_VERSION)
+    expect(read.file.tournaments[0]!.opponentTeams).toEqual([])
   })
 
   it('refuses a file from a newer version, asking to update the install', () => {
@@ -58,8 +66,8 @@ describe('Reading a Data export', () => {
   })
 
   it('keeps every id and timestamp', () => {
-    const read = readDataExport(versionOne())
+    const read = readDataExport(current())
     if (!read.ok) throw new Error('should read')
-    expect(read.file).toEqual(versionOne())
+    expect(read.file).toEqual(current())
   })
 })

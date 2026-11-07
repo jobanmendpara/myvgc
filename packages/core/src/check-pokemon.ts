@@ -13,14 +13,15 @@ export interface PokemonIssue {
  * Checks Pokémon builds against the Champions data, the check a paste gets line by line (ADR 14).
  * `teamPokemonSchema` covers everything that needs no data. Only the ID itself passes, not an
  * alias of it, so what is stored stays clean. A name allowed in any Regulation passes: whether it's
- * allowed in this Team's Regulation is only a warning (ADR 18).
+ * allowed in this Team's Regulation is only a warning (ADR 18). `field` is where the builds were
+ * sent, such as `opponentTeam` for an Opponent's Team.
  */
-export function checkPokemon(pokemon: PokemonBuild[]): PokemonIssue[] {
+export function checkPokemon(pokemon: PokemonBuild[], field = 'pokemon'): PokemonIssue[] {
   const issues: PokemonIssue[] = []
   pokemon.forEach((build, index) => {
-    const check = (kind: ChampionsKind, id: string | undefined, ...field: (string | number)[]) => {
+    const check = (kind: ChampionsKind, id: string | undefined, ...at: (string | number)[]) => {
       if (id !== undefined && champions[kind](id)?.id !== id) {
-        issues.push({ path: ['pokemon', index, ...field], message: unknownName(kind, id) })
+        issues.push({ path: [field, index, ...at], message: unknownName(kind, id) })
       }
     }
     check('species', build.species, 'species')

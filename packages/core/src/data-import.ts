@@ -117,6 +117,19 @@ export function checkDataExport(file: ReadDataExport, account: ImportAccount): I
         stages.add(facts.stage)
       }
     })
+
+    // An Opponent's Team only exists for an Opponent played in that Tournament (ADR 22).
+    const played = new Set(tournament.rounds.map((round) => round.opponentId))
+    const teamsOf = new Set<string>()
+    tournament.opponentTeams.forEach((team, o) => {
+      const path = ['tournaments', t, 'opponentTeams', o]
+      addAll(path, checkPokemon(team.pokemon))
+      if (teamsOf.has(team.opponentId))
+        add([...path, 'opponentId'], 'This Opponent’s Team is listed twice in this Tournament.')
+      else if (!played.has(team.opponentId))
+        add([...path, 'opponentId'], 'No Round in this Tournament is against this Opponent.')
+      teamsOf.add(team.opponentId)
+    })
   })
   return issues
 }

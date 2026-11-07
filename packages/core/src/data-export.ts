@@ -3,6 +3,7 @@ import { teamPokemonSchema } from './build'
 import { recordIdSchema as recordId } from './client-id'
 import { newNoteEntrySchema } from './note-entry'
 import { newOpponentSchema } from './opponent'
+import { opponentTeamSchema } from './opponent-team'
 import { ROUND_RESULTS, TOP_CUT_STAGES, TOP_CUT_STAGE_LABELS, roundInputSchema } from './round'
 import { REGULATIONS, teamSchema } from './team'
 import { newTournamentSchema } from './tournament'
@@ -13,7 +14,7 @@ import { newTournamentSchema } from './tournament'
  */
 export const DATA_EXPORT_FORMAT = 'myvgc-export'
 /** The version this install writes. Each new kind of User data bumps it, with an upgrade step. */
-export const DATA_EXPORT_VERSION = 1
+export const DATA_EXPORT_VERSION = 2
 
 const timestamp = z.iso.datetime('Use a time such as 2026-09-19T10:00:00.000Z.')
 const timestamps = { createdAt: timestamp, updatedAt: timestamp }
@@ -30,7 +31,8 @@ const exportedOpponentSchema = newOpponentSchema.extend({
 })
 
 const exportedRoundSchema = roundInputSchema
-  .omit({ newOpponentId: true, newOpponentName: true })
+  // An Opponent's Team is exported with its Tournament instead.
+  .omit({ newOpponentId: true, newOpponentName: true, opponentTeam: true })
   .extend({
     id: recordId,
     // Always stored, so totals don't recompute it.
@@ -48,11 +50,17 @@ const exportedSnapshotSchema = z.object({
   snapshotAt: timestamp,
 })
 
+const exportedOpponentTeamSchema = z.object({
+  opponentId: recordId,
+  pokemon: opponentTeamSchema.min(1, 'An Opponent’s Team needs at least one Pokémon.'),
+})
+
 const exportedTournamentSchema = newTournamentSchema.safeExtend({
   id: recordId,
   regulation: z.enum(REGULATIONS),
   team: exportedSnapshotSchema.nullable(),
   rounds: z.array(exportedRoundSchema),
+  opponentTeams: z.array(exportedOpponentTeamSchema),
   ...timestamps,
 })
 
@@ -74,12 +82,25 @@ export type ExportedOpponent = DataExport['opponents'][number]
 export type ExportedNoteEntry = ExportedOpponent['noteEntries'][number]
 export type ExportedTournament = DataExport['tournaments'][number]
 export type ExportedRound = ExportedTournament['rounds'][number]
+export type ExportedOpponentTeam = ExportedTournament['opponentTeams'][number]
 
 /**
  * Steps that upgrade a file by one version, keyed by the version they upgrade from. A file from
  * version 1 when the current version is 3 goes through `1` and then `2`.
  */
-const UPGRADES: Record<number, (file: Record<string, unknown>) => Record<string, unknown>> = {}
+const UPGRADES: Record<number, (file: Record<string, unknown>) => Record<string, unknown>> = {
+  // Version 2 added Opponent's Teams (ADR 22), which version 1 files never have.
+  1: (file) => ({
+    ...file,
+    tournaments: Array.isArray(file.tournaments)
+      ? file.tournaments.map((tournament: unknown) =>
+          tournament && typeof tournament === 'object'
+            ? { ...tournament, opponentTeams: [] }
+            : tournament,
+        )
+      : file.tournaments,
+  }),
+}
 
 /** A problem with a Data export, naming the record it is in, such as `Tournament “Worlds”`. */
 export interface ImportIssue {

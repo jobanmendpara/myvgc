@@ -1,6 +1,8 @@
 import {
+  type Game,
   type SavedRound,
   checkGames,
+  checkPokemon,
   newRoundSchema,
   recordOf,
   roundInputSchema,
@@ -13,7 +15,7 @@ import { and, eq, ne } from 'drizzle-orm'
 import { type Context, Hono } from 'hono'
 import type { z } from 'zod'
 import type { AppEnv } from '../app'
-import { opponent, round, tournament } from '../db/schema'
+import { opponent, opponentTeam, round, tournament } from '../db/schema'
 import type { Database } from '../db/types'
 import {
   clash,
@@ -26,8 +28,23 @@ import {
   uniqueViolation,
 } from './helpers'
 import { ownOpponent } from './opponents'
-import { loadRounds } from './round-data'
+import { dropUnplayedTeam, loadOpponentTeams, loadRounds } from './round-data'
 import { ownTournament } from './tournaments'
+
+/**
+ * A Round's Games once its Opponent changed: the Opponent's side of each Game, as it was saved
+ * against the old Opponent, is cleared (ADR 22). Picks sent for the new Opponent are kept.
+ */
+function clearOpponentSide(games: Game[], saved: readonly Game[]): Game[] {
+  return games.map((game) => {
+    const old = saved.find((g) => g.number === game.number)
+    const same = (a: string[], b: string[] | undefined) =>
+      a.length === b?.length && a.every((species, i) => species === b[i])
+    if (!old || !same(game.opponentBrought, old.opponentBrought)) return game
+    if (!same(game.opponentLeads, old.opponentLeads)) return game
+    return { ...game, opponentBrought: [], opponentLeads: [] }
+  })
+}
 
 // A PATCH has no `id`; it only names the Round to create.
 type RoundSave = z.output<typeof newRoundSchema>
@@ -77,10 +94,15 @@ export function roundRoutes(db: Database) {
       gameScore: input.gameScore ?? null,
       hasOpponent: Boolean(input.opponentId || input.newOpponentName),
       games: input.games.toSorted((a, b) => a.number - b.number),
+      hasOpponentTeam: Boolean(input.opponentTeam?.length),
     }
     // The User didn't type the number, so any free one will do.
     const numberIsFree = input.phase === 'swiss' && input.roundNumber == null && !existingId
-    const issues: Issue[] = [...roundIssues(facts), ...checkGames(input.games)]
+    const issues: Issue[] = [
+      ...roundIssues(facts),
+      ...checkGames(input.games),
+      ...checkPokemon(input.opponentTeam ?? [], 'opponentTeam'),
+    ]
     if (input.opponentId && input.newOpponentName)
       issues.push({ path: ['opponent'], message: 'Choose an Opponent or add one, not both.' })
     if (input.opponentId && !input.bye) {
@@ -140,6 +162,13 @@ export function roundRoutes(db: Database) {
             .returning({ id: opponent.id })
           opponentId = created?.id ?? (await replayedOpponent(tx, input.newOpponentId!))
         }
+        const [before] = existingId
+          ? await tx
+              .select({ opponentId: round.opponentId, games: round.games })
+              .from(round)
+              .where(eq(round.id, existingId))
+          : []
+        const changedOpponent = before?.opponentId ? before.opponentId !== opponentId : false
         const values = {
           tournamentId: t.id,
           phase: facts.phase,
@@ -152,7 +181,7 @@ export function roundRoutes(db: Database) {
           gamesLost: settled.gameScore?.lost ?? null,
           opponentId,
           notes: input.notes,
-          games: settled.games,
+          games: changedOpponent ? clearOpponentSide(settled.games, before!.games) : settled.games,
         }
         const [row] = existingId
           ? await tx.update(round).set(values).where(eq(round.id, existingId)).returning()
@@ -160,6 +189,22 @@ export function roundRoutes(db: Database) {
               .insert(round)
               .values({ ...values, id: input.id })
               .returning()
+
+        if (opponentId && input.opponentTeam?.length)
+          await tx
+            .insert(opponentTeam)
+            .values({ tournamentId: t.id, opponentId, pokemon: input.opponentTeam })
+            .onConflictDoUpdate({
+              target: [opponentTeam.tournamentId, opponentTeam.opponentId],
+              set: { pokemon: input.opponentTeam, updatedAt: new Date() },
+            })
+        else if (opponentId && input.opponentTeam)
+          await tx
+            .delete(opponentTeam)
+            .where(
+              and(eq(opponentTeam.tournamentId, t.id), eq(opponentTeam.opponentId, opponentId)),
+            )
+        if (changedOpponent) await dropUnplayedTeam(tx, t.id, before!.opponentId!)
         return row!.id
       })
     }
@@ -189,13 +234,16 @@ export function roundRoutes(db: Database) {
     return c.json(await standing(t, id))
   }
 
-  /** A Round with its Tournament's Record and, if due, a suggested Placement. */
+  /** A Round with its Tournament's Record, its Opponent's Team and, if due, a suggested Placement. */
   async function standing(t: typeof tournament.$inferSelect, roundId: string): Promise<SavedRound> {
     const rounds = (await loadRounds(db, [t.id])).get(t.id)!
+    const saved = rounds.find((r) => r.id === roundId)!
+    const teams = (await loadOpponentTeams(db, [t.id])).get(t.id)!
     return {
-      round: rounds.find((r) => r.id === roundId)!,
+      round: saved,
       record: recordOf(rounds),
       suggestedPlacement: t.placement === null ? (suggestedPlacement(rounds) ?? null) : null,
+      opponentTeam: teams.find((team) => team.opponentId === saved.opponent?.id) ?? null,
     }
   }
 
@@ -241,7 +289,13 @@ export function roundRoutes(db: Database) {
         const t = await ownedTournament(c.req.param('tournamentId'), c.get('user').id)
         // The Tournament, and so the Round, is gone, or was never the User's.
         if (!t) return deleted(c)
-        await db.delete(round).where(and(eq(round.id, roundId), eq(round.tournamentId, t.id)))
+        await db.transaction(async (tx) => {
+          const [gone] = await tx
+            .delete(round)
+            .where(and(eq(round.id, roundId), eq(round.tournamentId, t.id)))
+            .returning({ opponentId: round.opponentId })
+          if (gone?.opponentId) await dropUnplayedTeam(tx, t.id, gone.opponentId)
+        })
         const rounds = (await loadRounds(db, [t.id])).get(t.id)!
         return c.json({ record: recordOf(rounds) })
       })

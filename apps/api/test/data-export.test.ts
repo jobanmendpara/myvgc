@@ -68,6 +68,7 @@ describe('Data export and import', () => {
         rounds,
         {
           opponentId: opponent.id,
+          opponentTeam: [{ species: 'incineroar', item: 'sitrusberry' }, { species: 'rillaboom' }],
           games: [
             { number: 1, brought: ['incineroar'], leads: ['incineroar'], result: 'win' },
             { number: 2, result: 'win' },
@@ -106,7 +107,7 @@ describe('Data export and import', () => {
     const text = await res.text()
     expect(text).not.toContain('ash@example.com')
     const file = JSON.parse(text)
-    expect(file).toMatchObject({ format: 'myvgc-export', version: 1 })
+    expect(file).toMatchObject({ format: 'myvgc-export', version: 2 })
     expect(file.teams).toHaveLength(1)
     expect(file.opponents.map((o: { displayName: string }) => o.displayName).sort()).toEqual([
       'Lance',
@@ -114,6 +115,35 @@ describe('Data export and import', () => {
     ])
     expect(file.tournaments[0].rounds).toHaveLength(3)
     expect(file.tournaments[0].team).toMatchObject({ name: 'Rain' })
+    expect(file.tournaments[0].opponentTeams).toEqual([
+      {
+        opponentId: file.tournaments[0].rounds[0].opponentId,
+        pokemon: [
+          expect.objectContaining({ species: 'incineroar', item: 'sitrusberry' }),
+          expect.objectContaining({ species: 'rillaboom' }),
+        ],
+      },
+    ])
+  })
+
+  it('keeps an Opponent’s Team the User already has over the file’s', async () => {
+    const a = await install()
+    const { opponent, tournament } = await fill(a)
+    const exported = await exportOf(a.t, a.cookie)
+    const rounds = `/api/tournaments/${tournament.id}/rounds`
+    const [first] = (await json(await get(a.t.app, `/api/tournaments/${tournament.id}`, a.cookie)))
+      .rounds
+    await patch(
+      a.t.app,
+      `${rounds}/${first.id}`,
+      { opponentId: opponent.id, games: first.games, opponentTeam: [{ species: 'kingambit' }] },
+      a.cookie,
+    )
+
+    expect((await importInto(a.t, a.cookie, exported)).status).toBe(200)
+    const [team] = (await json(await get(a.t.app, `/api/tournaments/${tournament.id}`, a.cookie)))
+      .opponentTeams
+    expect(team.pokemon.map((p: { species: string }) => p.species)).toEqual(['kingambit'])
   })
 
   it('moves everything to a User on another install, ids and timestamps included', async () => {
@@ -211,6 +241,7 @@ describe('Data export and import', () => {
     const file = await exportOf(a.t, a.cookie)
     const top8 = file.tournaments[0].rounds.find((r: { stage: string }) => r.stage === 'top-8')
     file.tournaments[0].rounds = [{ ...top8, id: crypto.randomUUID() }]
+    file.tournaments[0].opponentTeams = []
 
     const res = await importInto(a.t, a.cookie, file)
     expect(res.status).toBe(409)

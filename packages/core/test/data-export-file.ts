@@ -95,3 +95,16 @@ export const versionOne = () => ({
     },
   ],
 })
+
+/** A file in the current version, version 2: version 1 plus Opponent's Teams (ADR 22). */
+export const current = () => {
+  const file = versionOne()
+  return {
+    ...file,
+    version: 2,
+    tournaments: file.tournaments.map((tournament) => ({
+      ...tournament,
+      opponentTeams: [{ opponentId: ids.opponent, pokemon }],
+    })),
+  }
+}

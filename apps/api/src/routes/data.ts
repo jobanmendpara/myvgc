@@ -17,7 +17,15 @@ import { asc, eq, inArray, sql } from 'drizzle-orm'
 import { type Context, Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import type { AppEnv } from '../app'
-import { opponent, opponentAlias, opponentNoteEntry, round, team, tournament } from '../db/schema'
+import {
+  opponent,
+  opponentAlias,
+  opponentNoteEntry,
+  opponentTeam,
+  round,
+  team,
+  tournament,
+} from '../db/schema'
 import type { Database } from '../db/types'
 import { uniqueViolation } from './helpers'
 import { toNoteEntryView } from './note-entry-data'
@@ -39,38 +47,44 @@ export async function exportData(db: Database, ownerId: string): Promise<DataExp
     .from(tournament)
     .where(eq(tournament.ownerId, ownerId))
 
-  const [teams, opponents, aliases, noteEntries, tournaments, rounds] = await Promise.all([
-    db
-      .select()
-      .from(team)
-      .where(eq(team.ownerId, ownerId))
-      .orderBy(asc(team.createdAt), asc(team.id)),
-    db
-      .select()
-      .from(opponent)
-      .where(eq(opponent.ownerId, ownerId))
-      .orderBy(asc(opponent.createdAt), asc(opponent.id)),
-    db
-      .select()
-      .from(opponentAlias)
-      .where(inArray(opponentAlias.opponentId, ownOpponents))
-      .orderBy(asc(sql`lower(${opponentAlias.name})`), asc(opponentAlias.name)),
-    db
-      .select()
-      .from(opponentNoteEntry)
-      .where(inArray(opponentNoteEntry.opponentId, ownOpponents))
-      .orderBy(
-        asc(opponentNoteEntry.date),
-        asc(opponentNoteEntry.createdAt),
-        asc(opponentNoteEntry.id),
-      ),
-    db
-      .select()
-      .from(tournament)
-      .where(eq(tournament.ownerId, ownerId))
-      .orderBy(asc(tournament.startDate), asc(tournament.createdAt), asc(tournament.id)),
-    db.select().from(round).where(inArray(round.tournamentId, ownTournaments)),
-  ])
+  const [teams, opponents, aliases, noteEntries, tournaments, rounds, opponentTeams] =
+    await Promise.all([
+      db
+        .select()
+        .from(team)
+        .where(eq(team.ownerId, ownerId))
+        .orderBy(asc(team.createdAt), asc(team.id)),
+      db
+        .select()
+        .from(opponent)
+        .where(eq(opponent.ownerId, ownerId))
+        .orderBy(asc(opponent.createdAt), asc(opponent.id)),
+      db
+        .select()
+        .from(opponentAlias)
+        .where(inArray(opponentAlias.opponentId, ownOpponents))
+        .orderBy(asc(sql`lower(${opponentAlias.name})`), asc(opponentAlias.name)),
+      db
+        .select()
+        .from(opponentNoteEntry)
+        .where(inArray(opponentNoteEntry.opponentId, ownOpponents))
+        .orderBy(
+          asc(opponentNoteEntry.date),
+          asc(opponentNoteEntry.createdAt),
+          asc(opponentNoteEntry.id),
+        ),
+      db
+        .select()
+        .from(tournament)
+        .where(eq(tournament.ownerId, ownerId))
+        .orderBy(asc(tournament.startDate), asc(tournament.createdAt), asc(tournament.id)),
+      db.select().from(round).where(inArray(round.tournamentId, ownTournaments)),
+      db
+        .select()
+        .from(opponentTeam)
+        .where(inArray(opponentTeam.tournamentId, ownTournaments))
+        .orderBy(asc(opponentTeam.createdAt), asc(opponentTeam.id)),
+    ])
 
   const times = (row: { createdAt: Date; updatedAt: Date }) => ({
     createdAt: row.createdAt.toISOString(),
@@ -144,6 +158,9 @@ export async function exportData(db: Database, ownerId: string): Promise<DataExp
           games: r.games,
           ...times(r),
         })),
+      opponentTeams: opponentTeams
+        .filter((o) => o.tournamentId === row.id)
+        .map((o) => ({ opponentId: o.opponentId, pokemon: o.pokemon })),
       ...times(row),
     })),
   }
@@ -451,6 +468,18 @@ async function importData(tx: Tx, ownerId: string, file: ReadDataExport): Promis
         }
       }),
     ),
+  )
+
+  // An Opponent's Team the User already has for that Opponent there is kept (ADR 22).
+  await insertAll(
+    file.tournaments.flatMap((t) =>
+      t.opponentTeams.map((o) => ({
+        tournamentId: t.id,
+        opponentId: o.opponentId,
+        pokemon: o.pokemon,
+      })),
+    ),
+    (chunk) => tx.insert(opponentTeam).values(chunk).onConflictDoNothing(),
   )
 
   const count = (all: number, added: number) => ({ added, alreadyThere: all - added })
