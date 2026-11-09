@@ -11,7 +11,7 @@ async function save(body: TeamBody) {
 </script>
 
 <template>
-  <div class="flex flex-col gap-6">
+  <div class="mx-auto flex w-full max-w-3xl flex-col gap-6">
     <h1 class="text-2xl font-semibold">Build a Team</h1>
     <TeamBuilder :save="save" cancel-to="/teams/new" />
   </div>

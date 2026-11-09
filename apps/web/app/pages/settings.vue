@@ -16,7 +16,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="flex flex-col gap-8">
+  <div class="mx-auto flex w-full max-w-3xl flex-col gap-8">
     <h1 class="text-2xl font-semibold">Settings</h1>
 
     <section id="account" aria-labelledby="account-heading" class="flex scroll-mt-4 flex-col gap-4">

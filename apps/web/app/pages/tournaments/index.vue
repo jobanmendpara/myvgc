@@ -40,11 +40,15 @@ const tournaments = useQuery({
       </CardFooter>
     </Card>
 
-    <ul v-else class="flex flex-col gap-3" data-testid="tournaments-list">
+    <ul
+      v-else
+      class="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3"
+      data-testid="tournaments-list"
+    >
       <li v-for="t in tournaments.data.value" :key="t.id">
         <NuxtLink
           :to="`/tournaments/${t.id}`"
-          class="hover:bg-muted/50 focus-visible:ring-ring/50 flex flex-col gap-2 rounded-lg border p-4 outline-none focus-visible:ring-3"
+          class="hover:bg-muted/50 focus-visible:ring-ring/50 flex h-full flex-col gap-2 rounded-lg border p-4 outline-none focus-visible:ring-3"
         >
           <div class="flex items-start justify-between gap-3">
             <span class="min-w-0 font-semibold break-words">{{ t.name }}</span>

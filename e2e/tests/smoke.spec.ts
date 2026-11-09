@@ -9,6 +9,9 @@ const PASTE = readFileSync(
 )
 const SPECIES = ['Floette-Eternal', 'Basculegion', 'Kingambit', 'Dragonite', 'Garchomp', 'Sneasler']
 
+// A fresh email per test and project, since the phone and desktop projects run side by side.
+const email = (prefix: string) => `${prefix}-${test.info().project.name}-${Date.now()}@example.com`
+
 test('sign up, import a Team and see its six Pokémon', async ({ page }) => {
   // Each step waits for its page's heading before using the form: the route guard checks the
   // session before every page change, so the previous page can still be on screen.
@@ -19,7 +22,7 @@ test('sign up, import a Team and see its six Pokémon', async ({ page }) => {
   await page.getByRole('link', { name: 'Create an account' }).click()
   await expect(page).toHaveURL(/\/signup$/)
   await expect(page.getByRole('heading', { name: 'Create an account' })).toBeVisible()
-  await page.getByLabel('Email').fill(`smoke-${Date.now()}@example.com`)
+  await page.getByLabel('Email').fill(email('smoke'))
   await page.getByLabel('Password').fill('smoke-test-password')
   await page.getByRole('button', { name: 'Create account' }).click()
   await expect(page).toHaveURL(/\/teams$/)
@@ -49,7 +52,7 @@ test('sign up, import a Team and see its six Pokémon', async ({ page }) => {
 test('build a one-Pokémon Team, then edit a move', async ({ page }) => {
   await page.goto('/signup')
   await expect(page.getByRole('heading', { name: 'Create an account' })).toBeVisible()
-  await page.getByLabel('Email').fill(`smoke-build-${Date.now()}@example.com`)
+  await page.getByLabel('Email').fill(email('smoke-build'))
   await page.getByLabel('Password').fill('smoke-test-password')
   await page.getByRole('button', { name: 'Create account' }).click()
   await expect(page).toHaveURL(/\/teams$/)
@@ -120,7 +123,7 @@ test('build a one-Pokémon Team, then edit a move', async ({ page }) => {
 test('log a Tournament and a Round against a new Opponent', async ({ page }) => {
   await page.goto('/signup')
   await expect(page.getByRole('heading', { name: 'Create an account' })).toBeVisible()
-  await page.getByLabel('Email').fill(`smoke-round-${Date.now()}@example.com`)
+  await page.getByLabel('Email').fill(email('smoke-round'))
   await page.getByLabel('Password').fill('smoke-test-password')
   await page.getByRole('button', { name: 'Create account' }).click()
   await expect(page).toHaveURL(/\/teams$/)

@@ -31,7 +31,7 @@ const failure = computed(() =>
 </script>
 
 <template>
-  <div class="flex flex-col gap-6">
+  <div class="mx-auto flex w-full max-w-3xl flex-col gap-6">
     <div>
       <h1 class="text-2xl font-semibold">Log a Round</h1>
       <p v-if="tournament" class="text-muted-foreground text-sm">{{ tournament.name }}</p>

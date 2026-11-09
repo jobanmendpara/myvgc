@@ -21,7 +21,7 @@ const WAYS = [
 </script>
 
 <template>
-  <div class="flex flex-col gap-6">
+  <div class="mx-auto flex w-full max-w-3xl flex-col gap-6">
     <NuxtLink to="/teams" class="text-muted-foreground text-sm hover:underline"
       >← Your Teams</NuxtLink
     >

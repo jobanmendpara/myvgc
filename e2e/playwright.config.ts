@@ -18,5 +18,10 @@ export default defineConfig({
       // Phone first: the smoke test runs at 375 px wide in Chromium.
       use: { ...devices['Desktop Chrome'], viewport: { width: 375, height: 800 } },
     },
+    {
+      name: 'desktop',
+      // The same smoke test at a laptop width, where the wide layout applies.
+      use: { ...devices['Desktop Chrome'], viewport: { width: 1280, height: 800 } },
+    },
   ],
 })

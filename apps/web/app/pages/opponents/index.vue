@@ -37,7 +37,7 @@ const addError = computed(
 </script>
 
 <template>
-  <div class="flex flex-col gap-6">
+  <div class="mx-auto flex w-full max-w-3xl flex-col gap-6">
     <div class="flex flex-wrap items-center justify-between gap-3">
       <h1 class="text-2xl font-semibold">Opponents</h1>
       <Button v-if="!adding" variant="outline" @click="adding = true">Add Opponent</Button>
