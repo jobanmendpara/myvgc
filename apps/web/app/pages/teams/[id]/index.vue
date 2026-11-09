@@ -177,7 +177,7 @@ const remove = useMutation({
         </AlertDescription>
       </Alert>
 
-      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2" data-testid="team-pokemon">
+      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3" data-testid="team-pokemon">
         <PokemonBuildCard
           v-for="(build, index) in team.pokemon"
           :key="index"
@@ -190,7 +190,7 @@ const remove = useMutation({
         <h2 class="font-medium">Notes</h2>
         <p
           v-if="team.notes"
-          class="text-sm whitespace-pre-wrap break-words"
+          class="max-w-prose text-sm whitespace-pre-wrap break-words"
           data-testid="team-notes"
         >
           {{ team.notes }}

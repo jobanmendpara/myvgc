@@ -14,12 +14,12 @@ const isCurrent = (to: string) => route.path === to || route.path.startsWith(`${
   <div class="flex min-h-dvh flex-col">
     <header class="border-b">
       <div
-        class="mx-auto flex w-full max-w-3xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3"
+        class="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3"
       >
         <NuxtLink to="/teams" class="text-lg font-semibold">MyVGC</NuxtLink>
         <AccountMenu />
       </div>
-      <nav aria-label="Main" class="mx-auto w-full max-w-3xl overflow-x-auto px-2">
+      <nav aria-label="Main" class="mx-auto w-full max-w-7xl overflow-x-auto px-2">
         <ul class="flex gap-1">
           <li v-for="area in areas" :key="area.to">
             <NuxtLink
@@ -33,7 +33,7 @@ const isCurrent = (to: string) => route.path === to || route.path.startsWith(`${
         </ul>
       </nav>
     </header>
-    <main class="mx-auto w-full max-w-3xl flex-1 p-4">
+    <main class="mx-auto w-full max-w-7xl flex-1 p-4">
       <slot />
     </main>
   </div>

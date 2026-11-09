@@ -2,7 +2,7 @@
   <div class="flex min-h-dvh flex-col">
     <header class="border-b">
       <div
-        class="mx-auto flex w-full max-w-3xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3"
+        class="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3"
       >
         <p class="text-lg font-semibold">MyVGC</p>
         <ThemePicker />

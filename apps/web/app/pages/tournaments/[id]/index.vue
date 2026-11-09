@@ -183,7 +183,7 @@ useHead({
 
       <section v-if="tournament.notes" aria-labelledby="notes-title" class="flex flex-col gap-2">
         <h2 id="notes-title" class="font-semibold">Notes</h2>
-        <p class="text-sm whitespace-pre-wrap">{{ tournament.notes }}</p>
+        <p class="max-w-prose text-sm whitespace-pre-wrap">{{ tournament.notes }}</p>
       </section>
 
       <div class="flex flex-col gap-3 border-t pt-6 sm:flex-row">

@@ -219,7 +219,10 @@ const playedNothing = computed(
         >
       </Alert>
 
-      <dl class="grid grid-cols-2 gap-3 sm:grid-cols-3" data-testid="dashboard-tiles">
+      <dl
+        class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6"
+        data-testid="dashboard-tiles"
+      >
         <div class="rounded-lg border p-3">
           <dt class="text-muted-foreground text-xs">Tournaments</dt>
           <dd class="text-2xl font-semibold tabular-nums">{{ s.tournamentsPlayed }}</dd>
@@ -285,27 +288,29 @@ const playedNothing = computed(
         </div>
       </dl>
 
-      <section aria-labelledby="splits-title" class="flex flex-col gap-4 rounded-lg border p-4">
-        <h2 id="splits-title" class="font-semibold">Win rate by Round</h2>
-        <WinRateMeter label="Swiss" :rate="s.byPhase.swiss" />
-        <WinRateMeter label="Top cut" :rate="s.byPhase.topCut" />
-        <WinRateMeter label="Best of 1" :rate="s.byBestOf[1]" />
-        <WinRateMeter label="Best of 3" :rate="s.byBestOf[3]" />
-      </section>
+      <div class="grid items-start gap-6 lg:grid-cols-2">
+        <section aria-labelledby="splits-title" class="flex flex-col gap-4 rounded-lg border p-4">
+          <h2 id="splits-title" class="font-semibold">Win rate by Round</h2>
+          <WinRateMeter label="Swiss" :rate="s.byPhase.swiss" />
+          <WinRateMeter label="Top cut" :rate="s.byPhase.topCut" />
+          <WinRateMeter label="Best of 1" :rate="s.byBestOf[1]" />
+          <WinRateMeter label="Best of 3" :rate="s.byBestOf[3]" />
+        </section>
 
-      <section
-        v-if="s.byTeam.length"
-        aria-labelledby="teams-title"
-        class="flex flex-col gap-4 rounded-lg border p-4"
-      >
-        <h2 id="teams-title" class="font-semibold">By Team</h2>
-        <WinRateMeter
-          v-for="team in s.byTeam"
-          :key="team.teamId ?? team.name"
-          :label="`${team.name} (${team.tournaments === 1 ? '1 Tournament' : `${team.tournaments} Tournaments`})`"
-          :rate="team"
-        />
-      </section>
+        <section
+          v-if="s.byTeam.length"
+          aria-labelledby="teams-title"
+          class="flex flex-col gap-4 rounded-lg border p-4"
+        >
+          <h2 id="teams-title" class="font-semibold">By Team</h2>
+          <WinRateMeter
+            v-for="team in s.byTeam"
+            :key="team.teamId ?? team.name"
+            :label="`${team.name} (${team.tournaments === 1 ? '1 Tournament' : `${team.tournaments} Tournaments`})`"
+            :rate="team"
+          />
+        </section>
+      </div>
 
       <div class="grid gap-6 sm:grid-cols-2">
         <section

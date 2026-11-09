@@ -52,7 +52,7 @@ async function save(body: TeamBody) {
 </script>
 
 <template>
-  <div class="flex flex-col gap-6">
+  <div class="mx-auto flex w-full max-w-3xl flex-col gap-6">
     <div>
       <h1 class="text-2xl font-semibold">Read a Teamsheet</h1>
       <p class="text-muted-foreground text-sm">

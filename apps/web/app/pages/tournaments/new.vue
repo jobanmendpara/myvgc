@@ -29,7 +29,7 @@ const failure = computed(() =>
 </script>
 
 <template>
-  <div class="flex flex-col gap-6">
+  <div class="mx-auto flex w-full max-w-3xl flex-col gap-6">
     <h1 class="text-2xl font-semibold">New Tournament</h1>
     <p v-if="tournaments.isPending.value" class="text-muted-foreground">Loading…</p>
     <TournamentForm

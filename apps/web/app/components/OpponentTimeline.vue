@@ -98,7 +98,7 @@ function confirmDelete(entry: NoteEntryView) {
 
 <template>
   <DefineForm>
-    <form class="flex flex-col gap-3" novalidate @submit.prevent="save.mutate()">
+    <form class="flex max-w-3xl flex-col gap-3" novalidate @submit.prevent="save.mutate()">
       <div class="flex flex-col gap-2">
         <Label for="note-entry-date">Date</Label>
         <Input id="note-entry-date" v-model="date" type="date" class="w-auto self-start" />
@@ -164,7 +164,7 @@ function confirmDelete(entry: NoteEntryView) {
                 >
               </div>
             </div>
-            <p class="text-sm whitespace-pre-wrap">{{ item.entry.text }}</p>
+            <p class="max-w-prose text-sm whitespace-pre-wrap">{{ item.entry.text }}</p>
           </template>
         </template>
         <template v-else>
@@ -179,7 +179,7 @@ function confirmDelete(entry: NoteEntryView) {
             </p>
             <span class="shrink-0 text-xs font-semibold">{{ roundOutcome(item.round) }}</span>
           </div>
-          <p class="text-sm whitespace-pre-wrap">{{ item.round.notes }}</p>
+          <p class="max-w-prose text-sm whitespace-pre-wrap">{{ item.round.notes }}</p>
         </template>
       </li>
     </ol>

@@ -31,7 +31,7 @@ const failure = computed(() =>
 </script>
 
 <template>
-  <div class="flex flex-col gap-6">
+  <div class="mx-auto flex w-full max-w-3xl flex-col gap-6">
     <h1 class="text-2xl font-semibold">Edit Tournament</h1>
     <p v-if="query.isPending.value" class="text-muted-foreground">Loading…</p>
     <Alert v-else-if="query.isError.value" variant="destructive" role="alert">

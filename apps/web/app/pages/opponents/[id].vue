@@ -142,7 +142,12 @@ const roundsMoving = computed(() => {
     </Alert>
 
     <template v-else-if="opponent">
-      <form v-if="editing" class="flex flex-col gap-4" novalidate @submit.prevent="save.mutate()">
+      <form
+        v-if="editing"
+        class="flex max-w-3xl flex-col gap-4"
+        novalidate
+        @submit.prevent="save.mutate()"
+      >
         <div class="flex flex-col gap-2">
           <Label for="display-name">Display name</Label>
           <Input id="display-name" v-model="displayName" autocomplete="off" />
@@ -197,7 +202,9 @@ const roundsMoving = computed(() => {
             in {{ opponent.roundCount === 1 ? '1 Round' : `${opponent.roundCount} Rounds` }}</span
           >
         </p>
-        <p v-if="opponent.notes" class="mt-2 text-sm whitespace-pre-wrap">{{ opponent.notes }}</p>
+        <p v-if="opponent.notes" class="mt-2 max-w-prose text-sm whitespace-pre-wrap">
+          {{ opponent.notes }}
+        </p>
       </header>
 
       <Alert v-if="merged" role="status">

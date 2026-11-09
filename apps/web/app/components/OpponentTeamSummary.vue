@@ -10,7 +10,7 @@ const nameOf = (kind: NameKind, id: string) => names.data.value?.[kind][id] ?? i
 </script>
 
 <template>
-  <ul class="grid gap-2 sm:grid-cols-2" aria-label="Opponent's Team">
+  <ul class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3" aria-label="Opponent's Team">
     <li
       v-for="build in pokemon"
       :key="build.species"

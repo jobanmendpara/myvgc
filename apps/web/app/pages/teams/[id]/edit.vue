@@ -25,7 +25,7 @@ function save(body: TeamBody) {
 </script>
 
 <template>
-  <div class="flex flex-col gap-6">
+  <div class="mx-auto flex w-full max-w-3xl flex-col gap-6">
     <h1 class="text-2xl font-semibold">Edit Team</h1>
     <p v-if="teamQuery.isPending.value" class="text-muted-foreground">Loading…</p>
     <TeamBuilder
