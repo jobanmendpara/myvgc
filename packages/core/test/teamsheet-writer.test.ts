@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises'
+import fontkit from '@pdf-lib/fontkit'
 import { PDFCheckBox, PDFDocument, PDFTextField } from 'pdf-lib'
 import { describe, expect, it } from 'vitest'
 import {
@@ -10,10 +11,10 @@ import {
 } from '../src'
 import { TEAM_LIST_PAGES, pageFields } from '../src/team-list'
 
-// The bundled template and font live with the API, which reads them (ADR 18, ADR 25).
+// The bundled template and font live with the API, which reads them (ADR 18, ADR 28).
 const ASSETS = new URL('../../../apps/api/assets/', import.meta.url)
 const template = () => readFile(new URL('team-list/play-pokemon-vg-team-list.pdf', ASSETS))
-const font = () => readFile(new URL('fonts/NotoSans-Regular.ttf', ASSETS))
+const font = () => readFile(new URL('fonts/DejaVuSans.ttf', ASSETS))
 const FIXTURE = new URL('./fixtures/teamsheet-gg-filled.pdf', import.meta.url)
 
 const BLANK_HEADER: WriteTeamsheetInput['header'] = {
@@ -205,6 +206,14 @@ describe('writeTeamsheet', () => {
       f25: 'Chilly Reception',
       f41: 'Sirfetch’d',
     })
+  })
+
+  it('embeds a font that covers what a User might type in a PDF viewer (ADR 28)', async () => {
+    const embedded = fontkit.create(await font())
+
+    for (const character of 'Nidoran♀ Nidoran♂ Sirfetch’d Flabébé') {
+      expect(embedded.hasGlyphForCodePoint(character.codePointAt(0)!), character).toBe(true)
+    }
   })
 
   it("refuses a template it doesn't know", async () => {

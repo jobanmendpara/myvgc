@@ -30,7 +30,7 @@ export const TEAM_LIST_SHA256 = '4c0bb4ebe74d22edce3dd48d87f8009e0fb2121e43fd2c8
 export interface WriteTeamsheetInput {
   /** The bundled blank team list. */
   template: Uint8Array
-  /** The full Noto Sans, embedded as the fields' font (ADR 25). */
+  /** The full DejaVu Sans, embedded as the fields' font (ADR 28). */
   font: Uint8Array
   pokemon: PokemonBuild[]
   /** Player details and the Battle Team name, Age Division already worked out. */
