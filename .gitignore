@@ -28,3 +28,6 @@ coverage/
 # Playwright output
 test-results/
 playwright-report/
+
+# Smoke test sessions
+e2e/.auth/
