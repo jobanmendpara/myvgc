@@ -12,6 +12,7 @@ import {
   readTeamsheet,
   teamPokemonSchema,
   teamSchema,
+  today,
   writePaste,
 } from '@myvgc/core'
 import { and, desc, eq } from 'drizzle-orm'
@@ -21,6 +22,7 @@ import type { AppEnv } from '../app'
 import { team } from '../db/schema'
 import type { Database } from '../db/types'
 import { invalid, isId, notFound, readBody } from './helpers'
+import { exportTeamsheet } from './teamsheet-export'
 
 type TeamRow = typeof team.$inferSelect
 
@@ -153,6 +155,17 @@ export function teamRoutes(db: Database) {
           .where(ownTeam(id, c.get('user').id))
         if (!row) return notFound(c)
         return c.text(writePaste(row.pokemon))
+      })
+      // The Team's Teamsheet, made on demand and never stored (ADR 6, ADR 25), for today's Season.
+      .post('/:id/teamsheet', async (c) => {
+        const id = c.req.param('id')
+        if (!isId(id)) return notFound(c)
+        const [row] = await db
+          .select({ name: team.name, pokemon: team.pokemon })
+          .from(team)
+          .where(ownTeam(id, c.get('user').id))
+        if (!row) return notFound(c)
+        return exportTeamsheet(c, row, today())
       })
       .delete('/:id', async (c) => {
         const id = c.req.param('id')

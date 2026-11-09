@@ -114,6 +114,12 @@ const snapshotDate = computed(() =>
         >
           {{ link.isPending.value ? 'Updating…' : 'Update snapshot' }}
         </Button>
+        <TeamsheetExport
+          :url="`/api/tournaments/${tournament.id}/team/teamsheet`"
+          :team-name="tournament.team.name"
+          :legality="tournament.team.legality"
+          :season-date="tournament.startDate"
+        />
         <Button variant="outline" size="sm" @click="startChoosing">Change Team</Button>
         <Button
           variant="ghost"

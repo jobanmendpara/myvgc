@@ -45,6 +45,16 @@ test('sign up, import a Team and see its six Pokémon', async ({ page }) => {
     await expect(builds.nth(index).getByRole('heading', { level: 2 })).toHaveText(species)
   }
 
+  // Teamsheet export needs the bundled team list and font in the image (ADR 18, ADR 25).
+  await page.getByTestId('export-teamsheet').click()
+  await expect(page.getByRole('alertdialog', { name: 'Export Teamsheet' })).toBeVisible()
+  await expect(page.getByLabel('Battle Team Number / Name')).toHaveValue('Smoke test Team')
+  await page.getByLabel('Player Name').fill('Smoke Tester')
+  const download = page.waitForEvent('download')
+  await page.getByTestId('export-teamsheet-submit').click()
+  expect((await download).suggestedFilename()).toBe('Smoke test Team Teamsheet.pdf')
+  await expect(page.getByRole('alertdialog')).toBeHidden()
+
   await page.goto('/teams')
   await expect(page.getByTestId('teams-list')).toContainText('Smoke test Team')
 })

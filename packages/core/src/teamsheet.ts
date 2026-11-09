@@ -10,25 +10,21 @@ import {
 } from './build'
 import { type ChampionsKind, champions, championsNames } from './champions'
 import { statPointsFromValues } from './stat-values'
+import {
+  ABILITY,
+  FIELD_COUNT,
+  FIRST_MOVE,
+  FIRST_STAT,
+  ITEM,
+  SPECIES,
+  STAT_ALIGNMENT,
+  TEAM_LIST_PAGES,
+} from './team-list'
 import type { ReadFlag } from './team'
 
 export type ReadTeamsheetResult =
   | { ok: true; name: string; pokemon: PokemonBuild[]; flags: ReadFlag[] }
   | { ok: false; error: string }
-
-// teamsheet.gg's form fields, `f0` to `f150` (docs/research/vg-team-list-pdf.md). Each page has
-// a Battle Team name field and six Pokémon boxes; a box's fields run on from its first.
-const PAGES = [
-  { name: 10, boxes: [19, 41, 63, 85, 107, 129], stats: true },
-  { name: 11, boxes: [33, 55, 77, 99, 121, 143], stats: false },
-]
-const FIELD_COUNT = 151
-const SPECIES = 0
-const STAT_ALIGNMENT = 1
-const ABILITY = 2
-const ITEM = 3
-const FIRST_MOVE = 4
-const FIRST_STAT = 8
 
 const NOT_A_TEAMSHEET =
   "This isn't a recognised Teamsheet. MyVGC reads Teamsheets filled in on teamsheet.gg."
@@ -62,7 +58,7 @@ export async function readTeamsheet(pdf: Uint8Array): Promise<ReadTeamsheetResul
 
   const text = (field: number) => fields.get(`f${field}`) ?? ''
   // The staff page has stat values; the opponents page is the fallback.
-  const page = PAGES.find(({ boxes }) => boxes.some((first) => text(first + SPECIES)))
+  const page = TEAM_LIST_PAGES.find(({ boxes }) => boxes.some((first) => text(first + SPECIES)))
   if (!page) return { ok: false, error: 'This Teamsheet has no Pokémon on it.' }
 
   const flags: ReadFlag[] = []
@@ -70,7 +66,10 @@ export async function readTeamsheet(pdf: Uint8Array): Promise<ReadTeamsheetResul
     .filter((first) => text(first + SPECIES))
     .map((first, index) => readBox(text, first, page.stats, index, flags))
   // Players often fill in only one page's header.
-  const name = text(page.name) || PAGES.map((other) => text(other.name)).find(Boolean) || ''
+  const name =
+    text(page.header.battleTeamName) ||
+    TEAM_LIST_PAGES.map((other) => text(other.header.battleTeamName)).find(Boolean) ||
+    ''
   return { ok: true, name, pokemon, flags }
 }
 
