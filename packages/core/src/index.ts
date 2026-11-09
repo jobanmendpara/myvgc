@@ -6,5 +6,6 @@ export { champions, championsNames, displayName, type ChampionsKind } from './ch
 export { checkGames, checkPokemon, type PokemonIssue } from './check-pokemon'
 export { judgeTeam } from './legality'
 export { nameBuild } from './names'
+export { readTeamsheet, type ReadTeamsheetResult } from './teamsheet'
 export { readPaste, writePaste, type PasteIssue, type ReadPasteResult } from './paste'
 export { checkDataExport, settleImportedRound, type ImportAccount } from './data-import'

@@ -4,6 +4,7 @@ import {
   ArrowUpIcon,
   EllipsisVerticalIcon,
   GripVerticalIcon,
+  ScanSearchIcon,
   TriangleAlertIcon,
   XIcon,
 } from '@lucide/vue'
@@ -29,6 +30,8 @@ const props = defineProps<{
   error?: string
   /** What's illegal about it. These never stop a save (ADR 18). */
   problems?: LegalityProblem[]
+  /** What the reader wasn't sure of, for a slot read from a file (ADR 24). */
+  flags?: string[]
 }>()
 const emit = defineEmits<{ edit: []; remove: []; reorder: [to: number] }>()
 
@@ -77,6 +80,15 @@ const MENU_ITEM =
       >
         <TriangleAlertIcon class="mt-0.5 size-4 shrink-0" aria-hidden="true" />
         {{ problem.message }}
+      </span>
+      <span
+        v-for="flag in props.flags"
+        :key="flag"
+        class="text-muted-foreground flex items-start gap-1.5 text-sm"
+        data-testid="read-flag"
+      >
+        <ScanSearchIcon class="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+        {{ flag }}
       </span>
     </button>
 

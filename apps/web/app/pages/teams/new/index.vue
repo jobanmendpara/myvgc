@@ -12,6 +12,11 @@ const WAYS = [
     title: 'Build',
     description: 'Choose each Pokémon yourself. Only the species is required.',
   },
+  {
+    to: '/teams/new/teamsheet',
+    title: 'Read a Teamsheet',
+    description: 'Choose a Teamsheet PDF filled in on teamsheet.gg, then check what was read.',
+  },
 ]
 </script>
 

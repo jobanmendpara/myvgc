@@ -1,4 +1,4 @@
-import type { StatId, StatPoints } from './build'
+import { MAX_STAT_POINTS, STAT_IDS, type StatId, type StatPoints } from './build'
 import { statAlignmentEffect } from './stat-alignment'
 
 /** A species' or form's base stats. */
@@ -33,4 +33,36 @@ export function statValues(
     spd: value('spd'),
     spe: value('spe'),
   }
+}
+
+/** Stat Points worked out from stat values, and the stats no Stat Points could explain. */
+export interface StatPointsRead {
+  statPoints: StatPoints
+  /** Stats whose value no Stat Points give, for this species and Stat Alignment. Given 0. */
+  impossible: StatId[]
+}
+
+/**
+ * The Stat Points behind some stat values, working `statValues` backwards (ADR 24). A missing
+ * value gives 0. On a lowered stat, rounding down often lets two Stat Points values give the same
+ * stat value; they make the same Pokémon, so the smallest is used.
+ */
+export function statPointsFromValues(
+  baseStats: BaseStats,
+  values: Partial<StatValues>,
+  statAlignment?: string,
+): StatPointsRead {
+  const statPoints: StatPoints = { hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0 }
+  const impossible: StatId[] = []
+  for (const stat of STAT_IDS) {
+    const value = values[stat]
+    if (value === undefined) continue
+    const fits = Array.from({ length: MAX_STAT_POINTS + 1 }, (_, points) => points).filter(
+      (points) =>
+        statValues(baseStats, { ...statPoints, [stat]: points }, statAlignment)[stat] === value,
+    )
+    statPoints[stat] = fits[0] ?? 0
+    if (fits.length === 0) impossible.push(stat)
+  }
+  return { statPoints, impossible }
 }
