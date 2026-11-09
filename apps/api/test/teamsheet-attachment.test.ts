@@ -168,6 +168,16 @@ describe('A Tournament’s Teamsheet attachment', () => {
     )
   })
 
+  it('cuts a long name to 200 characters without splitting one, and drops direction overrides', async () => {
+    await setUp()
+    const res = await upload(await pdf(), `${'a'.repeat(199)}🦊 tail.pdf`)
+    expect((await json(res)).fileName).toBe(`${'a'.repeat(199)}🦊`)
+    expect((await get(t.app, path(), ash)).status).toBe(200)
+
+    const flipped = await upload(await pdf(), 'sheet‮fdp.exe')
+    expect((await json(flipped)).fileName).toBe('sheetfdp.exe')
+  })
+
   it('needs a session', async () => {
     await setUp()
     const res = await t.app.request(path(), { headers: { origin: APP_URL } })

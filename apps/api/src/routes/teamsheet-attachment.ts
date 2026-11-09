@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { MAX_TEAMSHEET_BYTES, TEAMSHEET_TOO_LARGE, type TeamsheetAttachmentView } from '@myvgc/core'
+import { MAX_TEAMSHEET_BYTES, TEAMSHEET_TOO_LARGE } from '@myvgc/core'
 import { Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import type { AppEnv } from '../app'
@@ -7,37 +7,19 @@ import { tournament } from '../db/schema'
 import type { Database } from '../db/types'
 import type { FileStorage } from '../storage'
 import { deleted, isId, notFound } from './helpers'
+import { discardFile, toTeamsheetView } from './teamsheet-attachment-data'
 import { ownTournament } from './tournaments'
-
-type TournamentRow = typeof tournament.$inferSelect
-
-export function toTeamsheetView(row: TournamentRow): TeamsheetAttachmentView | null {
-  if (!row.teamsheetFileName || row.teamsheetSize === null || !row.teamsheetUploadedAt) return null
-  return {
-    fileName: row.teamsheetFileName,
-    size: row.teamsheetSize,
-    uploadedAt: row.teamsheetUploadedAt.toISOString(),
-  }
-}
-
-/**
- * Deletes a file whose record is already gone. A failure only leaves an orphaned file, which
- * nobody can reach, so it is logged rather than failing the request (ADR 27).
- */
-export async function discardFile(storage: FileStorage, key: string | null) {
-  if (!key) return
-  await storage.delete(key).catch((error) => console.error(`Couldn't delete ${key}:`, error))
-}
 
 const MAX_FILE_NAME = 200
 
-/** The name the file was uploaded with, without folders or control characters. */
-export function cleanFileName(name: string): string {
-  const cleaned = (name.split(/[/\\]/).pop() ?? '')
-    .replace(/\p{Cc}/gu, '')
-    .trim()
-    .slice(0, MAX_FILE_NAME)
-  return cleaned || 'teamsheet.pdf'
+// Direction overrides can make `fdp.exe` read as `exe.pdf`.
+const UNSAFE = /[\p{Cc}\u202a-\u202e\u2066-\u2069]/gu
+
+/** The name the file was uploaded with, without folders, control characters or overrides. */
+function cleanFileName(name: string): string {
+  const characters = Array.from((name.split(/[/\\]/).pop() ?? '').replace(UNSAFE, '').trim())
+  // Cut by character, not UTF-16 unit, so an emoji is never split in half.
+  return characters.slice(0, MAX_FILE_NAME).join('').trim() || 'teamsheet.pdf'
 }
 
 /** `inline`, with an ASCII fallback name and the real one in RFC 5987 encoding. */
@@ -57,7 +39,7 @@ const isPdf = (bytes: Uint8Array) => PDF_HEADER.every((byte, index) => bytes[ind
  * A Tournament's Teamsheet attachment (ADR 27): a PDF the User uploaded, kept exactly as sent.
  * Mounted at /api/tournaments/:tournamentId/teamsheet behind the session middleware.
  */
-export function teamsheetRoutes(db: Database, storage: FileStorage) {
+export function teamsheetAttachmentRoutes(db: Database, storage: FileStorage) {
   return new Hono<AppEnv>()
     .put(
       '/',

@@ -27,7 +27,7 @@ import type { FileStorage } from '../storage'
 import { deleted, escapeLike, idTaken, invalid, isId, notFound, readBody } from './helpers'
 import { loadOpponentTeams } from './opponent-team-data'
 import { loadRounds } from './round-data'
-import { discardFile, toTeamsheetView } from './teamsheet-attachment'
+import { discardFile, toTeamsheetView } from './teamsheet-attachment-data'
 
 type TournamentRow = typeof tournament.$inferSelect
 

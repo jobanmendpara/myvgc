@@ -10,7 +10,7 @@ import { dataRoutes } from './routes/data'
 import { noteEntryRoutes } from './routes/note-entries'
 import { opponentRoutes } from './routes/opponents'
 import { roundRoutes } from './routes/rounds'
-import { teamsheetRoutes } from './routes/teamsheet-attachment'
+import { teamsheetAttachmentRoutes } from './routes/teamsheet-attachment'
 import { tournamentRoutes } from './routes/tournaments'
 import { mountWeb } from './static'
 import type { FileStorage } from './storage'
@@ -65,7 +65,7 @@ export function createApp({ db, auth: authOptions, storage, webDir }: AppOptions
   app.route('/api/account', accountRoutes(db))
   app.route('/api/teams', teamRoutes(db))
   app.route('/api/tournaments/:tournamentId/rounds', roundRoutes(db))
-  app.route('/api/tournaments/:tournamentId/teamsheet', teamsheetRoutes(db, storage))
+  app.route('/api/tournaments/:tournamentId/teamsheet', teamsheetAttachmentRoutes(db, storage))
   app.route('/api/tournaments', tournamentRoutes(db, storage))
   app.route('/api/opponents', opponentRoutes(db))
   app.route('/api/note-entries', noteEntryRoutes(db))
