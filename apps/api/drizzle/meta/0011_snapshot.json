@@ -1,5 +1,5 @@
 {
-  "id": "1f2b5287-b6f3-4d70-b17b-03bf5170f5c5",
+  "id": "ef5f1f31-8808-4020-926e-b39b5454984b",
   "prevId": "5b6e9ece-31ce-4952-a256-3f98cdb23d9c",
   "version": "7",
   "dialect": "postgresql",
@@ -642,30 +642,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "teamsheet_key": {
-          "name": "teamsheet_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "teamsheet_file_name": {
-          "name": "teamsheet_file_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "teamsheet_size": {
-          "name": "teamsheet_size",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "teamsheet_uploaded_at": {
-          "name": "teamsheet_uploaded_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
         "notes": {
           "name": "notes",
           "type": "text",
@@ -746,10 +722,6 @@
         "tournament_entry_fee_complete": {
           "name": "tournament_entry_fee_complete",
           "value": "(\"tournament\".\"entry_fee_amount\" is null) = (\"tournament\".\"entry_fee_currency\" is null)"
-        },
-        "tournament_teamsheet_complete": {
-          "name": "tournament_teamsheet_complete",
-          "value": "num_nulls(\"tournament\".\"teamsheet_key\", \"tournament\".\"teamsheet_file_name\", \"tournament\".\"teamsheet_size\", \"tournament\".\"teamsheet_uploaded_at\") in (0, 4)"
         }
       },
       "isRLSEnabled": false
@@ -1304,6 +1276,12 @@
         "age_division": {
           "name": "age_division",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "date_of_birth": {
+          "name": "date_of_birth",
+          "type": "date",
           "primaryKey": false,
           "notNull": false
         },

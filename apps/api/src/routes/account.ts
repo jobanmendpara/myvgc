@@ -1,4 +1,4 @@
-import { type PlayerDetails, playerDetailsSchema } from '@myvgc/core'
+import { type PlayerDetails, playerDetailsSchema, playerDetailsSchemaOn, today } from '@myvgc/core'
 import { eq } from 'drizzle-orm'
 import { Hono } from 'hono'
 import type { AppEnv } from '../app'
@@ -20,6 +20,7 @@ export function accountRoutes(db: Database) {
       playerId: row.playerId,
       supportId: row.supportId,
       ageDivision: row.ageDivision,
+      dateOfBirth: row.dateOfBirth,
     }
   }
 
@@ -34,7 +35,7 @@ export function accountRoutes(db: Database) {
       })
       // Replaces all of the User's Player details; a field left out is blanked.
       .put('/player-details', async (c) => {
-        const input = await readBody(c, playerDetailsSchema)
+        const input = await readBody(c, playerDetailsSchemaOn(today()))
         if (!input.ok) return input.response
         const [row] = await db
           .insert(playerDetails)

@@ -1,0 +1,1 @@
+ALTER TABLE "player_details" ADD COLUMN "date_of_birth" date;
