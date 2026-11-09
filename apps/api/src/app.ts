@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm'
 import { Hono } from 'hono'
-import { type AuthOptions, type SessionUser, createAuth } from './auth'
+import { type AuthOptions, type SessionUser, createAuth, withClientAddress } from './auth'
 import type { Database } from './db/types'
 import { REGULATION_PERIODS, SEASONS, championsNames, currentRegulation, today } from '@myvgc/core'
 import { accountRoutes } from './routes/account'
@@ -39,7 +39,7 @@ export function createApp({ db, auth: authOptions, webDir }: AppOptions): Hono<A
     }
   })
 
-  app.on(['GET', 'POST'], '/api/auth/*', (c) => auth.handler(c.req.raw))
+  app.on(['GET', 'POST'], '/api/auth/*', (c) => auth.handler(withClientAddress(c)))
 
   // Everything else under /api needs a session. Unknown /api routes also answer 401 to
   // logged-out callers, so they can't probe which routes exist.

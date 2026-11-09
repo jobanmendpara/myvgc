@@ -14,7 +14,7 @@ export interface TestApp {
 
 /** The app on a fresh in-process Postgres with migrations applied. */
 export async function createTestApp(
-  options: { allowSignups?: boolean; webDir?: string } = {},
+  options: { allowSignups?: boolean; webDir?: string; rateLimit?: boolean } = {},
 ): Promise<TestApp> {
   const { db, client } = await createTestDb()
   const app = createApp({
@@ -24,6 +24,7 @@ export async function createTestApp(
       secret: 'test-secret-that-is-at-least-32-characters-long',
       appUrl: APP_URL,
       allowSignups: options.allowSignups ?? true,
+      rateLimit: options.rateLimit,
     },
   })
   return { app, db, client }

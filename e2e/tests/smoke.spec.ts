@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs'
-import { expect, test } from '@playwright/test'
+import { expect, test } from './client'
 
 // The 2026 World Championships winner's open team list, a real paste also used by the
 // paste reader's tests.
