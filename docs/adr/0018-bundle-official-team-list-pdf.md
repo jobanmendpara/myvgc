@@ -1,7 +1,7 @@
 # 18. Bundle the official team list PDF
 
 Date: 2026-11-05
-Status: Accepted
+Status: Accepted. Drawing text at coordinates is replaced by ADR 25 (form fields).
 
 ## Context
 Teamsheet export (DEV-31) fills the official Pokémon Video Game Team List PDF, which belongs to The Pokémon Company International. MyVGC needs the blank template from somewhere. The options were to bundle it, download it from the official URL at export time, ask the User to supply it, or draw a look-alike sheet (DEV-49).
