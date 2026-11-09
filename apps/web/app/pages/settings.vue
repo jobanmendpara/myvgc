@@ -44,8 +44,8 @@ onMounted(() => {
       <div class="flex flex-col gap-1">
         <h2 id="player-details-heading" class="text-lg font-semibold">Player details</h2>
         <p class="text-muted-foreground text-sm">
-          Written onto your Teamsheets. All optional. Your date of birth is never kept: write it on
-          the printed Teamsheet by hand.
+          Written onto your Teamsheets. All optional. With your Date of Birth, your Age Division is
+          worked out for each Season.
         </p>
       </div>
       <PlayerDetailsForm />

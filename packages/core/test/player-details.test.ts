@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { MAX_PLAYER_DETAIL_LENGTH, playerDetailsSchema } from '../src/schema'
+import { MAX_PLAYER_DETAIL_LENGTH, playerDetailsSchema, playerDetailsSchemaOn } from '../src/schema'
 
 const fieldsWithErrors = (result: {
   success: boolean
@@ -15,6 +15,7 @@ describe('Player details', () => {
       playerId: '',
       supportId: '',
       ageDivision: null,
+      dateOfBirth: null,
     })
   })
 
@@ -35,6 +36,7 @@ describe('Player details', () => {
       playerId: '1234567',
       supportId: 'ABCD-1234',
       ageDivision: 'Masters',
+      dateOfBirth: null,
     })
   })
 
@@ -58,9 +60,25 @@ describe('Player details', () => {
     ])
   })
 
-  it('never take a date of birth (ADR 20)', () => {
-    expect(playerDetailsSchema.parse({ dateOfBirth: '2010-01-01' })).not.toHaveProperty(
+  it('take a Date of Birth (ADR 26)', () => {
+    expect(playerDetailsSchema.parse({ dateOfBirth: '2010-01-31' }).dateOfBirth).toBe('2010-01-31')
+    expect(playerDetailsSchema.parse({ dateOfBirth: null }).dateOfBirth).toBeNull()
+  })
+
+  it.each(['31/01/2010', '2010-02-30', '2010-1-31', ''])(
+    'refuse the Date of Birth %j',
+    (dateOfBirth) => {
+      expect(fieldsWithErrors(playerDetailsSchema.safeParse({ dateOfBirth }))).toEqual([
+        'dateOfBirth',
+      ])
+    },
+  )
+
+  it('refuse a Date of Birth after the day they are saved on', () => {
+    const savedOn = playerDetailsSchemaOn('2026-11-09')
+    expect(savedOn.parse({ dateOfBirth: '2026-11-09' }).dateOfBirth).toBe('2026-11-09')
+    expect(fieldsWithErrors(savedOn.safeParse({ dateOfBirth: '2026-11-10' }))).toEqual([
       'dateOfBirth',
-    )
+    ])
   })
 })

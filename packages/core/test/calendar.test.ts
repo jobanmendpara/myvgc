@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { currentRegulation, regulationOn, seasonOf } from '../src/schema'
+import { SEASONS, ageDivisionIn, currentRegulation, regulationOn, seasonOf } from '../src/schema'
 
 describe('regulationOn', () => {
   it.each([
@@ -43,5 +43,29 @@ describe('seasonOf', () => {
 
   it('has no Season before Champions came out', () => {
     expect(seasonOf('2026-04-07')).toBeUndefined()
+  })
+})
+
+describe('ageDivisionIn', () => {
+  const season2027 = SEASONS.find((season) => season.id === '2027')!
+
+  // Play! Pokémon's 2027 Season: Juniors born 2015 or later, Seniors 2011 to 2014, Masters 2010
+  // or earlier. Only the birth year counts.
+  it.each([
+    ['2020-06-15', 'Junior'],
+    ['2015-01-01', 'Junior'],
+    ['2014-12-31', 'Senior'],
+    ['2011-01-01', 'Senior'],
+    ['2010-12-31', 'Masters'],
+    ['1990-03-03', 'Masters'],
+  ])('someone born on %s is in %s for the 2027 Season', (dateOfBirth, division) => {
+    expect(ageDivisionIn(dateOfBirth, season2027)).toBe(division)
+  })
+
+  it('moves the cut-offs on a year each Season', () => {
+    const season2026 = SEASONS.find((season) => season.id === '2026')!
+    expect(ageDivisionIn('2014-12-31', season2026)).toBe('Junior')
+    expect(ageDivisionIn('2010-12-31', season2026)).toBe('Senior')
+    expect(ageDivisionIn('2009-12-31', season2026)).toBe('Masters')
   })
 })

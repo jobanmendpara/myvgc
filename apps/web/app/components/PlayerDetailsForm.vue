@@ -3,7 +3,10 @@ import {
   AGE_DIVISIONS,
   MAX_PLAYER_DETAIL_LENGTH,
   type PlayerDetails,
+  ageDivisionIn,
   playerDetailsSchema,
+  seasonOf,
+  today,
 } from '@myvgc/core/schema'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 import { useOnline } from '@vueuse/core'
@@ -19,7 +22,7 @@ const query = useQuery({
   queryFn: () => $fetch<PlayerDetails>('/api/account/player-details'),
 })
 
-type TextField = Exclude<keyof PlayerDetails, 'ageDivision'>
+type TextField = Exclude<keyof PlayerDetails, 'ageDivision' | 'dateOfBirth'>
 const TEXT_FIELDS: { field: TextField; label: string; hint?: string }[] = [
   { field: 'playerName', label: 'Player Name' },
   { field: 'trainerName', label: 'Trainer Name in Game' },
@@ -40,6 +43,20 @@ const ageDivision = computed({
     draft.ageDivision = AGE_DIVISIONS.find((division) => division === value) ?? null
   },
 })
+// The date input's empty value is no Date of Birth.
+const dateOfBirth = computed({
+  get: () => draft.dateOfBirth ?? '',
+  set: (value: string) => {
+    draft.dateOfBirth = value || null
+  },
+})
+// With a Date of Birth, the Age Division for the current Season is worked out (ADR 26) and the
+// picker, kept only as the fallback, is hidden.
+const maxDateOfBirth = today()
+const currentSeason = seasonOf(maxDateOfBirth)
+const workedOutDivision = computed(() =>
+  draft.dateOfBirth && currentSeason ? ageDivisionIn(draft.dateOfBirth, currentSeason) : null,
+)
 // What the form last loaded or saved, to tell whether it has unsaved changes.
 const saved = ref(JSON.stringify(draft))
 const dirty = computed(() => JSON.stringify(draft) !== saved.value)
@@ -121,6 +138,29 @@ const { discarding, answer } = useDiscardGuard(dirty)
       </div>
 
       <div class="flex flex-col gap-2">
+        <Label for="dateOfBirth">Date of Birth</Label>
+        <Input
+          id="dateOfBirth"
+          v-model="dateOfBirth"
+          type="date"
+          class="w-auto self-start"
+          :max="maxDateOfBirth"
+          :aria-invalid="fieldErrors.dateOfBirth ? true : undefined"
+          aria-describedby="dateOfBirth-error"
+        />
+        <p v-if="fieldErrors.dateOfBirth" id="dateOfBirth-error" class="text-destructive text-sm">
+          {{ fieldErrors.dateOfBirth }}
+        </p>
+      </div>
+
+      <div v-if="workedOutDivision" class="flex flex-col gap-1" data-testid="worked-out-division">
+        <p class="text-sm font-medium">Age Division</p>
+        <p class="text-sm">{{ workedOutDivision }}</p>
+        <p class="text-muted-foreground text-xs">
+          From your Date of Birth, for the {{ currentSeason?.name }}.
+        </p>
+      </div>
+      <div v-else class="flex flex-col gap-2">
         <Label for="ageDivision">Age Division</Label>
         <NativeSelect
           id="ageDivision"
