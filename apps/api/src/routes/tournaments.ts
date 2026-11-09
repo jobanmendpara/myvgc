@@ -28,6 +28,7 @@ import { deleted, escapeLike, idTaken, invalid, isId, notFound, readBody } from 
 import { loadOpponentTeams } from './opponent-team-data'
 import { loadRounds } from './round-data'
 import { discardFile, toTeamsheetView } from './teamsheet-attachment-data'
+import { exportTeamsheet } from './teamsheet-export'
 
 type TournamentRow = typeof tournament.$inferSelect
 
@@ -236,6 +237,17 @@ export function tournamentRoutes(db: Database, storage: FileStorage) {
           .where(where)
           .returning()
         return c.json(await viewWithRounds(row!))
+      })
+      // The Team snapshot's Teamsheet (ADR 25), for the Season the Tournament starts in.
+      .post('/:id/team/teamsheet', async (c) => {
+        const id = c.req.param('id')
+        if (!isId(id)) return notFound(c)
+        const [row] = await db
+          .select()
+          .from(tournament)
+          .where(ownTournament(id, c.get('user').id))
+        if (!row?.teamName || !row.teamPokemon) return notFound(c)
+        return exportTeamsheet(c, { name: row.teamName, pokemon: row.teamPokemon }, row.startDate)
       })
       .delete('/:id/team', async (c) => {
         const id = c.req.param('id')

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { type TeamView, buildProblems, teamProblems } from '@myvgc/core/schema'
+import { type TeamView, buildProblems, teamProblems, today } from '@myvgc/core/schema'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 import { FetchError } from 'ofetch'
 
@@ -131,6 +131,12 @@ const remove = useMutation({
           <Button as-child variant="outline"
             ><NuxtLink :to="`/teams/${id}/edit`">Edit</NuxtLink></Button
           >
+          <TeamsheetExport
+            :url="`/api/teams/${id}/teamsheet`"
+            :team-name="team.name"
+            :legality="team.legality"
+            :season-date="today()"
+          />
           <Button variant="outline" class="text-destructive" @click="confirmingDelete = true"
             >Delete</Button
           >

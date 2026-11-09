@@ -78,3 +78,13 @@ export function uniqueViolation(error: unknown): string | undefined {
   }
   return undefined
 }
+
+/** A Content-Disposition with an ASCII fallback name and the real one in RFC 5987 encoding. */
+export function contentDisposition(type: 'inline' | 'attachment', fileName: string) {
+  const ascii = fileName.replace(/[^\x20-\x7e]|["\\]/g, '_')
+  const encoded = encodeURIComponent(fileName).replace(
+    /['()*]/g,
+    (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`,
+  )
+  return `${type}; filename="${ascii}"; filename*=UTF-8''${encoded}`
+}

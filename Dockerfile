@@ -20,6 +20,8 @@ ENV PORT=3000
 WORKDIR /app
 COPY --from=build /app/apps/api/dist ./apps/api/dist
 COPY --from=build /app/apps/api/drizzle ./apps/api/drizzle
+# The team list and font Teamsheet export fills in (ADR 18, ADR 25).
+COPY --from=build /app/apps/api/assets ./apps/api/assets
 COPY --from=build /app/apps/web/.output/public ./apps/web/.output/public
 # Uploaded files (ADR 27). A volume, so they outlive the container; compose.yaml names it.
 ENV UPLOADS_DIR=/data/uploads

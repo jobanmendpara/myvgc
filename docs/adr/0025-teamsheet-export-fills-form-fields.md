@@ -1,7 +1,7 @@
 # 25. Teamsheet export fills form fields
 
 Date: 2026-11-09
-Status: Accepted (DEV-31). Replaces ADR 18's decision to draw text at measured coordinates, and ADR 20's subset font.
+Status: Accepted (DEV-31). Replaces ADR 18's decision to draw text at measured coordinates, and ADR 20's subset font. The choice of Noto Sans is replaced by ADR 28 (DejaVu Sans).
 
 ## Context
 ADR 18 bundles TPCi's flat team list PDF and has export draw text on it at measured coordinates. A drawn sheet can't be changed after download: a typo, a late item swap or the Date of Birth box means exporting again or writing by hand. Players already use teamsheet.gg, whose download adds 151 form fields (`f0` to `f150`) to the same template, and MyVGC reads that layout (ADR 24, DEV-62). A fixture of it is in `packages/core/test/fixtures/teamsheet-gg-filled.pdf`.

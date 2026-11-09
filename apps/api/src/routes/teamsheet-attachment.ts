@@ -6,7 +6,7 @@ import type { AppEnv } from '../app'
 import { tournament } from '../db/schema'
 import type { Database } from '../db/types'
 import type { FileStorage } from '../storage'
-import { deleted, isId, notFound } from './helpers'
+import { contentDisposition, deleted, isId, notFound } from './helpers'
 import { discardFile, toTeamsheetView } from './teamsheet-attachment-data'
 import { ownTournament } from './tournaments'
 
@@ -20,16 +20,6 @@ function cleanFileName(name: string): string {
   const characters = Array.from((name.split(/[/\\]/).pop() ?? '').replace(UNSAFE, '').trim())
   // Cut by character, not UTF-16 unit, so an emoji is never split in half.
   return characters.slice(0, MAX_FILE_NAME).join('').trim() || 'teamsheet.pdf'
-}
-
-/** `inline`, with an ASCII fallback name and the real one in RFC 5987 encoding. */
-function contentDisposition(fileName: string) {
-  const ascii = fileName.replace(/[^\x20-\x7e]|["\\]/g, '_')
-  const encoded = encodeURIComponent(fileName).replace(
-    /['()*]/g,
-    (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`,
-  )
-  return `inline; filename="${ascii}"; filename*=UTF-8''${encoded}`
 }
 
 const PDF_HEADER = new TextEncoder().encode('%PDF-')
@@ -98,7 +88,7 @@ export function teamsheetAttachmentRoutes(db: Database, storage: FileStorage) {
       if (!row?.teamsheetFileName || !file) return notFound(c)
       return c.body(file, 200, {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': contentDisposition(row.teamsheetFileName),
+        'Content-Disposition': contentDisposition('inline', row.teamsheetFileName),
         'Cache-Control': 'private, no-store',
         // Uploaded files come from our own origin, so they never run as a page.
         'X-Content-Type-Options': 'nosniff',
