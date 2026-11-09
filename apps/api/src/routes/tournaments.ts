@@ -23,9 +23,11 @@ import { Hono } from 'hono'
 import type { AppEnv } from '../app'
 import { team, tournament } from '../db/schema'
 import type { Database } from '../db/types'
+import type { FileStorage } from '../storage'
 import { deleted, escapeLike, idTaken, invalid, isId, notFound, readBody } from './helpers'
 import { loadOpponentTeams } from './opponent-team-data'
 import { loadRounds } from './round-data'
+import { discardFile, toTeamsheetView } from './teamsheet-attachment-data'
 
 type TournamentRow = typeof tournament.$inferSelect
 
@@ -76,6 +78,7 @@ export function toTournamentView(
     team: snapshot,
     rounds,
     opponentTeams,
+    teamsheet: toTeamsheetView(row),
     record: recordOf(rounds),
     warnings: tournamentWarnings({ regulation: row.regulation, team: snapshot }),
     createdAt: row.createdAt.toISOString(),
@@ -100,7 +103,7 @@ export const ownTournament = (id: string, ownerId: string) =>
   and(eq(tournament.id, id), eq(tournament.ownerId, ownerId))
 
 /** Tournament routes, mounted at /api/tournaments behind the session middleware. */
-export function tournamentRoutes(db: Database) {
+export function tournamentRoutes(db: Database, storage: FileStorage) {
   const viewWithRounds = async (row: TournamentRow) =>
     toTournamentView(
       row,
@@ -254,7 +257,11 @@ export function tournamentRoutes(db: Database) {
       .delete('/:id', async (c) => {
         const id = c.req.param('id')
         if (!isId(id)) return notFound(c)
-        await db.delete(tournament).where(ownTournament(id, c.get('user').id))
+        const [row] = await db
+          .delete(tournament)
+          .where(ownTournament(id, c.get('user').id))
+          .returning({ teamsheetKey: tournament.teamsheetKey })
+        await discardFile(storage, row?.teamsheetKey ?? null)
         return deleted(c)
       })
   )

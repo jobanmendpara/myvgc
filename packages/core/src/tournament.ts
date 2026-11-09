@@ -237,11 +237,21 @@ export interface TournamentView {
   rounds: RoundView[]
   /** The Team each Opponent the User played here brought (ADR 22). */
   opponentTeams: OpponentTeamView[]
+  /** The Teamsheet PDF the User uploaded here, if any (ADR 27). */
+  teamsheet: TeamsheetAttachmentView | null
   record: TournamentRecord
   /** Things worth a second look that don't stop a save, such as a Regulation mismatch. */
   warnings: string[]
   createdAt: string
   updatedAt: string
+}
+
+/** A Teamsheet PDF the User uploaded to a Tournament, kept as uploaded for reference. */
+export interface TeamsheetAttachmentView {
+  fileName: string
+  /** In bytes. */
+  size: number
+  uploadedAt: string
 }
 
 /** Whether a Tournament starting on `startDate` is still Upcoming on `today`. */

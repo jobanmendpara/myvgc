@@ -9,7 +9,15 @@ const valid = {
 
 describe('loadConfig', () => {
   it('fills in defaults', () => {
-    expect(loadConfig(valid)).toMatchObject({ PORT: 3000, ALLOW_SIGNUPS: true })
+    expect(loadConfig(valid)).toMatchObject({
+      PORT: 3000,
+      ALLOW_SIGNUPS: true,
+      UPLOADS_DIR: '.data/uploads',
+    })
+  })
+
+  it('reads UPLOADS_DIR', () => {
+    expect(loadConfig({ ...valid, UPLOADS_DIR: '/data/uploads' }).UPLOADS_DIR).toBe('/data/uploads')
   })
 
   it.each([

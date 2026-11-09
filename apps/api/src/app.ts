@@ -10,12 +10,16 @@ import { dataRoutes } from './routes/data'
 import { noteEntryRoutes } from './routes/note-entries'
 import { opponentRoutes } from './routes/opponents'
 import { roundRoutes } from './routes/rounds'
+import { teamsheetAttachmentRoutes } from './routes/teamsheet-attachment'
 import { tournamentRoutes } from './routes/tournaments'
 import { mountWeb } from './static'
+import type { FileStorage } from './storage'
 
 export interface AppOptions {
   db: Database
   auth: Omit<AuthOptions, 'db'>
+  /** Where uploaded files are kept (ADR 27). */
+  storage: FileStorage
   /** Folder holding the generated web app. Leave out to serve only the API. */
   webDir?: string
 }
@@ -25,7 +29,7 @@ export type AppEnv = { Variables: { user: SessionUser } }
 // Routes under /api that work without a session.
 const PUBLIC_API = ['/api/health', '/api/auth']
 
-export function createApp({ db, auth: authOptions, webDir }: AppOptions): Hono<AppEnv> {
+export function createApp({ db, auth: authOptions, storage, webDir }: AppOptions): Hono<AppEnv> {
   const auth = createAuth({ db, ...authOptions })
   const app = new Hono<AppEnv>()
 
@@ -61,7 +65,8 @@ export function createApp({ db, auth: authOptions, webDir }: AppOptions): Hono<A
   app.route('/api/account', accountRoutes(db))
   app.route('/api/teams', teamRoutes(db))
   app.route('/api/tournaments/:tournamentId/rounds', roundRoutes(db))
-  app.route('/api/tournaments', tournamentRoutes(db))
+  app.route('/api/tournaments/:tournamentId/teamsheet', teamsheetAttachmentRoutes(db, storage))
+  app.route('/api/tournaments', tournamentRoutes(db, storage))
   app.route('/api/opponents', opponentRoutes(db))
   app.route('/api/note-entries', noteEntryRoutes(db))
   app.route('/api/dashboard', dashboardRoutes(db))

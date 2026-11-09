@@ -13,6 +13,9 @@ services:
       ALLOW_SIGNUPS: ${ALLOW_SIGNUPS:-true}
     ports:
       - '${PORT:-3000}:${PORT:-3000}'
+    volumes:
+      # Uploaded Teamsheet PDFs. Back them up along with the database.
+      - uploads:/data
     depends_on:
       db:
         condition: service_healthy
@@ -34,3 +37,4 @@ services:
 
 volumes:
   postgres-data:
+  uploads:

@@ -56,6 +56,7 @@ All settings come from `.env`.
 | `PORT`               | `3000`                  | Port the app listens on, and the port Compose publishes.                                                                           |
 | `MYVGC_VERSION`      | `latest`                | Which published image to run, such as `0.1.0`.                                                                                     |
 | `DATABASE_URL`       | none                    | Only used outside Compose (development, or running the image on its own). Compose builds it from the `POSTGRES_*` values.          |
+| `UPLOADS_DIR`        | `/data/uploads`         | Where uploaded Teamsheet PDFs are kept. Compose puts `/data` on the `uploads` volume; `pnpm dev` uses `.data/uploads`.             |
 
 To serve MyVGC over HTTPS, put a reverse proxy such as Caddy or nginx in front of port 3000 and set `APP_URL` to the `https://` address. The copy-paste button needs HTTPS or `localhost`; elsewhere it shows the paste for you to copy by hand.
 
@@ -68,6 +69,8 @@ docker compose pull
 ```bash
 docker compose up -d
 ```
+
+Before pulling, compare your `compose.yaml` with the one in the release you're moving to and copy over any changes. The release that adds Teamsheet uploads adds the `uploads` volume; without it, uploaded PDFs sit in an unnamed volume that `docker compose down -v` deletes.
 
 New migrations run when the app restarts. To stay on one release, set `MYVGC_VERSION` (for example `0.1.0`) instead of `latest`. Take a backup first.
 
@@ -91,6 +94,18 @@ docker compose exec -T db pg_restore -U myvgc -d myvgc --clean --if-exists --no-
 
 ```bash
 docker compose start app
+```
+
+Uploaded Teamsheet PDFs live in the `uploads` volume, not the database, so back them up too:
+
+```bash
+docker compose exec -T app tar -C /data -cf - uploads > "myvgc-uploads-$(date +%F).tar"
+```
+
+To restore them, with the app running (after restoring the database):
+
+```bash
+docker compose exec -T app tar -C /data -xf - < myvgc-uploads-2026-11-03.tar
 ```
 
 Keep copies of `.env` as well: without `BETTER_AUTH_SECRET` a restored install logs everyone out, and without `POSTGRES_PASSWORD` you can't reach the database.

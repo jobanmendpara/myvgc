@@ -2,6 +2,7 @@ import type { PGlite } from '@electric-sql/pglite'
 import type { Hono } from 'hono'
 import { type AppEnv, createApp } from '../src/app'
 import type { Database } from '../src/db/types'
+import { type FileStorage, memoryStorage } from '../src/storage'
 import { createTestDb } from './db'
 
 export const APP_URL = 'http://localhost:3000'
@@ -10,6 +11,7 @@ export interface TestApp {
   app: Hono<AppEnv>
   db: Database
   client: PGlite
+  storage: FileStorage
 }
 
 /** The app on a fresh in-process Postgres with migrations applied. */
@@ -17,8 +19,10 @@ export async function createTestApp(
   options: { allowSignups?: boolean; webDir?: string; rateLimit?: boolean } = {},
 ): Promise<TestApp> {
   const { db, client } = await createTestDb()
+  const storage = memoryStorage()
   const app = createApp({
     db,
+    storage,
     webDir: options.webDir,
     auth: {
       secret: 'test-secret-that-is-at-least-32-characters-long',
@@ -27,7 +31,7 @@ export async function createTestApp(
       rateLimit: options.rateLimit,
     },
   })
-  return { app, db, client }
+  return { app, db, client, storage }
 }
 
 /** Sends a request the way the web app does, from the app's own origin, with an optional JSON body. */

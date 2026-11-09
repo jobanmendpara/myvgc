@@ -171,6 +171,8 @@ useHead({
 
       <TournamentTeam :tournament="tournament" :can-refresh="canRefresh" />
 
+      <TournamentTeamsheet :tournament="tournament" />
+
       <p v-if="tournament.link" class="text-sm">
         <a
           :href="tournament.link"

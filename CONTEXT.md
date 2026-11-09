@@ -31,7 +31,8 @@ MyVGC is a hub where a competitive player tracks their Pokémon VGC experience i
 - **Entry fee**: what the User paid to enter a Tournament: an amount and a currency. Totals across different currencies are never converted into one another.
 - **Championship Points (CP)**: the Play! Pokémon points a User earned at a Tournament, entered by hand. MyVGC does not calculate them. Because CP resets each Season, CP is only ever totalled within one Season.
 - **Event tier**: the kind of Tournament, from a fixed list: Premier Challenge, Regional, International, Worlds, Grassroots, Online, Other.
-- **Teamsheet**: the official Play! Pokémon team list for a Tournament. It can be generated in the app from a Team, as a PDF whose fields the User can still edit, or uploaded as a PDF.
+- **Teamsheet**: the official Play! Pokémon team list for a Tournament. It can be generated in the app from a Team, as a PDF whose fields the User can still edit, or uploaded as a PDF (a Teamsheet attachment).
+- **Teamsheet attachment**: a Teamsheet PDF the User uploaded to a Tournament, kept exactly as uploaded for reference. At most one per Tournament; uploading again replaces it. Not part of the Data export.
 - **Reading a Team**: turning a file, such as a Teamsheet PDF, into a draft Team that the User reviews before saving. Nothing is saved and the file isn't kept. Called reading, never importing: importing means pastes and the Data export.
 - **Replica Team**: Champions' in-game way of sharing a Battle Team, which judges may ask to see.
 - **Replica Team ID**: the code that identifies a Replica Team, such as `9TCG84KWXK`. Players often write it in a Teamsheet's "Battle Team Number / Name" box.
