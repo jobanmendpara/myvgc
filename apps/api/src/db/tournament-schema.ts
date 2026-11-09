@@ -51,6 +51,12 @@ export const tournament = pgTable(
     teamRegulation: regulation('team_regulation'),
     teamPokemon: jsonb('team_pokemon').$type<PokemonBuild[]>(),
     teamSnapshotAt: timestamp('team_snapshot_at', { withTimezone: true }),
+    // The uploaded Teamsheet PDF (ADR 27): where the file is stored, and what to show for it.
+    // At most one per Tournament, so it lives here too. The four are set together.
+    teamsheetKey: text('teamsheet_key'),
+    teamsheetFileName: text('teamsheet_file_name'),
+    teamsheetSize: integer('teamsheet_size'),
+    teamsheetUploadedAt: timestamp('teamsheet_uploaded_at', { withTimezone: true }),
     notes: text('notes').notNull().default(''),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true })
@@ -63,6 +69,10 @@ export const tournament = pgTable(
     check(
       'tournament_entry_fee_complete',
       sql`(${table.entryFeeAmount} is null) = (${table.entryFeeCurrency} is null)`,
+    ),
+    check(
+      'tournament_teamsheet_complete',
+      sql`num_nulls(${table.teamsheetKey}, ${table.teamsheetFileName}, ${table.teamsheetSize}, ${table.teamsheetUploadedAt}) in (0, 4)`,
     ),
   ],
 )

@@ -3,6 +3,7 @@ import { serve } from '@hono/node-server'
 import { createApp } from './app'
 import { loadConfig } from './config'
 import { connectPostgres, migratePostgres } from './db/client'
+import { openDiskStorage } from './storage'
 
 // Paths are relative to this file, which sits one folder below apps/api both as
 // source (src/server.ts) and when bundled (dist/server.js).
@@ -19,12 +20,18 @@ const config = (() => {
   }
 })()
 
+const storage = await openDiskStorage(config.UPLOADS_DIR).catch((error: Error) => {
+  console.error(error.message)
+  process.exit(1)
+})
+
 await migratePostgres(config.DATABASE_URL, migrationsFolder)
 console.log('Database migrations applied.')
 
 const { db, close } = connectPostgres(config.DATABASE_URL)
 const app = createApp({
   db,
+  storage,
   webDir,
   auth: {
     secret: config.BETTER_AUTH_SECRET,

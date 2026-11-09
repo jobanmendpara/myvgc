@@ -25,6 +25,8 @@ const schema = z.object({
     }),
   APP_URL: z.url({ error: 'APP_URL must be a URL, such as http://localhost:3000' }),
   ALLOW_SIGNUPS: booleanFlag.default(true),
+  // Where uploaded files are kept (ADR 27). The image sets /data/uploads, on a volume.
+  UPLOADS_DIR: z.string().trim().min(1).default('.data/uploads'),
 })
 
 export type Config = z.infer<typeof schema>

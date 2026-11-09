@@ -21,6 +21,10 @@ WORKDIR /app
 COPY --from=build /app/apps/api/dist ./apps/api/dist
 COPY --from=build /app/apps/api/drizzle ./apps/api/drizzle
 COPY --from=build /app/apps/web/.output/public ./apps/web/.output/public
+# Uploaded files (ADR 27). A volume, so they outlive the container; compose.yaml names it.
+ENV UPLOADS_DIR=/data/uploads
+RUN mkdir -p /data/uploads && chown -R node:node /data
+VOLUME /data
 USER node
 EXPOSE 3000
 HEALTHCHECK --interval=10s --timeout=3s --start-period=20s --retries=3 \
