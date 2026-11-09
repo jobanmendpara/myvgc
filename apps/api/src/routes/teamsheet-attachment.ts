@@ -102,7 +102,7 @@ export function teamsheetAttachmentRoutes(db: Database, storage: FileStorage) {
         'Cache-Control': 'private, no-store',
         // Uploaded files come from our own origin, so they never run as a page.
         'X-Content-Type-Options': 'nosniff',
-        'Content-Security-Policy': 'sandbox',
+        'Content-Security-Policy': 'sandbox allow-scripts',
       })
     })
     .delete('/', async (c) => {
