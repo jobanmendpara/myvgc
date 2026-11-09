@@ -77,7 +77,7 @@ describe('A Tournament’s Teamsheet attachment', () => {
     )
     expect(file.headers.get('cache-control')).toBe('private, no-store')
     expect(file.headers.get('x-content-type-options')).toBe('nosniff')
-    expect(file.headers.get('content-security-policy')).toBe('sandbox')
+    expect(file.headers.get('content-security-policy')).toBe('sandbox allow-scripts')
     expect(Buffer.from(await file.arrayBuffer()).equals(sent)).toBe(true)
   })
 

@@ -1,7 +1,7 @@
 # 27. Storing uploaded Teamsheets
 
 Date: 2026-11-09
-Status: Accepted (DEV-37). Settles ADR 6's storage interface for uploads.
+Status: Accepted (DEV-37), amended by DEV-74. Settles ADR 6's storage interface for uploads.
 
 ## Context
 ADR 6 and ADR 10 promise that a User can upload their own Teamsheet PDF and keep it as a reference attachment, behind one storage interface: a disk volume for self-hosting and S3-compatible storage for the hosted service. Until now MyVGC kept nothing outside Postgres, so `pg_dump` backed up everything (ADR 15), and self-hosting needed no configuration beyond the database (ADR 24). Reading a Team from a stored Teamsheet (DEV-65) builds on this.
@@ -12,7 +12,7 @@ ADR 6 and ADR 10 promise that a User can upload their own Teamsheet PDF and keep
 - **Files sit behind a `FileStorage` interface** in `apps/api`: put, get (a stream), delete and delete everything under a prefix. Deleting what's already gone counts as done. This change ships the disk driver; the S3-compatible driver follows in DEV-71, chosen by configuration, with disk the default.
 - **Keys are fresh per upload**, `teamsheets/<userId>/<uuid>.pdf`. A replace writes the new file, points the Tournament at it, then deletes the old one. The disk driver writes beside the file and renames, so a reader never sees half a file.
 - **The Tournament row holds the key, file name, size and upload time**, all set or all empty, as it holds the Team snapshot (ADR 9). The Tournament view shows `teamsheet: { fileName, size, uploadedAt } | null`.
-- **Files are served through Hono only**, behind the session check: `PUT`, `GET` and `DELETE` on `/api/tournaments/:id/teamsheet`. No public or presigned URLs, on any driver. `GET` sends `Cache-Control: private, no-store`, `X-Content-Type-Options: nosniff` and `Content-Security-Policy: sandbox`, so a crafted file from our own origin can't run as a page with the User's session. The stored file name drops folders, control characters and direction overrides, and is cut to 200 characters (never mid-character).
+- **Files are served through Hono only**, behind the session check: `PUT`, `GET` and `DELETE` on `/api/tournaments/:id/teamsheet`. No public or presigned URLs, on any driver. `GET` sends `Cache-Control: private, no-store`, `X-Content-Type-Options: nosniff` and `Content-Security-Policy: sandbox allow-scripts`, so a crafted file from our own origin can't run as a page with the User's session. The sandbox gives the file an opaque origin, so it can't reach the User's cookies or our API. It allows scripts because browsers' built-in PDF viewers need them and show a blank page under a bare `sandbox` (DEV-74). The stored file name drops folders, control characters and direction overrides, and is cut to 200 characters (never mid-character).
 - **Clean-up is best effort.** Deleting the attachment or its Tournament deletes the file after the row; a failure is logged and leaves an unreachable file. There is no sweeper.
 - **Online only** (ADR 17). The PDF is never put in the Query cache. A service worker added later must leave `/api/` out of its navigation fallback, or opening the PDF would show the app instead.
 - **Not in the Data export** (ADR 23), nor its metadata, so the format doesn't change.
