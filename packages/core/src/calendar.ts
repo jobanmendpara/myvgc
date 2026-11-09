@@ -1,3 +1,4 @@
+import type { AgeDivision } from './player-details'
 import type { Regulation } from './team'
 
 // Seasons and Regulation dates ship with the app (ADR 16). Dates are calendar days written as
@@ -73,6 +74,18 @@ export const currentRegulation = (today: CalendarDate): Regulation => regulation
 /** The Season a day falls in. Days before Champions are in no Season. */
 export function seasonOf(date: CalendarDate): Season | undefined {
   return SEASONS.find((season) => covers(season, date))
+}
+
+/**
+ * The Age Division someone born on `dateOfBirth` plays in for a Season (ADR 26). Play! Pokémon
+ * goes by birth year alone: Juniors are born 12 or fewer years before the year the Season ends,
+ * Seniors 13 to 16 years before, and Masters 17 or more.
+ */
+export function ageDivisionIn(dateOfBirth: CalendarDate, season: Season): AgeDivision {
+  const yearsBeforeSeasonEnds = Number(season.id) - Number(dateOfBirth.slice(0, 4))
+  if (yearsBeforeSeasonEnds <= 12) return 'Junior'
+  if (yearsBeforeSeasonEnds <= 16) return 'Senior'
+  return 'Masters'
 }
 
 /** Today's date where the code runs, as a calendar day. */

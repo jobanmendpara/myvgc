@@ -8,6 +8,7 @@ const BLANK = {
   playerId: '',
   supportId: '',
   ageDivision: null,
+  dateOfBirth: null,
 }
 
 describe('Player details', () => {
@@ -50,6 +51,17 @@ describe('Player details', () => {
     expect(await read()).toEqual(saved)
   })
 
+  it('saves a Date of Birth and reads it back, and clears it again', async () => {
+    await setUp()
+    const res = await save({ playerName: 'Ash', dateOfBirth: '2010-05-22' })
+    expect(res.status).toBe(200)
+    expect((await json(res)).dateOfBirth).toBe('2010-05-22')
+    expect(await read()).toEqual({ ...BLANK, playerName: 'Ash', dateOfBirth: '2010-05-22' })
+
+    await save({ playerName: 'Ash', dateOfBirth: null })
+    expect((await read()).dateOfBirth).toBeNull()
+  })
+
   it('replaces them all on each save, so a field left out is blanked', async () => {
     await setUp()
     await save({ playerName: 'Ash', supportId: 'ABCD', ageDivision: 'Senior' })
@@ -69,9 +81,17 @@ describe('Player details', () => {
   it('refuses invalid Player details, naming the fields, and keeps what was saved', async () => {
     await setUp()
     await save({ playerName: 'Ash' })
-    const res = await save({ playerName: 'x'.repeat(101), ageDivision: 'Adult' })
+    const res = await save({
+      playerName: 'x'.repeat(101),
+      ageDivision: 'Adult',
+      dateOfBirth: '2999-01-01',
+    })
     expect(res.status).toBe(400)
-    expect(Object.keys((await json(res)).fields)).toEqual(['playerName', 'ageDivision'])
+    expect(Object.keys((await json(res)).fields)).toEqual([
+      'playerName',
+      'ageDivision',
+      'dateOfBirth',
+    ])
     expect((await read()).playerName).toBe('Ash')
   })
 

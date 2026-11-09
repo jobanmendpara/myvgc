@@ -1,10 +1,10 @@
 import type { AgeDivision } from '@myvgc/core'
-import { pgTable, text, timestamp } from 'drizzle-orm/pg-core'
+import { date, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
 import { user } from './auth-schema'
 
 /**
  * A User's Player details (see CONTEXT.md), one row per User. The row is made on the first
- * save; until then the User's Player details are blank. Date of birth is never kept (ADR 20).
+ * save; until then the User's Player details are blank. Date of Birth is personal data (ADR 26).
  */
 export const playerDetails = pgTable('player_details', {
   userId: text('user_id')
@@ -16,6 +16,7 @@ export const playerDetails = pgTable('player_details', {
   playerId: text('player_id').notNull().default(''),
   supportId: text('support_id').notNull().default(''),
   ageDivision: text('age_division').$type<AgeDivision>(),
+  dateOfBirth: date('date_of_birth'),
   updatedAt: timestamp('updated_at', { withTimezone: true })
     .notNull()
     .defaultNow()
