@@ -55,8 +55,20 @@ test('sign up, import a Team and see its six Pokémon', async ({ page }) => {
   expect((await download).suggestedFilename()).toBe('Smoke test Team Teamsheet.pdf')
   await expect(page.getByRole('alertdialog')).toBeHidden()
 
-  await page.goto('/teams')
+  // On wide screens the list stays beside the new Team, with its row selected.
+  const wide = test.info().project.name === 'desktop'
+  const row = page.getByTestId('teams-list').getByRole('link', { name: /Smoke test Team/ })
+  if (wide) {
+    await expect(row).toBeVisible()
+    await expect(row).toHaveAttribute('aria-current', 'page')
+  }
+
+  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Teams' }).click()
   await expect(page.getByTestId('teams-list')).toContainText('Smoke test Team')
+  if (wide) {
+    await expect(page.getByText('Select a Team')).toBeVisible()
+    await expect(row).not.toHaveAttribute('aria-current')
+  }
 })
 
 test('build a one-Pokémon Team, then edit a move', async ({ page }) => {
@@ -66,6 +78,15 @@ test('build a one-Pokémon Team, then edit a move', async ({ page }) => {
   await page.getByLabel('Password').fill('smoke-test-password')
   await page.getByRole('button', { name: 'Create account' }).click()
   await expect(page).toHaveURL(/\/dashboard$/)
+
+  // Cancel goes back to the New Team chooser, or on wide screens to the empty pane.
+  const wide = test.info().project.name === 'desktop'
+  await page.goto('/teams/new')
+  await page.getByRole('link', { name: /Build/ }).click()
+  await expect(page.getByRole('heading', { name: 'Build a Team' })).toBeVisible()
+  await page.getByRole('link', { name: 'Cancel' }).click()
+  if (wide) await expect(page.getByText('Select a Team')).toBeVisible()
+  else await expect(page.getByRole('heading', { name: 'New Team' })).toBeVisible()
 
   await page.goto('/teams/new')
   await page.getByRole('link', { name: /Build/ }).click()
@@ -103,7 +124,10 @@ test('build a one-Pokémon Team, then edit a move', async ({ page }) => {
   const moves = page.getByRole('list', { name: 'Moves' }).locator(':scope > li')
   await expect(moves.filter({ hasText: 'Psychic' })).toContainText(moveWarning)
   await expect(moves.filter({ hasText: 'Fake Out' })).not.toContainText(moveWarning)
-  await expect(page.getByTestId('legality-badge')).toHaveText('Illegal in M-C')
+  // The Team's own badge; on wide screens its list row shows one too.
+  await expect(page.getByTestId('team-header').getByTestId('legality-badge')).toHaveText(
+    'Illegal in M-C',
+  )
 
   await page.getByRole('link', { name: 'Edit' }).click()
   await expect(page.getByRole('heading', { name: 'Edit Team' })).toBeVisible()
@@ -128,6 +152,17 @@ test('build a one-Pokémon Team, then edit a move', async ({ page }) => {
 
   await page.goto('/teams')
   await expect(page.getByTestId('legality-badge')).toHaveText('Not checked')
+
+  // Deleting the open Team goes back to the list, or on wide screens to the empty pane.
+  await page
+    .getByTestId('teams-list')
+    .getByRole('link', { name: /Built Team/ })
+    .click()
+  await expect(page.getByTestId('team-name')).toHaveText('Built Team')
+  await page.getByRole('button', { name: 'Delete', exact: true }).click()
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Delete Team' }).click()
+  await expect(page.getByTestId('teams-empty')).toBeVisible()
+  if (wide) await expect(page.getByText('Select a Team')).toBeVisible()
 })
 
 test('log a Tournament and a Round against a new Opponent', async ({ page }) => {

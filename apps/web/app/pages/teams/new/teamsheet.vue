@@ -11,6 +11,7 @@ import { FetchError } from 'ofetch'
 import type { CreatedTeam } from '@/lib/api'
 
 useHead({ title: 'Read a Teamsheet · MyVGC' })
+const cancelTo = useNewTeamCancelTo()
 
 // Reading needs the API (ADR 24), so it's online only (ADR 17).
 const online = useOnline()
@@ -65,7 +66,7 @@ async function save(body: TeamBody) {
       v-if="read.data.value"
       :read="read.data.value"
       :save="save"
-      cancel-to="/teams/new"
+      :cancel-to="cancelTo"
     />
 
     <template v-else>
@@ -74,7 +75,7 @@ async function save(body: TeamBody) {
       </p>
       <div class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
         <Button as-child variant="outline" size="lg"
-          ><NuxtLink to="/teams/new">Cancel</NuxtLink></Button
+          ><NuxtLink :to="cancelTo">Cancel</NuxtLink></Button
         >
         <input
           ref="fileInput"
