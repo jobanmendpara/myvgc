@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { DEFAULT_LIST_STYLES, type ListStyle, type ListStyles } from '@myvgc/core/schema'
+import { LIST_STYLE_LOOKS } from '@/lib/list-style-look'
 
 // The list of Tournaments, Teams or Opponents, as ListDetail's `#list`: a header with the title,
 // the List style control, the page's actions and the search box, then the rows in the list's
@@ -15,8 +16,8 @@ const props = defineProps<{
   wide: boolean
   /** Whether the list itself is still loading. */
   pending: boolean
-  /** What to say if the list can't be loaded. */
-  error?: string
+  /** Whether the list couldn't be loaded. */
+  loadFailed: boolean
   /** Whether the list loaded with nothing in it: the `#empty` slot shows instead. */
   empty: boolean
   /** Whether a search found nothing in a list that isn't empty. */
@@ -37,9 +38,9 @@ const { style, changeable, online, failed, setStyle } = useListStyle(props.list)
 // On a device with nothing cached yet, wait for the List style too, so the wrong one never
 // flashes up first.
 const loading = computed(() => props.pending || !style.value)
-const showControl = computed(() => !loading.value && !props.error && !props.empty)
-const width = computed(() =>
-  (style.value ?? DEFAULT_LIST_STYLES[props.list]) === 'detailed' ? 'w-[360px]' : 'w-[320px]',
+const showControl = computed(() => !loading.value && !props.loadFailed && !props.empty)
+const width = computed(
+  () => LIST_STYLE_LOOKS[style.value ?? DEFAULT_LIST_STYLES[props.list]].columnWidth,
 )
 </script>
 
@@ -86,9 +87,11 @@ const width = computed(() =>
 
     <div :class="{ 'min-h-0 flex-1 overflow-y-auto pb-16': wide }">
       <p v-if="loading" class="text-muted-foreground" :class="{ 'p-3 text-sm': wide }">Loading…</p>
-      <div v-else-if="error" :class="{ 'p-2': wide }">
+      <div v-else-if="loadFailed" :class="{ 'p-2': wide }">
         <Alert variant="destructive" role="alert">
-          <AlertDescription>{{ error }}</AlertDescription>
+          <AlertDescription
+            >Couldn't load your {{ noun }}. Check your connection and try again.</AlertDescription
+          >
         </Alert>
       </div>
       <div v-else-if="empty" :class="{ 'p-2': wide }">
