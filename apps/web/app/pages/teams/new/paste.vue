@@ -9,6 +9,7 @@ import { useMutation, useQueryClient } from '@tanstack/vue-query'
 import { type CreatedTeam, type CreateTeamError, toCreateTeamError } from '@/lib/api'
 
 useHead({ title: 'Import a Team · MyVGC' })
+const cancelTo = useNewTeamCancelTo()
 
 const name = ref('')
 const regulation = ref<Regulation>(DEFAULT_REGULATION)
@@ -168,7 +169,7 @@ function showLine(line: number) {
 
       <div class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
         <Button as-child variant="outline" size="lg"
-          ><NuxtLink to="/teams/new">Cancel</NuxtLink></Button
+          ><NuxtLink :to="cancelTo">Cancel</NuxtLink></Button
         >
         <Button type="submit" size="lg" :disabled="save.isPending.value">
           {{ save.isPending.value ? 'Saving…' : 'Save Team' }}
