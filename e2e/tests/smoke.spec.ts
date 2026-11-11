@@ -270,7 +270,36 @@ test('log a Tournament and a Round against a new Opponent', async ({ page }) => 
     await discard.getByRole('button', { name: 'Discard changes' }).click()
     await expect(page.getByTestId('opponent-name')).toHaveText('Smoke Opponent')
     await expect(opponentRow).toHaveAttribute('aria-current', 'page')
+
+    // Merging a duplicate keeps the survivor open and selected, and drops the duplicate's row.
+    await page.getByRole('button', { name: 'Merge another Opponent into this one…' }).click()
+    const merge = page.getByRole('alertdialog', { name: 'Merge into Smoke Opponent' })
+    await merge.getByRole('combobox', { name: 'Duplicate' }).fill('Second')
+    await merge.getByRole('option', { name: 'Second Opponent', exact: true }).click()
+    await expect(merge.getByTestId('merge-summary')).toContainText('Second Opponent')
+    await merge.getByRole('button', { name: 'Merge', exact: true }).click()
+    await expect(merge).toBeHidden()
+    await expect(page.getByRole('status')).toHaveText('Merged Second Opponent into Smoke Opponent.')
+    await expect(page.getByTestId('opponent-name')).toHaveText('Smoke Opponent')
+    await expect(page.getByText('Also: Second Opponent')).toBeVisible()
+    await expect(opponentRow).toHaveAttribute('aria-current', 'page')
+    await expect(secondRow).toHaveCount(0)
   }
+
+  // Deleting the open Opponent goes back to the list, or on wide screens to the empty pane.
+  await page
+    .getByRole('navigation', { name: 'Main' })
+    .getByRole('link', { name: 'Opponents' })
+    .click()
+  await page.getByRole('button', { name: 'Add Opponent' }).click()
+  await page.getByLabel('Name', { exact: true }).fill('Short-lived Opponent')
+  await page.getByRole('button', { name: 'Add', exact: true }).click()
+  await expect(page.getByTestId('opponent-name')).toHaveText('Short-lived Opponent')
+  await page.getByRole('button', { name: 'Delete Opponent' }).click()
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Delete Opponent' }).click()
+  await expect(page.getByTestId('opponents-list')).toContainText('Smoke Opponent')
+  await expect(page.getByTestId('opponents-list')).not.toContainText('Short-lived Opponent')
+  if (wide) await expect(page.getByText('Select an Opponent')).toBeVisible()
 })
 
 test('the chosen List style survives a reload, and needs a connection to change', async ({
