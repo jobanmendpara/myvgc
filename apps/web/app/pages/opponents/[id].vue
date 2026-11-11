@@ -44,8 +44,6 @@ function startEditing() {
   notes.value = opponent.value.notes
   editing.value = true
 }
-// On wide screens the list sits beside the Opponent, so it needs no back link.
-const wide = useWideLayout()
 
 const queryClient = useQueryClient()
 const save = useMutation({
@@ -142,9 +140,7 @@ const roundsMoving = computed(() => {
 
 <template>
   <div class="flex flex-col gap-6">
-    <NuxtLink v-if="!wide" to="/opponents" class="text-muted-foreground text-sm hover:underline"
-      >← Opponents</NuxtLink
-    >
+    <ListBackLink to="/opponents">Opponents</ListBackLink>
 
     <p v-if="query.isPending.value" class="text-muted-foreground">Loading…</p>
     <Card v-else-if="notFound">

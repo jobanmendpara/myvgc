@@ -17,8 +17,6 @@ const notFound = computed(
   () => teamQuery.error.value instanceof FetchError && teamQuery.error.value.statusCode === 404,
 )
 const warnings = useImportWarnings(id.value)
-// On wide screens the list sits beside the Team, so it needs no back link.
-const wide = useWideLayout()
 
 useHead({ title: computed(() => (team.value ? `${team.value.name} · MyVGC` : 'Team · MyVGC')) })
 
@@ -93,9 +91,7 @@ const remove = useMutation({
 
 <template>
   <div class="flex flex-col gap-6">
-    <NuxtLink v-if="!wide" to="/teams" class="text-muted-foreground text-sm hover:underline"
-      >← Your Teams</NuxtLink
-    >
+    <ListBackLink to="/teams">Your Teams</ListBackLink>
 
     <p v-if="teamQuery.isPending.value" class="text-muted-foreground">Loading…</p>
 

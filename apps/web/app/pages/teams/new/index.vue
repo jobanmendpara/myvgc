@@ -1,7 +1,5 @@
 <script setup lang="ts">
 useHead({ title: 'New Team · MyVGC' })
-// On wide screens the list sits beside the chooser, so it needs no back link.
-const wide = useWideLayout()
 
 const WAYS = [
   {
@@ -24,9 +22,7 @@ const WAYS = [
 
 <template>
   <div class="mx-auto flex w-full max-w-3xl flex-col gap-6">
-    <NuxtLink v-if="!wide" to="/teams" class="text-muted-foreground text-sm hover:underline"
-      >← Your Teams</NuxtLink
-    >
+    <ListBackLink to="/teams">Your Teams</ListBackLink>
     <h1 class="text-2xl font-semibold">New Team</h1>
     <ul class="grid grid-cols-1 gap-3 sm:grid-cols-2">
       <li v-for="way in WAYS" :key="way.to">
