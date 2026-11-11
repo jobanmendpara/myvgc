@@ -17,7 +17,7 @@ export async function confirmDiscardAll(): Promise<boolean> {
  * Asks before leaving with unsaved edits: on a route change (also to another item on the same
  * page), on log out and on closing the tab.
  * Render the returned `DiscardDialog` once in the form's template; it asks "Discard changes?"
- * about `subject`, such as "this Tournament".
+ * about `subject`, a fixed phrase such as "this Tournament".
  */
 export function useDiscardGuard(dirty: Ref<boolean>, subject: string) {
   const discarding = ref(false)
@@ -51,6 +51,7 @@ export function useDiscardGuard(dirty: Ref<boolean>, subject: string) {
 
   const DiscardDialog = defineComponent(
     () => () => h(DiscardChangesDialog, { open: discarding.value, subject, onAnswer: answer }),
+    { name: 'DiscardDialog' },
   )
 
   return { DiscardDialog }
