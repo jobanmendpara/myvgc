@@ -6,7 +6,6 @@ const areas = [
   { to: '/tournaments', label: 'Tournaments' },
   { to: '/teams', label: 'Teams' },
   { to: '/opponents', label: 'Opponents' },
-  { to: '/dashboard', label: 'Dashboard' },
   { to: '/statistics', label: 'Statistics' },
 ]
 const route = useRoute()
