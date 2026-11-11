@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { type TournamentView, groupTournaments } from '@myvgc/core/schema'
+import type { TournamentView } from '@myvgc/core/schema'
 import { searchTournaments } from '@myvgc/core/search'
 import { useQuery } from '@tanstack/vue-query'
 
@@ -10,16 +10,11 @@ const tournaments = useQuery({
   queryKey: ['tournaments'],
   queryFn: () => $fetch<TournamentView[]>('/api/tournaments'),
 })
-const groupBy = (items: TournamentView[]) => groupTournaments(items)
 const { query, searching, results, noMatches } = useListSearch(
   'tournaments',
   () => tournaments.data.value,
   (items: TournamentView[], q: string) => searchTournaments(items, q),
 )
-
-// The Tournament open in the pane, also while editing it or one of its Rounds.
-const route = useRoute()
-const selectedId = computed(() => ('id' in route.params ? String(route.params.id) : ''))
 </script>
 
 <template>
@@ -33,11 +28,7 @@ const selectedId = computed(() => ('id' in route.params ? String(route.params.id
         search-placeholder="Find by name, Organizer or location"
         :wide="wide"
         :pending="tournaments.isPending.value"
-        :error="
-          tournaments.isError.value
-            ? `Couldn't load your Tournaments. Check your connection and try again.`
-            : undefined
-        "
+        :load-failed="tournaments.isError.value"
         :empty="tournaments.data.value?.length === 0"
         :no-matches="noMatches"
       >
@@ -64,19 +55,12 @@ const selectedId = computed(() => ('id' in route.params ? String(route.params.id
         </template>
 
         <template #default="{ listStyle }">
-          <ListRows
-            :items="results"
+          <TournamentRows
+            :tournaments="results"
             :list-style="listStyle"
             :wide="wide"
-            :selected-id="selectedId"
-            base="/tournaments"
-            :group-by="searching ? undefined : groupBy"
-            data-testid="tournaments-list"
-          >
-            <template #default="{ item }">
-              <TournamentSummary :tournament="item" :list-style="listStyle" :condensed="wide" />
-            </template>
-          </ListRows>
+            :searching="searching"
+          />
         </template>
       </ListColumn>
     </template>

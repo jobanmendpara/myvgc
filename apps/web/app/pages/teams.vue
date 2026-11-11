@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { type TeamView, groupTeams } from '@myvgc/core/schema'
+import type { TeamView } from '@myvgc/core/schema'
 import { searchTeams } from '@myvgc/core/search'
 import { useQuery } from '@tanstack/vue-query'
 
@@ -7,16 +7,11 @@ definePageMeta({ listDetail: true })
 useHead({ title: 'Your Teams · MyVGC' })
 
 const teams = useQuery({ queryKey: ['teams'], queryFn: () => $fetch<TeamView[]>('/api/teams') })
-const groupBy = (items: TeamView[]) => groupTeams(items)
 const { query, searching, results, noMatches } = useListSearch(
   'teams',
   () => teams.data.value,
   (items: TeamView[], q: string) => searchTeams(items, q),
 )
-
-// The Team open in the pane, also while editing it.
-const route = useRoute()
-const selectedId = computed(() => ('id' in route.params ? String(route.params.id) : ''))
 </script>
 
 <template>
@@ -30,11 +25,7 @@ const selectedId = computed(() => ('id' in route.params ? String(route.params.id
         search-placeholder="Find by name or Pokémon"
         :wide="wide"
         :pending="teams.isPending.value"
-        :error="
-          teams.isError.value
-            ? `Couldn't load your Teams. Check your connection and try again.`
-            : undefined
-        "
+        :load-failed="teams.isError.value"
         :empty="teams.data.value?.length === 0"
         :no-matches="noMatches"
       >
@@ -59,19 +50,7 @@ const selectedId = computed(() => ('id' in route.params ? String(route.params.id
         </template>
 
         <template #default="{ listStyle }">
-          <ListRows
-            :items="results"
-            :list-style="listStyle"
-            :wide="wide"
-            :selected-id="selectedId"
-            base="/teams"
-            :group-by="searching ? undefined : groupBy"
-            data-testid="teams-list"
-          >
-            <template #default="{ item }">
-              <TeamSummary :team="item" :list-style="listStyle" :condensed="wide" />
-            </template>
-          </ListRows>
+          <TeamRows :teams="results" :list-style="listStyle" :wide="wide" :searching="searching" />
         </template>
       </ListColumn>
     </template>

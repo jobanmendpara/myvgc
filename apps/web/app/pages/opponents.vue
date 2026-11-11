@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { type OpponentView, groupOpponents } from '@myvgc/core/schema'
+import type { OpponentView } from '@myvgc/core/schema'
 import { searchOpponents } from '@myvgc/core/search'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 import { fieldErrorsOf, saveFailureMessage } from '@/lib/api'
@@ -14,16 +14,11 @@ const opponents = useQuery({
   queryKey: ['opponents', 'list'],
   queryFn: () => fetchEveryOpponent(),
 })
-const groupBy = (items: OpponentView[]) => groupOpponents(items)
 const { query, searching, results, noMatches } = useListSearch(
   'opponents',
   () => opponents.data.value,
   (items: OpponentView[], q: string) => searchOpponents(items, q),
 )
-
-// The Opponent open in the pane.
-const route = useRoute()
-const selectedId = computed(() => ('id' in route.params ? String(route.params.id) : ''))
 
 const adding = ref(false)
 const newName = ref('')
@@ -61,11 +56,7 @@ const addError = computed(
         :wide="wide"
         :class="{ 'mx-auto w-full max-w-3xl': !wide }"
         :pending="opponents.isPending.value"
-        :error="
-          opponents.isError.value
-            ? `Couldn't load your Opponents. Check your connection and try again.`
-            : undefined
-        "
+        :load-failed="opponents.isError.value"
         :empty="opponents.data.value?.length === 0"
         :no-matches="noMatches"
       >
@@ -107,19 +98,12 @@ const addError = computed(
         </template>
 
         <template #default="{ listStyle }">
-          <ListRows
-            :items="results"
+          <OpponentRows
+            :opponents="results"
             :list-style="listStyle"
             :wide="wide"
-            :selected-id="selectedId"
-            base="/opponents"
-            :group-by="searching ? undefined : groupBy"
-            data-testid="opponents-list"
-          >
-            <template #default="{ item }">
-              <OpponentSummary :opponent="item" :list-style="listStyle" />
-            </template>
-          </ListRows>
+            :searching="searching"
+          />
         </template>
       </ListColumn>
     </template>
