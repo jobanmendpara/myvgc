@@ -1,48 +1,25 @@
-import { type PlayerDetails, playerDetailsSchema, playerDetailsSchemaOn, today } from '@myvgc/core'
-import { eq } from 'drizzle-orm'
+import { playerDetailsSchemaOn, today } from '@myvgc/core'
 import { Hono } from 'hono'
 import type { AppEnv } from '../app'
-import { playerDetails } from '../db/schema'
 import type { Database } from '../db/types'
 import { readBody } from './helpers'
+import { loadPlayerDetails, savePlayerDetails } from './player-details-data'
 
 /**
  * Account settings routes, mounted at /api/account behind the session middleware. They only
  * ever reach the logged-in User's own settings. Passwords are changed through Better Auth.
  */
 export function accountRoutes(db: Database) {
-  const toView = (row?: typeof playerDetails.$inferSelect): PlayerDetails => {
-    if (!row) return playerDetailsSchema.parse({})
-    return {
-      playerName: row.playerName,
-      trainerName: row.trainerName,
-      switchProfileName: row.switchProfileName,
-      playerId: row.playerId,
-      supportId: row.supportId,
-      ageDivision: row.ageDivision,
-      dateOfBirth: row.dateOfBirth,
-    }
-  }
-
   return (
     new Hono<AppEnv>()
       .get('/player-details', async (c) => {
-        const [row] = await db
-          .select()
-          .from(playerDetails)
-          .where(eq(playerDetails.userId, c.get('user').id))
-        return c.json(toView(row))
+        return c.json(await loadPlayerDetails(db, c.get('user').id))
       })
       // Replaces all of the User's Player details; a field left out is blanked.
       .put('/player-details', async (c) => {
         const input = await readBody(c, playerDetailsSchemaOn(today()))
         if (!input.ok) return input.response
-        const [row] = await db
-          .insert(playerDetails)
-          .values({ userId: c.get('user').id, ...input.data })
-          .onConflictDoUpdate({ target: playerDetails.userId, set: input.data })
-          .returning()
-        return c.json(toView(row))
+        return c.json(await savePlayerDetails(db, c.get('user').id, input.data))
       })
   )
 }

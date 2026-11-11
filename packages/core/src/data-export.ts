@@ -4,17 +4,19 @@ import { recordIdSchema as recordId } from './client-id'
 import { newNoteEntrySchema } from './note-entry'
 import { newOpponentSchema } from './opponent'
 import { opponentTeamSchema } from './opponent-team'
+import { playerDetailsSchema } from './player-details'
 import { ROUND_RESULTS, TOP_CUT_STAGES, TOP_CUT_STAGE_LABELS, roundInputSchema } from './round'
 import { REGULATIONS, teamSchema } from './team'
 import { newTournamentSchema } from './tournament'
 
 /**
  * A Data export (ADR 23): one User's data as versioned JSON, grouped by record as the API shows
- * it, with every id and timestamp kept. Nothing about the account is in it.
+ * it, with every id and timestamp kept. It holds the User's Player details but nothing about the
+ * account (email, password, sessions).
  */
 export const DATA_EXPORT_FORMAT = 'myvgc-export'
 /** The version this install writes. Each new kind of User data bumps it, with an upgrade step. */
-export const DATA_EXPORT_VERSION = 2
+export const DATA_EXPORT_VERSION = 3
 
 const timestamp = z.iso.datetime('Use a time such as 2026-09-19T10:00:00.000Z.')
 const timestamps = { createdAt: timestamp, updatedAt: timestamp }
@@ -71,6 +73,7 @@ export const dataExportSchema = z.object({
   format: z.literal(DATA_EXPORT_FORMAT),
   version: z.literal(DATA_EXPORT_VERSION),
   exportedAt: timestamp,
+  playerDetails: playerDetailsSchema,
   teams: z.array(exportedTeamSchema),
   opponents: z.array(exportedOpponentSchema),
   tournaments: z.array(exportedTournamentSchema),
@@ -102,6 +105,8 @@ const UPGRADES: Record<number, (file: Record<string, unknown>) => Record<string,
         )
       : file.tournaments,
   }),
+  // Version 3 added Player details, which version 2 files never have: blank ones import nothing.
+  2: (file) => ({ ...file, playerDetails: {} }),
 }
 
 /** A problem with a Data export, naming the record it is in, such as `Tournament “Worlds”`. */
@@ -180,6 +185,7 @@ export function recordLabel(file: unknown, path: readonly (string | number)[]): 
     return { record, label: name ? `${what} “${name}”` : `${what} ${Number(index) + 1}` }
   }
 
+  if (kind === 'playerDetails') return 'Player details'
   if (kind === 'teams' && typeof index === 'number') return named('Team', 'name').label
   if (kind === 'opponents' && typeof index === 'number') {
     const { record, label } = named('Opponent', 'displayName')

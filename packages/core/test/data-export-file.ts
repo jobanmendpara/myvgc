@@ -97,8 +97,8 @@ export const versionOne = () => ({
   ],
 })
 
-/** A file in the current version, version 2: version 1 plus Opponent's Teams (ADR 22). */
-export const current = () => {
+/** A version 2 file: version 1 plus Opponent's Teams (ADR 22). */
+export const versionTwo = () => {
   const file = versionOne()
   return {
     ...file,
@@ -111,3 +111,18 @@ export const current = () => {
     })),
   }
 }
+
+/** A file in the current version, version 3: version 2 plus Player details. */
+export const current = () => ({
+  ...versionTwo(),
+  version: 3,
+  playerDetails: {
+    playerName: 'Ash Ketchum',
+    trainerName: 'Ash',
+    switchProfileName: 'ash',
+    playerId: '1234567',
+    supportId: 'ABCD-EFGH',
+    ageDivision: 'Masters',
+    dateOfBirth: '1997-04-01',
+  },
+})

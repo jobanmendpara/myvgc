@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { DATA_EXPORT_VERSION, readDataExport } from '../src/schema'
-import { current, ids, versionOne } from './data-export-file'
+import { current, ids, versionOne, versionTwo } from './data-export-file'
 
 describe('Reading a Data export', () => {
   it('reads a file in the current version', () => {
@@ -11,6 +11,7 @@ describe('Reading a Data export', () => {
     expect(read.file.tournaments[0]!.rounds[0]!.opponentId).toBe(ids.opponent)
     expect(read.file.opponents[0]!.noteEntries).toHaveLength(1)
     expect(read.file.tournaments[0]!.opponentTeams[0]!.opponentId).toBe(ids.opponent)
+    expect(read.file.playerDetails.playerId).toBe('1234567')
   })
 
   it('upgrades a version 1 file, whose Tournaments have no Opponent’s Teams', () => {
@@ -18,6 +19,32 @@ describe('Reading a Data export', () => {
     if (!read.ok) throw new Error('should read')
     expect(read.file.version).toBe(DATA_EXPORT_VERSION)
     expect(read.file.tournaments[0]!.opponentTeams).toEqual([])
+  })
+
+  it('upgrades a version 2 file, which has no Player details, to blank ones', () => {
+    const read = readDataExport(versionTwo())
+    if (!read.ok) throw new Error('should read')
+    expect(read.file.version).toBe(DATA_EXPORT_VERSION)
+    expect(read.file.playerDetails).toEqual({
+      playerName: '',
+      trainerName: '',
+      switchProfileName: '',
+      playerId: '',
+      supportId: '',
+      ageDivision: null,
+      dateOfBirth: null,
+    })
+  })
+
+  it('names Player details as the record a broken Player detail is in', () => {
+    const file = current()
+    file.playerDetails.ageDivision = 'Elder'
+    const read = readDataExport(file)
+    if (read.ok) throw new Error('should not read')
+    expect(read.issues[0]).toMatchObject({
+      path: ['playerDetails', 'ageDivision'],
+      record: 'Player details',
+    })
   })
 
   it('refuses a file from a newer version, asking to update the install', () => {
