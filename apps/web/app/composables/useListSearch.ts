@@ -13,5 +13,9 @@ export function useListSearch<T>(
   const query = useState(`list-search-${list}`, () => '')
   const searching = computed(() => query.value.trim() !== '')
   const results = computed(() => search(items() ?? [], query.value))
-  return { query, searching, results }
+  /** A search found nothing, in a list that has something in it. */
+  const noMatches = computed(
+    () => searching.value && results.value.length === 0 && Boolean(items()?.length),
+  )
+  return { query, searching, results, noMatches }
 }

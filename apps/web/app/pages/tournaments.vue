@@ -11,7 +11,7 @@ const tournaments = useQuery({
   queryFn: () => $fetch<TournamentView[]>('/api/tournaments'),
 })
 const groupBy = (items: TournamentView[]) => groupTournaments(items)
-const { query, searching, results } = useListSearch(
+const { query, searching, results, noMatches } = useListSearch(
   'tournaments',
   () => tournaments.data.value,
   (items: TournamentView[], q: string) => searchTournaments(items, q),
@@ -39,7 +39,7 @@ const selectedId = computed(() => ('id' in route.params ? String(route.params.id
             : undefined
         "
         :empty="tournaments.data.value?.length === 0"
-        :no-matches="searching && results.length === 0"
+        :no-matches="noMatches"
       >
         <template #actions>
           <Button v-if="tournaments.data.value?.length" as-child :size="wide ? 'sm' : 'default'">

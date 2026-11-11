@@ -3,8 +3,8 @@ import { DEFAULT_LIST_STYLES, type ListStyle, type ListStyles } from '@myvgc/cor
 
 // The list of Tournaments, Teams or Opponents, as ListDetail's `#list`: a header with the title,
 // the List style control, the page's actions and the search box, then the rows in the list's
-// List style, or the loading, error, empty or no-matches state. On wide screens it is the list column: its width follows
-// the List style, and the header stays put while the rows scroll.
+// List style, or the loading, error, empty or no-matches state. On wide screens it is the list
+// column: its width follows the List style, and the header stays put while the rows scroll.
 const props = defineProps<{
   /** Which list, for its List style. */
   list: keyof ListStyles

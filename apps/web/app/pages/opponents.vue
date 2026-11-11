@@ -14,7 +14,7 @@ const opponents = useQuery({
   queryFn: () => $fetch<OpponentView[]>('/api/opponents'),
 })
 const groupBy = (items: OpponentView[]) => groupOpponents(items)
-const { query, searching, results } = useListSearch(
+const { query, searching, results, noMatches } = useListSearch(
   'opponents',
   () => opponents.data.value,
   (items: OpponentView[], q: string) => searchOpponents(items, q),
@@ -66,7 +66,7 @@ const addError = computed(
             : undefined
         "
         :empty="opponents.data.value?.length === 0"
-        :no-matches="searching && results.length === 0"
+        :no-matches="noMatches"
       >
         <template #actions>
           <Button

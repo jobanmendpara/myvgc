@@ -8,7 +8,7 @@ useHead({ title: 'Your Teams · MyVGC' })
 
 const teams = useQuery({ queryKey: ['teams'], queryFn: () => $fetch<TeamView[]>('/api/teams') })
 const groupBy = (items: TeamView[]) => groupTeams(items)
-const { query, searching, results } = useListSearch(
+const { query, searching, results, noMatches } = useListSearch(
   'teams',
   () => teams.data.value,
   (items: TeamView[], q: string) => searchTeams(items, q),
@@ -36,7 +36,7 @@ const selectedId = computed(() => ('id' in route.params ? String(route.params.id
             : undefined
         "
         :empty="teams.data.value?.length === 0"
-        :no-matches="searching && results.length === 0"
+        :no-matches="noMatches"
       >
         <template #actions>
           <Button v-if="teams.data.value?.length" as-child :size="wide ? 'sm' : 'default'">
