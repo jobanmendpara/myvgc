@@ -3,6 +3,7 @@ import { type OpponentView, groupOpponents } from '@myvgc/core/schema'
 import { searchOpponents } from '@myvgc/core/search'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 import { fieldErrorsOf, saveFailureMessage } from '@/lib/api'
+import { fetchEveryOpponent } from '@/lib/opponent-list'
 
 definePageMeta({ listDetail: true })
 useHead({ title: 'Opponents · MyVGC' })
@@ -11,7 +12,7 @@ useHead({ title: 'Opponents · MyVGC' })
 // picker still searches on the server.
 const opponents = useQuery({
   queryKey: ['opponents', 'list'],
-  queryFn: () => $fetch<OpponentView[]>('/api/opponents'),
+  queryFn: () => fetchEveryOpponent(),
 })
 const groupBy = (items: OpponentView[]) => groupOpponents(items)
 const { query, searching, results, noMatches } = useListSearch(
