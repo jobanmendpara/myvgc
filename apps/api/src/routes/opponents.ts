@@ -83,11 +83,13 @@ export function opponentRoutes(db: Database) {
   return (
     new Hono<AppEnv>()
       // The User's Opponents, or those whose display name or an Alias contains `q`. Exact
-      // matches come first, then the rest by name. `limit` caps how many come back.
+      // matches come first, then the rest by name. `limit` caps how many come back, and `offset`
+      // skips that many, so the Opponents list loads everyone a page at a time.
       .get('/', async (c) => {
         const q = c.req.query('q')?.trim()
-        // The Round form asks for a few suggestions; the Opponents list asks for everyone.
+        // The Round form asks for a few suggestions; the Opponents list asks for full pages.
         const limit = Math.min(Math.max(Number(c.req.query('limit')) || 1000, 1), 1000)
+        const offset = Number(c.req.query('offset'))
         const pattern = q ? `%${escapeLike(q)}%` : undefined
         const aliasMatches = (p: string) =>
           exists(
@@ -110,8 +112,11 @@ export function opponentRoutes(db: Database) {
               ? [desc(or(ilike(opponent.displayName, escapeLike(q)), aliasMatches(escapeLike(q)))!)]
               : []),
             asc(sql`lower(${opponent.displayName})`),
+            // Settles the order between same names, so pages neither repeat nor skip anyone.
+            asc(opponent.id),
           )
           .limit(limit)
+          .offset(Number.isInteger(offset) && offset > 0 ? offset : 0)
         return c.json(await views(rows))
       })
       .post('/', async (c) => {

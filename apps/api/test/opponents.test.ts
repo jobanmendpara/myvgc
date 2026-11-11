@@ -246,6 +246,29 @@ describe('Opponents', () => {
     expect((await json(res)).fields).toHaveProperty('displayName')
   })
 
+  it('lists Opponents in pages that together hold every Opponent once', async () => {
+    await setUp()
+    // Same names too, so the order between them has to be settled for pages to line up.
+    for (const displayName of ['Wolfe', 'aaron', 'Wolfe', 'Ryota', 'wolfe', 'Aaron', 'Paul'])
+      await post(t.app, '/api/opponents', { displayName }, ash)
+    const everyone = await json(await get(t.app, '/api/opponents', ash))
+    expect(everyone).toHaveLength(7)
+
+    const pages = []
+    for (const offset of [0, 3, 6, 9])
+      pages.push(await json(await get(t.app, `/api/opponents?limit=3&offset=${offset}`, ash)))
+    expect(pages.map((page) => page.length)).toEqual([3, 3, 1, 0])
+    expect(pages.flat().map((o: { id: string }) => o.id)).toEqual(
+      everyone.map((o: { id: string }) => o.id),
+    )
+
+    // An offset that isn't a whole number of zero or more starts at the beginning.
+    for (const offset of ['-2', 'nope', '1.5'])
+      expect(await json(await get(t.app, `/api/opponents?limit=3&offset=${offset}`, ash))).toEqual(
+        pages[0],
+      )
+  })
+
   it('keeps Opponents private to their User', async () => {
     await setUp()
     const misty = (await signUp(t.app, 'misty@example.com')).cookie
