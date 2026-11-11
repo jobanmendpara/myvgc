@@ -44,6 +44,8 @@ function startEditing() {
   notes.value = opponent.value.notes
   editing.value = true
 }
+// On wide screens the list sits beside the Opponent, so it needs no back link.
+const wide = useWideLayout()
 
 const queryClient = useQueryClient()
 const save = useMutation({
@@ -69,6 +71,19 @@ const save = useMutation({
 })
 const fieldErrors = computed(() => fieldErrorsOf(save.error.value))
 
+// Leaving with unsaved edits, such as by clicking another row in the list column, asks first,
+// except while saving.
+const dirty = computed(
+  () =>
+    editing.value &&
+    !save.isPending.value &&
+    !!opponent.value &&
+    (displayName.value !== opponent.value.displayName ||
+      aliasText.value !== opponent.value.aliases.join('\n') ||
+      notes.value !== opponent.value.notes),
+)
+const { discarding, answer } = useDiscardGuard(dirty)
+
 const confirmingDelete = ref(false)
 const remove = useMutation({
   mutationFn: () => {
@@ -77,8 +92,9 @@ const remove = useMutation({
   },
   onSuccess: async () => {
     confirmingDelete.value = false
-    await queryClient.invalidateQueries({ queryKey: ['opponents'] })
+    // Leave first, so the pane doesn't refetch this Opponent and flash "not found".
     await navigateTo('/opponents')
+    await queryClient.invalidateQueries({ queryKey: ['opponents'] })
   },
 })
 
@@ -126,7 +142,7 @@ const roundsMoving = computed(() => {
 
 <template>
   <div class="flex flex-col gap-6">
-    <NuxtLink to="/opponents" class="text-muted-foreground text-sm hover:underline"
+    <NuxtLink v-if="!wide" to="/opponents" class="text-muted-foreground text-sm hover:underline"
       >← Opponents</NuxtLink
     >
 
@@ -184,6 +200,21 @@ const roundsMoving = computed(() => {
           }}</Button>
           <Button type="button" variant="ghost" @click="editing = false">Cancel</Button>
         </div>
+
+        <AlertDialog :open="discarding" @update:open="(open: boolean) => open || answer(false)">
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Discard changes?</AlertDialogTitle>
+              <AlertDialogDescription
+                >Your edits to this Opponent haven't been saved.</AlertDialogDescription
+              >
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Keep editing</AlertDialogCancel>
+              <Button variant="destructive" @click="answer(true)">Discard changes</Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </form>
 
       <header v-else class="flex flex-col gap-2">

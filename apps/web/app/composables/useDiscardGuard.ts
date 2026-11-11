@@ -13,7 +13,8 @@ export async function confirmDiscardAll(): Promise<boolean> {
 }
 
 /**
- * Asks before leaving with unsaved edits: on a route change, on log out and on closing the tab.
+ * Asks before leaving with unsaved edits: on a route change (also to another item on the same
+ * page), on log out and on closing the tab.
  * Show a "Discard changes?" dialog while `discarding` is true, and call `answer` with the choice.
  */
 export function useDiscardGuard(dirty: Ref<boolean>) {
@@ -37,6 +38,9 @@ export function useDiscardGuard(dirty: Ref<boolean>) {
   }
 
   onBeforeRouteLeave(ask)
+  // The same route with other params, such as another item clicked in a list column. A change to
+  // the query alone doesn't leave the page.
+  onBeforeRouteUpdate((to, from) => (to.path === from.path ? true : ask()))
   askers.add(ask)
   onUnmounted(() => askers.delete(ask))
   useEventListener(window, 'beforeunload', (event: BeforeUnloadEvent) => {
