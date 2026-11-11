@@ -3,6 +3,9 @@ packages:
   - packages/*
   - e2e
 
+# Refuse to install or run scripts on a Node outside `engines` (^24, matching .nvmrc and CI).
+engineStrict: true
+
 onlyBuiltDependencies:
   - esbuild
   - '@parcel/watcher'
