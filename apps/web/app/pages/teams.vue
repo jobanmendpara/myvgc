@@ -6,6 +6,7 @@ definePageMeta({ listDetail: true })
 useHead({ title: 'Your Teams · MyVGC' })
 
 const teams = useQuery({ queryKey: ['teams'], queryFn: () => $fetch<TeamView[]>('/api/teams') })
+const groupBy = (items: TeamView[]) => groupTeams(items)
 
 // The Team open in the pane, also while editing it.
 const route = useRoute()
@@ -54,7 +55,7 @@ const selectedId = computed(() => ('id' in route.params ? String(route.params.id
             :wide="wide"
             :selected-id="selectedId"
             base="/teams"
-            :group-by="groupTeams"
+            :group-by="groupBy"
             data-testid="teams-list"
           >
             <template #default="{ item }">

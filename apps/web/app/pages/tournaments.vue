@@ -9,6 +9,7 @@ const tournaments = useQuery({
   queryKey: ['tournaments'],
   queryFn: () => $fetch<TournamentView[]>('/api/tournaments'),
 })
+const groupBy = (items: TournamentView[]) => groupTournaments(items)
 
 // The Tournament open in the pane, also while editing it or one of its Rounds.
 const route = useRoute()
@@ -59,7 +60,7 @@ const selectedId = computed(() => ('id' in route.params ? String(route.params.id
             :wide="wide"
             :selected-id="selectedId"
             base="/tournaments"
-            :group-by="groupTournaments"
+            :group-by="groupBy"
             data-testid="tournaments-list"
           >
             <template #default="{ item }">

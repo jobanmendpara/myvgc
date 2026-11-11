@@ -15,6 +15,7 @@ const opponents = useQuery({
     $fetch<OpponentView[]>('/api/opponents', { query: { q: q.value.trim() || undefined } }),
   placeholderData: (previous) => previous,
 })
+const groupBy = (items: OpponentView[]) => groupOpponents(items)
 
 // The Opponent open in the pane.
 const route = useRoute()
@@ -119,7 +120,7 @@ const addError = computed(
             :wide="wide"
             :selected-id="selectedId"
             base="/opponents"
-            :group-by="groupOpponents"
+            :group-by="groupBy"
             data-testid="opponents-list"
           >
             <template #default="{ item }">
