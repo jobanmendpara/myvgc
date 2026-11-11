@@ -46,9 +46,9 @@ function tryAgain() {
           :variant="notFound ? 'default' : 'outline'"
           size="lg"
           class="w-full sm:w-auto"
-          @click="clearError({ redirect: '/teams' })"
+          @click="clearError({ redirect: '/dashboard' })"
         >
-          Go to your Teams
+          Go to your Dashboard
         </Button>
       </CardFooter>
     </Card>

@@ -1,6 +1,8 @@
 <script setup lang="ts">
-// The main areas of the app, in the order a User reaches for them at an event.
+// The main areas of the app: the Dashboard is home, then the order a User reaches for the rest
+// at an event.
 const areas = [
+  { to: '/dashboard', label: 'Dashboard' },
   { to: '/tournaments', label: 'Tournaments' },
   { to: '/teams', label: 'Teams' },
   { to: '/opponents', label: 'Opponents' },
@@ -17,7 +19,7 @@ const isCurrent = (to: string) => route.path === to || route.path.startsWith(`${
       <div
         class="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3"
       >
-        <NuxtLink to="/teams" class="text-lg font-semibold">MyVGC</NuxtLink>
+        <NuxtLink to="/dashboard" class="text-lg font-semibold">MyVGC</NuxtLink>
         <AccountMenu />
       </div>
       <nav aria-label="Main" class="mx-auto w-full max-w-7xl overflow-x-auto px-2">
