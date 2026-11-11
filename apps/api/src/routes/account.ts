@@ -1,8 +1,9 @@
-import { playerDetailsSchemaOn, today } from '@myvgc/core'
+import { listStylesSchema, playerDetailsSchemaOn, today } from '@myvgc/core'
 import { Hono } from 'hono'
 import type { AppEnv } from '../app'
 import type { Database } from '../db/types'
 import { readBody } from './helpers'
+import { loadListStyles, saveListStyles } from './list-styles-data'
 import { loadPlayerDetails, savePlayerDetails } from './player-details-data'
 
 /**
@@ -20,6 +21,15 @@ export function accountRoutes(db: Database) {
         const input = await readBody(c, playerDetailsSchemaOn(today()))
         if (!input.ok) return input.response
         return c.json(await savePlayerDetails(db, c.get('user').id, input.data))
+      })
+      .get('/list-styles', async (c) => {
+        return c.json(await loadListStyles(db, c.get('user').id))
+      })
+      // Replaces all of the User's List styles; a list left out gets its default.
+      .put('/list-styles', async (c) => {
+        const input = await readBody(c, listStylesSchema)
+        if (!input.ok) return input.response
+        return c.json(await saveListStyles(db, c.get('user').id, input.data))
       })
   )
 }

@@ -1,4 +1,4 @@
-import type { AgeDivision } from '@myvgc/core'
+import type { AgeDivision, ListStyle } from '@myvgc/core'
 import { date, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
 import { user } from './auth-schema'
 
@@ -17,6 +17,24 @@ export const playerDetails = pgTable('player_details', {
   supportId: text('support_id').notNull().default(''),
   ageDivision: text('age_division').$type<AgeDivision>(),
   dateOfBirth: date('date_of_birth'),
+  updatedAt: timestamp('updated_at', { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
+})
+
+/**
+ * A User's List style for each list (see CONTEXT.md), one row per User. The row is made on the
+ * first save; until then the User gets the defaults (`DEFAULT_LIST_STYLES`). Not part of the
+ * Data export.
+ */
+export const listStyles = pgTable('list_styles', {
+  userId: text('user_id')
+    .primaryKey()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  tournaments: text('tournaments').$type<ListStyle>().notNull(),
+  teams: text('teams').$type<ListStyle>().notNull(),
+  opponents: text('opponents').$type<ListStyle>().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true })
     .notNull()
     .defaultNow()
