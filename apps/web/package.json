@@ -8,7 +8,8 @@
     "dev": "nuxt dev --port 3000",
     "build": "nuxt generate",
     "postinstall": "nuxt prepare",
-    "typecheck": "nuxt prepare && node scripts/check-type-paths.mjs && nuxt typecheck"
+    "typecheck": "nuxt prepare && node scripts/check-type-paths.mjs && nuxt typecheck",
+    "test": "vitest run"
   },
   "dependencies": {
     "@lucide/vue": "^1.67.0",
@@ -31,6 +32,7 @@
   "devDependencies": {
     "@types/node": "^24.19.2",
     "typescript": "5.9.3",
+    "vitest": "^5.1.0",
     "vue-tsc": "^3.3.14"
   }
 }

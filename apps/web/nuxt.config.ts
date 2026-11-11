@@ -60,5 +60,7 @@ export default defineNuxtConfig({
   },
   typescript: {
     strict: true,
+    // Typecheck the unit tests (`vitest run`) with the app's types, such as the global `$fetch`.
+    tsConfig: { include: ['../test/**/*'] },
   },
 })
