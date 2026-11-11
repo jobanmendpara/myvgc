@@ -7,6 +7,8 @@ const route = useRoute()
 const id = computed(() => String(route.params.id))
 
 const { query, tournament, notFound } = useTournament(id)
+// On wide screens the list sits beside the Tournament, so it needs no back link.
+const wide = useWideLayout()
 
 const calendar = useCalendar()
 // The server has the final say; this only decides which buttons to show.
@@ -67,7 +69,7 @@ useHead({
 
 <template>
   <div class="flex flex-col gap-6">
-    <NuxtLink to="/tournaments" class="text-muted-foreground text-sm hover:underline"
+    <NuxtLink v-if="!wide" to="/tournaments" class="text-muted-foreground text-sm hover:underline"
       >← Your Tournaments</NuxtLink
     >
 

@@ -288,6 +288,25 @@ function submit() {
     ...(!bye.value && opponent.value ? { opponentTeam: changedOpponentTeam() } : {}),
   })
 }
+
+// Leaving with unsaved edits asks first, except while saving, when the page moves on by itself.
+const draft = () =>
+  JSON.stringify([
+    phase.value,
+    roundNumber.value,
+    stage.value,
+    bestOf.value,
+    bye.value,
+    result.value,
+    score.value,
+    opponent.value,
+    notes.value,
+    games.value,
+    opponentTeam.value,
+  ])
+const startedWith = draft()
+const dirty = computed(() => !props.pending && draft() !== startedWith)
+const { discarding, answer } = useDiscardGuard(dirty)
 </script>
 
 <template>
@@ -440,5 +459,20 @@ function submit() {
         {{ pending ? 'Saving…' : round ? 'Save Round' : 'Log Round' }}
       </Button>
     </div>
+
+    <AlertDialog :open="discarding" @update:open="(open: boolean) => open || answer(false)">
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Discard changes?</AlertDialogTitle>
+          <AlertDialogDescription
+            >Your edits to this Round haven't been saved.</AlertDialogDescription
+          >
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Keep editing</AlertDialogCancel>
+          <Button variant="destructive" @click="answer(true)">Discard changes</Button>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   </form>
 </template>
