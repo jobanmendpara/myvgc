@@ -80,7 +80,7 @@ const dirty = computed(
       aliasText.value !== opponent.value.aliases.join('\n') ||
       notes.value !== opponent.value.notes),
 )
-const { discarding, answer } = useDiscardGuard(dirty)
+const { DiscardDialog } = useDiscardGuard(dirty, 'this Opponent')
 
 const confirmingDelete = ref(false)
 const remove = useMutation({
@@ -197,20 +197,7 @@ const roundsMoving = computed(() => {
           <Button type="button" variant="ghost" @click="editing = false">Cancel</Button>
         </div>
 
-        <AlertDialog :open="discarding" @update:open="(open: boolean) => open || answer(false)">
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Discard changes?</AlertDialogTitle>
-              <AlertDialogDescription
-                >Your edits to this Opponent haven't been saved.</AlertDialogDescription
-              >
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Keep editing</AlertDialogCancel>
-              <Button variant="destructive" @click="answer(true)">Discard changes</Button>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+        <DiscardDialog />
       </form>
 
       <header v-else class="flex flex-col gap-2">

@@ -54,7 +54,7 @@ const form = reactive<TournamentFormValues>({ ...props.initial })
 // Leaving with unsaved edits asks first, except while saving, when the page moves on by itself.
 const startedWith = JSON.stringify(form)
 const dirty = computed(() => !props.pending && JSON.stringify(form) !== startedWith)
-const { discarding, answer } = useDiscardGuard(dirty)
+const { DiscardDialog } = useDiscardGuard(dirty, 'this Tournament')
 
 // Amounts and counts are checked here first, since the API only sees them as numbers.
 const localErrors = ref<Record<string, string>>({})
@@ -349,19 +349,6 @@ const error = (field: string) => localErrors.value[field] ?? props.fieldErrors?.
       </Button>
     </div>
 
-    <AlertDialog :open="discarding" @update:open="(open: boolean) => open || answer(false)">
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Discard changes?</AlertDialogTitle>
-          <AlertDialogDescription
-            >Your edits to this Tournament haven't been saved.</AlertDialogDescription
-          >
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Keep editing</AlertDialogCancel>
-          <Button variant="destructive" @click="answer(true)">Discard changes</Button>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+    <DiscardDialog />
   </form>
 </template>

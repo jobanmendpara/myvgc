@@ -1,5 +1,6 @@
 import { useEventListener } from '@vueuse/core'
-import type { Ref } from 'vue'
+import { type Ref, defineComponent, h } from 'vue'
+import DiscardChangesDialog from '@/components/DiscardChangesDialog.vue'
 
 // Every form on the page with unsaved edits, so logging out can ask before it ends the session.
 const askers = new Set<() => Promise<boolean>>()
@@ -15,9 +16,10 @@ export async function confirmDiscardAll(): Promise<boolean> {
 /**
  * Asks before leaving with unsaved edits: on a route change (also to another item on the same
  * page), on log out and on closing the tab.
- * Show a "Discard changes?" dialog while `discarding` is true, and call `answer` with the choice.
+ * Render the returned `DiscardDialog` once in the form's template; it asks "Discard changes?"
+ * about `subject`, such as "this Tournament".
  */
-export function useDiscardGuard(dirty: Ref<boolean>) {
+export function useDiscardGuard(dirty: Ref<boolean>, subject: string) {
   const discarding = ref(false)
   // Set once the User chooses to discard, so leaving afterwards doesn't ask again.
   const discarded = ref(false)
@@ -47,5 +49,9 @@ export function useDiscardGuard(dirty: Ref<boolean>) {
     if (dirty.value && !discarded.value) event.preventDefault()
   })
 
-  return { discarding, answer }
+  const DiscardDialog = defineComponent(
+    () => () => h(DiscardChangesDialog, { open: discarding.value, subject, onAnswer: answer }),
+  )
+
+  return { DiscardDialog }
 }

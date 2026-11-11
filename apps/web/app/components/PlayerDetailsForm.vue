@@ -108,7 +108,7 @@ function submit() {
 }
 
 // Leaving or logging out with unsaved edits asks first.
-const { discarding, answer } = useDiscardGuard(dirty)
+const { DiscardDialog } = useDiscardGuard(dirty, 'your Player details')
 </script>
 
 <template>
@@ -190,19 +190,6 @@ const { discarding, answer } = useDiscardGuard(dirty)
       <p v-if="justSaved" class="text-muted-foreground text-sm" role="status">Saved.</p>
     </div>
 
-    <AlertDialog :open="discarding" @update:open="(open: boolean) => open || answer(false)">
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Discard changes?</AlertDialogTitle>
-          <AlertDialogDescription
-            >Your edits to your Player details haven't been saved.</AlertDialogDescription
-          >
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Keep editing</AlertDialogCancel>
-          <Button variant="destructive" @click="answer(true)">Discard changes</Button>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+    <DiscardDialog />
   </form>
 </template>

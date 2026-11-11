@@ -123,7 +123,7 @@ onBeforeRouteLeave(() => {
   editing.value = null
   return false
 })
-const { discarding, answer } = useDiscardGuard(dirty)
+const { DiscardDialog } = useDiscardGuard(dirty, 'this Team')
 </script>
 
 <template>
@@ -252,19 +252,6 @@ const { discarding, answer } = useDiscardGuard(dirty)
       :problems="problemsOf(editing)"
     />
 
-    <AlertDialog :open="discarding" @update:open="(open: boolean) => open || answer(false)">
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Discard changes?</AlertDialogTitle>
-          <AlertDialogDescription
-            >Your edits to this Team haven't been saved.</AlertDialogDescription
-          >
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Keep editing</AlertDialogCancel>
-          <Button variant="destructive" @click="answer(true)">Discard changes</Button>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+    <DiscardDialog />
   </form>
 </template>
