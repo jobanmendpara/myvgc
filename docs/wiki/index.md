@@ -4,7 +4,7 @@ The chief-of-staff's record of decisions, recurring problems and preferences. It
 
 ## Workstreams
 
-- [List and detail rollout](list-detail-rollout.md): DEV-84 to DEV-89, the split layout, List styles and fuzzy search.
+- [List and detail rollout](list-detail-rollout.md): DEV-84 to DEV-89, the split layout, List styles and fuzzy search, and the follow-ups DEV-94 to DEV-100.
 
 ## Preferences
 
@@ -14,6 +14,7 @@ The chief-of-staff's record of decisions, recurring problems and preferences. It
 
 - [Parallel agents](parallel-agents.md): running several implementers at once without them colliding.
 - [up:local shares the dev DB](up-local-shares-dev-db.md): a stale container breaks dev migrations.
+- [Flaky tests](flaky-tests.md): tests that failed once and passed on a rerun.
 
 ## About this wiki
 
