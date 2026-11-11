@@ -2,10 +2,16 @@ name: CI
 
 on:
   push:
+    branches: [main]
   pull_request:
 
 permissions:
   contents: read
+
+# A new push to a PR cancels its run still in progress. Runs on main always finish.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   check:
@@ -24,6 +30,7 @@ jobs:
       - run: pnpm test
 
   smoke:
-    # Runs on every push as well as on pull requests and main, so a branch shows it passing
-    # before it's merged.
+    # Only on pull requests into main, so a branch shows it passing before it's merged. The
+    # release workflow runs it again before publishing.
+    if: github.event_name == 'pull_request' && github.base_ref == 'main'
     uses: ./.github/workflows/smoke.yml
