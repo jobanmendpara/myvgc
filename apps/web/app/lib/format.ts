@@ -1,4 +1,4 @@
-// Display helpers shared by the Tournament, Opponent and dashboard pages.
+// Display helpers shared by the Tournament, Opponent, dashboard and Statistics pages.
 import { ROUND_RESULT_LABELS, TOP_CUT_STAGE_LABELS, type RoundView } from '@myvgc/core/schema'
 
 /** A Round's place in its Tournament, such as "Round 3" or "Top 8". */
@@ -40,3 +40,6 @@ export function ordinal(n: number): string {
   if (tens >= 11 && tens <= 13) return `${n}th`
   return `${n}${({ 1: 'st', 2: 'nd', 3: 'rd' } as Record<number, string>)[n % 10] ?? 'th'}`
 }
+
+/** A rate as a whole percentage, such as "67%", or a dash when there is none. */
+export const percent = (rate: number | null) => (rate === null ? '—' : `${Math.round(rate * 100)}%`)

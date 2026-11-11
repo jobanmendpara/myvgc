@@ -5,6 +5,7 @@ const areas = [
   { to: '/teams', label: 'Teams' },
   { to: '/opponents', label: 'Opponents' },
   { to: '/dashboard', label: 'Dashboard' },
+  { to: '/statistics', label: 'Statistics' },
 ]
 const route = useRoute()
 const isCurrent = (to: string) => route.path === to || route.path.startsWith(`${to}/`)
