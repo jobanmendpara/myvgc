@@ -152,7 +152,10 @@ test('log a Tournament and a Round against a new Opponent', async ({ page }) => 
   const row = page
     .getByTestId('tournaments-list')
     .getByRole('link', { name: /Smoke test Regional/ })
-  if (wide) await expect(row).toHaveAttribute('aria-current', 'page')
+  if (wide) {
+    await expect(row).toBeVisible()
+    await expect(row).toHaveAttribute('aria-current', 'page')
+  }
 
   await page.getByRole('link', { name: 'Log Round' }).click()
   await expect(page.getByRole('heading', { name: 'Log a Round' })).toBeVisible()
@@ -176,6 +179,22 @@ test('log a Tournament and a Round against a new Opponent', async ({ page }) => 
     await expect(page.getByText('Select a Tournament')).toBeVisible()
     await expect(row).toBeVisible()
     await expect(row).not.toHaveAttribute('aria-current')
+
+    await row.click()
+    await expect(page.getByTestId('tournament-name')).toHaveText('Smoke test Regional')
+    await expect(row).toBeVisible()
+
+    // Clicking a row in the middle of a form asks before discarding the edits.
+    await page.getByRole('link', { name: 'Edit details' }).click()
+    await expect(page.getByRole('heading', { name: 'Edit Tournament' })).toBeVisible()
+    await page.getByLabel('Name', { exact: true }).fill('Renamed Regional')
+    await row.click()
+    const discard = page.getByRole('alertdialog', { name: 'Discard changes?' })
+    await discard.getByRole('button', { name: 'Keep editing' }).click()
+    await expect(page.getByLabel('Name', { exact: true })).toHaveValue('Renamed Regional')
+    await row.click()
+    await discard.getByRole('button', { name: 'Discard changes' }).click()
+    await expect(page.getByTestId('tournament-name')).toHaveText('Smoke test Regional')
   }
 })
 

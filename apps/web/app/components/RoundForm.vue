@@ -39,8 +39,6 @@ const props = defineProps<{
   round?: RoundView
   fieldErrors?: Record<string, string>
   pending: boolean
-  /** Where Cancel goes; back to the Tournament unless given. */
-  cancelTo?: string
 }>()
 const emit = defineEmits<{ submit: [body: RoundInput] }>()
 
@@ -290,6 +288,25 @@ function submit() {
     ...(!bye.value && opponent.value ? { opponentTeam: changedOpponentTeam() } : {}),
   })
 }
+
+// Leaving with unsaved edits asks first, except while saving, when the page moves on by itself.
+const draft = () =>
+  JSON.stringify([
+    phase.value,
+    roundNumber.value,
+    stage.value,
+    bestOf.value,
+    bye.value,
+    result.value,
+    score.value,
+    opponent.value,
+    notes.value,
+    games.value,
+    opponentTeam.value,
+  ])
+const startedWith = draft()
+const dirty = computed(() => !props.pending && draft() !== startedWith)
+const { discarding, answer } = useDiscardGuard(dirty)
 </script>
 
 <template>
@@ -436,11 +453,26 @@ function submit() {
 
     <div class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
       <Button as-child variant="outline" size="lg"
-        ><NuxtLink :to="cancelTo ?? `/tournaments/${tournament.id}`">Cancel</NuxtLink></Button
+        ><NuxtLink :to="`/tournaments/${tournament.id}`">Cancel</NuxtLink></Button
       >
       <Button type="submit" size="lg" :disabled="pending">
         {{ pending ? 'Saving…' : round ? 'Save Round' : 'Log Round' }}
       </Button>
     </div>
+
+    <AlertDialog :open="discarding" @update:open="(open: boolean) => open || answer(false)">
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Discard changes?</AlertDialogTitle>
+          <AlertDialogDescription
+            >Your edits to this Round haven't been saved.</AlertDialogDescription
+          >
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Keep editing</AlertDialogCancel>
+          <Button variant="destructive" @click="answer(true)">Discard changes</Button>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   </form>
 </template>
