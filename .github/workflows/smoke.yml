@@ -39,8 +39,11 @@ jobs:
       - name: Start the app and Postgres
         run: docker compose -f compose.yaml -f compose.build.yaml up -d --no-build --wait --wait-timeout 120
 
+      # Without --with-deps: GitHub's Ubuntu images already have Chromium's system libraries,
+      # and installing them needs apt, which fails whenever the runners can't reach Ubuntu's
+      # mirrors (DEV-90).
       - name: Install Chromium for Playwright
-        run: pnpm --filter @myvgc/e2e exec playwright install --with-deps chromium
+        run: pnpm --filter @myvgc/e2e exec playwright install chromium
 
       - name: Run the smoke test
         run: pnpm smoke
