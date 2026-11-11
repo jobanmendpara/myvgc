@@ -2,13 +2,16 @@
 import { DEFAULT_LIST_STYLES, type ListStyle, type ListStyles } from '@myvgc/core/schema'
 
 // The list of Tournaments, Teams or Opponents, as ListDetail's `#list`: a header with the title,
-// the List style control and the page's actions, then the rows in the list's List style, or
-// the loading, error or empty state. On wide screens it is the list column: its width follows
+// the List style control, the page's actions and the search box, then the rows in the list's
+// List style, or the loading, error, empty or no-matches state. On wide screens it is the list column: its width follows
 // the List style, and the header stays put while the rows scroll.
 const props = defineProps<{
   /** Which list, for its List style. */
   list: keyof ListStyles
   title: string
+  /** What the list holds, such as `Tournaments`, for the search box and its empty state. */
+  noun: string
+  searchPlaceholder: string
   wide: boolean
   /** Whether the list itself is still loading. */
   pending: boolean
@@ -16,11 +19,15 @@ const props = defineProps<{
   error?: string
   /** Whether the list loaded with nothing in it: the `#empty` slot shows instead. */
   empty: boolean
+  /** Whether a search found nothing in a list that isn't empty. */
+  noMatches: boolean
 }>()
+/** The search box's query. */
+const query = defineModel<string>('query', { required: true })
 defineSlots<{
   /** Beside the title, such as the New button. */
   actions(): unknown
-  /** Below the title, such as a search box. */
+  /** Below the title and above the search box, such as a form to add an item. */
   header?(): unknown
   empty(): unknown
   default(props: { listStyle: ListStyle }): unknown
@@ -65,6 +72,16 @@ const width = computed(() =>
         </p>
       </div>
       <slot name="header" />
+      <template v-if="showControl">
+        <Label :for="`search-${list}`" class="sr-only">Search {{ noun }}</Label>
+        <Input
+          :id="`search-${list}`"
+          v-model="query"
+          type="search"
+          autocomplete="off"
+          :placeholder="searchPlaceholder"
+        />
+      </template>
     </div>
 
     <div :class="{ 'min-h-0 flex-1 overflow-y-auto pb-16': wide }">
@@ -76,6 +93,15 @@ const width = computed(() =>
       </div>
       <div v-else-if="empty" :class="{ 'p-2': wide }">
         <slot name="empty" />
+      </div>
+      <div
+        v-else-if="noMatches"
+        class="flex flex-col items-start gap-3"
+        :class="wide ? 'p-3 text-sm' : ''"
+        data-testid="list-no-matches"
+      >
+        <p class="text-muted-foreground">No {{ noun }} match “{{ query.trim() }}”.</p>
+        <Button variant="outline" size="sm" @click="query = ''">Clear search</Button>
       </div>
       <slot v-else :list-style="style!" />
     </div>

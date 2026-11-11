@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { type TeamView, groupTeams } from '@myvgc/core/schema'
+import { searchTeams } from '@myvgc/core/search'
 import { useQuery } from '@tanstack/vue-query'
 
 definePageMeta({ listDetail: true })
@@ -7,6 +8,11 @@ useHead({ title: 'Your Teams · MyVGC' })
 
 const teams = useQuery({ queryKey: ['teams'], queryFn: () => $fetch<TeamView[]>('/api/teams') })
 const groupBy = (items: TeamView[]) => groupTeams(items)
+const { query, searching, results } = useListSearch(
+  'teams',
+  () => teams.data.value,
+  (items: TeamView[], q: string) => searchTeams(items, q),
+)
 
 // The Team open in the pane, also while editing it.
 const route = useRoute()
@@ -17,8 +23,11 @@ const selectedId = computed(() => ('id' in route.params ? String(route.params.id
   <ListDetail base="/teams" placeholder="Select a Team">
     <template #list="{ wide }">
       <ListColumn
+        v-model:query="query"
         list="teams"
         title="Your Teams"
+        noun="Teams"
+        search-placeholder="Find by name or Pokémon"
         :wide="wide"
         :pending="teams.isPending.value"
         :error="
@@ -27,6 +36,7 @@ const selectedId = computed(() => ('id' in route.params ? String(route.params.id
             : undefined
         "
         :empty="teams.data.value?.length === 0"
+        :no-matches="searching && results.length === 0"
       >
         <template #actions>
           <Button v-if="teams.data.value?.length" as-child :size="wide ? 'sm' : 'default'">
@@ -50,12 +60,12 @@ const selectedId = computed(() => ('id' in route.params ? String(route.params.id
 
         <template #default="{ listStyle }">
           <ListRows
-            :items="teams.data.value ?? []"
+            :items="results"
             :list-style="listStyle"
             :wide="wide"
             :selected-id="selectedId"
             base="/teams"
-            :group-by="groupBy"
+            :group-by="searching ? undefined : groupBy"
             data-testid="teams-list"
           >
             <template #default="{ item }">

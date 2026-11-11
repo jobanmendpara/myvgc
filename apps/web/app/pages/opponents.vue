@@ -1,21 +1,24 @@
 <script setup lang="ts">
 import { type OpponentView, groupOpponents } from '@myvgc/core/schema'
+import { searchOpponents } from '@myvgc/core/search'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
-import { refDebounced } from '@vueuse/core'
 import { fieldErrorsOf, saveFailureMessage } from '@/lib/api'
 
 definePageMeta({ listDetail: true })
 useHead({ title: 'Opponents · MyVGC' })
 
-const search = ref('')
-const q = refDebounced(search, 200)
+// The whole list, searched in the browser so it also works offline. The Round form's Opponent
+// picker still searches on the server.
 const opponents = useQuery({
-  queryKey: computed(() => ['opponents', 'search', q.value.trim()]),
-  queryFn: () =>
-    $fetch<OpponentView[]>('/api/opponents', { query: { q: q.value.trim() || undefined } }),
-  placeholderData: (previous) => previous,
+  queryKey: ['opponents', 'list'],
+  queryFn: () => $fetch<OpponentView[]>('/api/opponents'),
 })
 const groupBy = (items: OpponentView[]) => groupOpponents(items)
+const { query, searching, results } = useListSearch(
+  'opponents',
+  () => opponents.data.value,
+  (items: OpponentView[], q: string) => searchOpponents(items, q),
+)
 
 // The Opponent open in the pane.
 const route = useRoute()
@@ -49,8 +52,11 @@ const addError = computed(
   <ListDetail base="/opponents" placeholder="Select an Opponent">
     <template #list="{ wide }">
       <ListColumn
+        v-model:query="query"
         list="opponents"
         title="Opponents"
+        noun="Opponents"
+        search-placeholder="Find by name or Alias"
         :wide="wide"
         :class="{ 'mx-auto w-full max-w-3xl': !wide }"
         :pending="opponents.isPending.value"
@@ -60,6 +66,7 @@ const addError = computed(
             : undefined
         "
         :empty="opponents.data.value?.length === 0"
+        :no-matches="searching && results.length === 0"
       >
         <template #actions>
           <Button
@@ -86,17 +93,6 @@ const addError = computed(
             </div>
             <p v-if="addError" class="text-destructive text-sm">{{ addError }}</p>
           </form>
-
-          <div class="flex flex-col gap-2">
-            <Label for="opponent-search" class="sr-only">Find an Opponent</Label>
-            <Input
-              id="opponent-search"
-              v-model="search"
-              type="search"
-              autocomplete="off"
-              placeholder="Find by name or Alias"
-            />
-          </div>
         </template>
 
         <template #empty>
@@ -105,22 +101,18 @@ const addError = computed(
             :class="{ 'p-1 text-sm': wide }"
             data-testid="opponents-empty"
           >
-            {{
-              q.trim()
-                ? `No Opponents match “${q.trim()}”.`
-                : 'Opponents you play in Tournament Rounds will appear here.'
-            }}
+            Opponents you play in Tournament Rounds will appear here.
           </p>
         </template>
 
         <template #default="{ listStyle }">
           <ListRows
-            :items="opponents.data.value ?? []"
+            :items="results"
             :list-style="listStyle"
             :wide="wide"
             :selected-id="selectedId"
             base="/opponents"
-            :group-by="groupBy"
+            :group-by="searching ? undefined : groupBy"
             data-testid="opponents-list"
           >
             <template #default="{ item }">

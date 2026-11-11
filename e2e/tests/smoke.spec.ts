@@ -307,6 +307,17 @@ test('the chosen List style survives a reload, and needs a connection to change'
   await expect(list.getByRole('heading', { name: 'A' })).toBeVisible()
   await expect(list).toContainText('Ash Ketchum')
 
+  // Search tolerates a typo, and the Grouped headings drop away while searching.
+  const search = page.getByRole('searchbox', { name: 'Search Opponents' })
+  await search.fill('Ash Kecthum')
+  await expect(list).toContainText('Ash Ketchum')
+  await expect(list.getByRole('heading')).toHaveCount(0)
+  await search.fill('Misty')
+  await expect(page.getByText('No Opponents match “Misty”.')).toBeVisible()
+  await page.getByRole('button', { name: 'Clear search' }).click()
+  await expect(search).toHaveValue('')
+  await expect(list.getByRole('heading', { name: 'A' })).toBeVisible()
+
   // Offline, the saved List style still shows, but it can't be changed.
   await page.context().setOffline(true)
   await expect(page.getByTestId('list-style-offline')).toBeVisible()
