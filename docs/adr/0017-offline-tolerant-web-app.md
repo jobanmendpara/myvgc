@@ -1,6 +1,6 @@
 # 17. Offline-tolerant web app with a queued-write outbox
 
-Date: 2026-11-04 (amended 2026-11-05 for each species' own abilities, DEV-51, and base stats, DEV-50, and Note entries, DEV-35, and Data export, DEV-39)
+Date: 2026-11-04 (amended 2026-11-05 for each species' own abilities, DEV-51, and base stats, DEV-50, and Note entries, DEV-35, and Data export, DEV-39; amended 2026-11-11 for list search, DEV-82)
 Status: Accepted
 
 ## Context
@@ -11,7 +11,8 @@ We considered full local-first (a client database as the source of truth, plus a
 ## Decision
 Make the web app offline-tolerant, not local-first. The server and Postgres stay the only authority; the browser keeps a cache and a queue of pending writes.
 
-- **Offline scope.** Open the app, read cached pages, search Opponents by name or Alias, create an Opponent, log, edit or delete a Round, with the Record updating, and add, edit or delete an Opponent's Note entries. Sign-up, account recovery, paste import, Team building, the dashboard, Statistics and Data export and import (ADR 23) stay online-only.
+- **Offline scope.** Open the app, read cached pages, search the Tournaments, Teams and Opponents lists, create an Opponent, log, edit or delete a Round, with the Record updating, and add, edit or delete an Opponent's Note entries. Sign-up, account recovery, paste import, Team building, the dashboard, Statistics and Data export and import (ADR 23) stay online-only.
+- **List search runs in the browser.** The Tournaments, Teams and Opponents lists search the list already loaded, with a typo-tolerant pure function from `@myvgc/core/search`, so search works offline. The Opponents list fetches its Opponents up front for this, rather than sending each query to the server. The Round form's Opponent picker keeps using the server search (`GET /api/opponents?q=`), since it shows only a few suggestions and shouldn't load the whole list; offline it offers only suggestions it has already fetched, and the User can still add a new Opponent.
 - **Hono stays the only write path.** Writes use the existing routes. Tournaments, Rounds, Opponents and Note entries accept client-generated UUIDs (as does the new Opponent a Round adds), and creates are idempotent: replaying an id returns the existing row with a 200, and an id held by another User answers 409. Deletes are idempotent too: deleting something already gone, or not the User's, answers as done and removes nothing of anyone else's. An edit of a record that no longer exists still answers 404, since the server can't tell deleted from never existed; the outbox treats that as settled.
 - **Server settles conflicts per record.** The server's version wins. If a replayed Round collides on its Swiss round number and the User didn't type that number (the client leaves `roundNumber` out), the server assigns the next free one; otherwise it answers 409 and the User resolves it. A Top cut stage already logged also answers 409. These 409s name the field, like a 400, so the Round form shows the message next to it.
 - **Outbox.** TanStack Query persists the query cache and paused mutations to IndexedDB. Mutations on one Tournament run in series, as do mutations on one Opponent's Note entries. Replay runs when the app is foregrounded or the browser comes back online, not from the service worker (Background Sync is Chromium-only). A write rejected by validation stays visible so the User can fix or discard it; a write that gets a 401 stays queued until the User logs in again. Nothing is dropped silently.
