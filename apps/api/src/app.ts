@@ -10,6 +10,7 @@ import { dataRoutes } from './routes/data'
 import { noteEntryRoutes } from './routes/note-entries'
 import { opponentRoutes } from './routes/opponents'
 import { roundRoutes } from './routes/rounds'
+import { statisticsRoutes } from './routes/statistics'
 import { teamsheetAttachmentRoutes } from './routes/teamsheet-attachment'
 import { tournamentRoutes } from './routes/tournaments'
 import { mountWeb } from './static'
@@ -70,6 +71,7 @@ export function createApp({ db, auth: authOptions, storage, webDir }: AppOptions
   app.route('/api/opponents', opponentRoutes(db))
   app.route('/api/note-entries', noteEntryRoutes(db))
   app.route('/api/dashboard', dashboardRoutes(db))
+  app.route('/api/statistics', statisticsRoutes(db))
   app.route('/api', dataRoutes(db))
 
   // Seasons and Regulation dates ship with the app (ADR 16). The web app reads them from here

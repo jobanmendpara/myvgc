@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { type CalendarDate, type Season, seasonOf } from './calendar'
+import { type CalendarDate, SEASONS, type Season, currentRegulation, seasonOf } from './calendar'
 import { type RoundView, type Tally, tallyResult } from './round'
 import { REGULATIONS } from './team'
 import { EVENT_TIERS, type EntryFee } from './tournament'
@@ -60,8 +60,9 @@ export interface DashboardSummary {
 
 const TOP = 10
 
-const tally = (): Tally => ({ wins: 0, losses: 0, ties: 0 })
-const rate = (t: Tally): Rate => {
+export const tally = (): Tally => ({ wins: 0, losses: 0, ties: 0 })
+/** A tally with its win rate, or no rate when nothing was played. */
+export const rate = (t: Tally): Rate => {
   const played = t.wins + t.losses + t.ties
   return { ...t, winRate: played ? t.wins / played : null }
 }
@@ -204,31 +205,62 @@ const calendarDate = z.iso.date('Use a date such as 2026-09-19.')
  * Dashboard filters as they arrive in a query string. The Regulation defaults to the current
  * one (`all` for every Regulation). A Season or a date range, not both.
  */
-export const dashboardFiltersSchema = z
-  .object({
-    regulation: z.enum([...REGULATIONS, 'all']).optional(),
-    season: z.string().optional(),
-    from: calendarDate.optional(),
-    to: calendarDate.optional(),
-    eventTier: z.array(z.enum(EVENT_TIERS)).default([]),
-    setting: z.enum(['online', 'in-person']).optional(),
-  })
-  .refine((f) => !(f.season && (f.from || f.to)), {
-    message: 'Choose a Season or a date range, not both.',
-    path: ['season'],
-  })
+const dashboardFilterFields = z.object({
+  regulation: z.enum([...REGULATIONS, 'all']).optional(),
+  season: z.string().optional(),
+  from: calendarDate.optional(),
+  to: calendarDate.optional(),
+  eventTier: z.array(z.enum(EVENT_TIERS)).default([]),
+  setting: z.enum(['online', 'in-person']).optional(),
+})
+
+const seasonOrDates = (f: { season?: string; from?: string; to?: string }) =>
+  !(f.season && (f.from || f.to))
+const SEASON_OR_DATES = { message: 'Choose a Season or a date range, not both.', path: ['season'] }
+
+export const dashboardFiltersSchema = dashboardFilterFields.refine(seasonOrDates, SEASON_OR_DATES)
 
 export type DashboardFilters = z.output<typeof dashboardFiltersSchema>
 
+/** The filters the dashboard applied, with the Season's dates and the Regulation filled in. */
+export interface AppliedFilters {
+  regulation: (typeof REGULATIONS)[number] | 'all'
+  season: string | null
+  from: CalendarDate | null
+  to: CalendarDate | null
+  eventTier: (typeof EVENT_TIERS)[number][]
+  setting: 'online' | 'in-person' | null
+}
+
+/**
+ * Dashboard filters with a Season's dates and the Regulation current on `today` filled in, or
+ * nothing if there is no such Season.
+ */
+export function applyDashboardFilters(
+  input: DashboardFilters,
+  today: CalendarDate,
+): AppliedFilters | undefined {
+  const season = input.season ? SEASONS.find((s) => s.id === input.season) : undefined
+  if (input.season && !season) return undefined
+  return {
+    regulation: input.regulation ?? currentRegulation(today),
+    season: season?.id ?? null,
+    from: season?.start ?? input.from ?? null,
+    to: season ? (season.end ?? null) : (input.to ?? null),
+    eventTier: input.eventTier,
+    setting: input.setting ?? null,
+  }
+}
+
 /** What the dashboard endpoint answers: the summary and the filters it applied. */
 export interface DashboardView {
-  filters: {
-    regulation: (typeof REGULATIONS)[number] | 'all'
-    season: string | null
-    from: CalendarDate | null
-    to: CalendarDate | null
-    eventTier: (typeof EVENT_TIERS)[number][]
-    setting: 'online' | 'in-person' | null
-  }
+  filters: AppliedFilters
   summary: DashboardSummary
 }
+
+/** Statistics filters: the dashboard's, and optionally one Team (ADR 9). */
+export const statisticsFiltersSchema = dashboardFilterFields
+  .extend({ team: z.uuid('Choose one of your Teams.').optional() })
+  .refine(seasonOrDates, SEASON_OR_DATES)
+
+export type StatisticsFilters = z.output<typeof statisticsFiltersSchema>
