@@ -3,8 +3,9 @@
 // route: it passes its list as `#list` and its child pages (`<NuxtPage />`) as the default slot.
 // Give the parent page `definePageMeta({ listDetail: true })` so the layout fills the height.
 //
-// On wide screens the list sits in a fixed column and the child page opens beside it, each
-// scrolling on its own; at the area's own path the pane shows the placeholder. On phones the
+// On wide screens the list sits in a column and the child page opens beside it, each scrolling
+// on its own; at the area's own path the pane shows the placeholder. The list (a ListColumn)
+// sets the column's width and scrolls its own rows. On phones the
 // list is the area's full page and each child page is a full page of its own.
 const props = defineProps<{
   /** The area's path, such as `/tournaments`. */
@@ -36,8 +37,8 @@ watch(
 </script>
 
 <template>
-  <div v-if="wide" class="grid h-full grid-cols-[360px_1fr]">
-    <aside ref="column" class="min-h-0 overflow-y-auto border-r pb-16">
+  <div v-if="wide" class="grid h-full grid-cols-[auto_1fr]">
+    <aside ref="column" class="flex min-h-0 flex-col border-r">
       <slot name="list" :wide="true" />
     </aside>
     <div ref="pane" class="min-h-0 overflow-y-auto p-4 pb-16">

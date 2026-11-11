@@ -240,7 +240,8 @@ test('log a Tournament and a Round against a new Opponent', async ({ page }) => 
   const opponentRow = page
     .getByTestId('opponents-list')
     .getByRole('link', { name: /Smoke Opponent/ })
-  await expect(opponentRow).toContainText('1 Round')
+  // Opponents start in the Compact List style: the name and the Head-to-head record.
+  await expect(opponentRow).toContainText('1-0-0')
   if (wide) await expect(page.getByText('Select an Opponent')).toBeVisible()
   await opponentRow.click()
   await expect(page.getByTestId('opponent-name')).toHaveText('Smoke Opponent')
@@ -270,6 +271,49 @@ test('log a Tournament and a Round against a new Opponent', async ({ page }) => 
     await expect(page.getByTestId('opponent-name')).toHaveText('Smoke Opponent')
     await expect(opponentRow).toHaveAttribute('aria-current', 'page')
   }
+})
+
+test('the chosen List style survives a reload, and needs a connection to change', async ({
+  page,
+}) => {
+  await page.goto('/signup')
+  await expect(page.getByRole('heading', { name: 'Create an account' })).toBeVisible()
+  await page.getByLabel('Email').fill(email('smoke-list-style'))
+  await page.getByLabel('Password').fill('smoke-test-password')
+  await page.getByRole('button', { name: 'Create account' }).click()
+  await expect(page).toHaveURL(/\/dashboard$/)
+
+  await page.goto('/opponents')
+  await page.getByRole('button', { name: 'Add Opponent' }).click()
+  await page.getByLabel('Name', { exact: true }).fill('Ash Ketchum')
+  await page.getByRole('button', { name: 'Add', exact: true }).click()
+  await expect(page.getByTestId('opponent-name')).toHaveText('Ash Ketchum')
+
+  await page.goto('/opponents')
+  const listStyle = page.getByRole('radiogroup', { name: 'List style' })
+  const list = page.getByTestId('opponents-list')
+  await expect(listStyle.getByRole('radio', { name: 'Compact' })).toBeChecked()
+  await expect(list.getByRole('heading')).toHaveCount(0)
+
+  const saved = page.waitForResponse(
+    (res) => res.url().endsWith('/api/account/list-styles') && res.request().method() === 'PUT',
+  )
+  await listStyle.getByTitle('Grouped').click()
+  expect((await saved).ok()).toBe(true)
+  await expect(list.getByRole('heading', { name: 'A' })).toBeVisible()
+
+  await page.reload()
+  await expect(listStyle.getByRole('radio', { name: 'Grouped' })).toBeChecked()
+  await expect(list.getByRole('heading', { name: 'A' })).toBeVisible()
+  await expect(list).toContainText('Ash Ketchum')
+
+  // Offline, the saved List style still shows, but it can't be changed.
+  await page.context().setOffline(true)
+  await expect(page.getByTestId('list-style-offline')).toBeVisible()
+  await expect(listStyle.getByRole('radio', { name: 'Compact' })).toBeDisabled()
+  await expect(list.getByRole('heading', { name: 'A' })).toBeVisible()
+  await page.context().setOffline(false)
+  await expect(listStyle.getByRole('radio', { name: 'Compact' })).toBeEnabled()
 })
 
 test('the chosen palette and mode survive a reload, also before logging in', async ({ page }) => {
