@@ -24,7 +24,7 @@ function round(changes: Partial<RoundView> = {}): RoundView {
 }
 
 describe("A Round's place and result", () => {
-  it('names a Swiss Round by its number and a Top Cut Round by its stage', () => {
+  it('names a Swiss Round by its number and a Top cut Round by its stage', () => {
     expect(roundLabel(round({ roundNumber: 3 }))).toBe('Round 3')
     expect(roundLabel(round({ phase: 'top-cut', roundNumber: null, stage: 'top-8' }))).toBe('Top 8')
   })
