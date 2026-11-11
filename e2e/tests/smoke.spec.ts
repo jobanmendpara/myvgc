@@ -196,6 +196,45 @@ test('log a Tournament and a Round against a new Opponent', async ({ page }) => 
     await discard.getByRole('button', { name: 'Discard changes' }).click()
     await expect(page.getByTestId('tournament-name')).toHaveText('Smoke test Regional')
   }
+
+  // The new Opponent is in the Opponents list, with the Round against them.
+  await page
+    .getByRole('navigation', { name: 'Main' })
+    .getByRole('link', { name: 'Opponents' })
+    .click()
+  const opponentRow = page
+    .getByTestId('opponents-list')
+    .getByRole('link', { name: /Smoke Opponent/ })
+  await expect(opponentRow).toContainText('1 Round')
+  if (wide) await expect(page.getByText('Select an Opponent')).toBeVisible()
+  await opponentRow.click()
+  await expect(page.getByTestId('opponent-name')).toHaveText('Smoke Opponent')
+
+  if (wide) {
+    await expect(opponentRow).toHaveAttribute('aria-current', 'page')
+
+    // Adding an Opponent lands on them, selected.
+    await page.getByRole('button', { name: 'Add Opponent' }).click()
+    await page.getByLabel('Name', { exact: true }).fill('Second Opponent')
+    await page.getByRole('button', { name: 'Add', exact: true }).click()
+    await expect(page.getByTestId('opponent-name')).toHaveText('Second Opponent')
+    const secondRow = page
+      .getByTestId('opponents-list')
+      .getByRole('link', { name: /Second Opponent/ })
+    await expect(secondRow).toHaveAttribute('aria-current', 'page')
+
+    // Clicking another row in the middle of an edit asks before discarding it.
+    await page.getByRole('button', { name: 'Edit', exact: true }).click()
+    await page.getByLabel('Display name').fill('Renamed Opponent')
+    await opponentRow.click()
+    const discard = page.getByRole('alertdialog', { name: 'Discard changes?' })
+    await discard.getByRole('button', { name: 'Keep editing' }).click()
+    await expect(page.getByLabel('Display name')).toHaveValue('Renamed Opponent')
+    await opponentRow.click()
+    await discard.getByRole('button', { name: 'Discard changes' }).click()
+    await expect(page.getByTestId('opponent-name')).toHaveText('Smoke Opponent')
+    await expect(opponentRow).toHaveAttribute('aria-current', 'page')
+  }
 })
 
 test('the chosen palette and mode survive a reload, also before logging in', async ({ page }) => {
