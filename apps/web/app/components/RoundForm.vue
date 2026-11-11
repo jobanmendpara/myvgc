@@ -306,7 +306,7 @@ const draft = () =>
   ])
 const startedWith = draft()
 const dirty = computed(() => !props.pending && draft() !== startedWith)
-const { discarding, answer } = useDiscardGuard(dirty)
+const { DiscardDialog } = useDiscardGuard(dirty, 'this Round')
 </script>
 
 <template>
@@ -460,19 +460,6 @@ const { discarding, answer } = useDiscardGuard(dirty)
       </Button>
     </div>
 
-    <AlertDialog :open="discarding" @update:open="(open: boolean) => open || answer(false)">
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Discard changes?</AlertDialogTitle>
-          <AlertDialogDescription
-            >Your edits to this Round haven't been saved.</AlertDialogDescription
-          >
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Keep editing</AlertDialogCancel>
-          <Button variant="destructive" @click="answer(true)">Discard changes</Button>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+    <DiscardDialog />
   </form>
 </template>
