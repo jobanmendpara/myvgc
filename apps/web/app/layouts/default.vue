@@ -10,11 +10,16 @@ const areas = [
 ]
 const route = useRoute()
 const isCurrent = (to: string) => route.path === to || route.path.startsWith(`${to}/`)
+
+// An area in the list and detail layout fills the height below the header, so its list and
+// pane scroll on their own (see ListDetail).
+const wide = useWideLayout()
+const split = computed(() => !!route.meta.listDetail && wide.value)
 </script>
 
 <template>
-  <div class="flex min-h-dvh flex-col">
-    <header class="border-b">
+  <div class="flex flex-col" :class="split ? 'h-dvh' : 'min-h-dvh'">
+    <header class="shrink-0 border-b">
       <div
         class="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3"
       >
@@ -35,7 +40,7 @@ const isCurrent = (to: string) => route.path === to || route.path.startsWith(`${
         </ul>
       </nav>
     </header>
-    <main class="mx-auto w-full max-w-7xl flex-1 p-4">
+    <main class="mx-auto w-full max-w-7xl flex-1" :class="split ? 'min-h-0' : 'p-4'">
       <slot />
     </main>
   </div>

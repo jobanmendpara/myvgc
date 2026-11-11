@@ -39,6 +39,8 @@ const props = defineProps<{
   round?: RoundView
   fieldErrors?: Record<string, string>
   pending: boolean
+  /** Where Cancel goes; back to the Tournament unless given. */
+  cancelTo?: string
 }>()
 const emit = defineEmits<{ submit: [body: RoundInput] }>()
 
@@ -434,7 +436,7 @@ function submit() {
 
     <div class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
       <Button as-child variant="outline" size="lg"
-        ><NuxtLink :to="`/tournaments/${tournament.id}`">Cancel</NuxtLink></Button
+        ><NuxtLink :to="cancelTo ?? `/tournaments/${tournament.id}`">Cancel</NuxtLink></Button
       >
       <Button type="submit" size="lg" :disabled="pending">
         {{ pending ? 'Saving…' : round ? 'Save Round' : 'Log Round' }}

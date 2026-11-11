@@ -147,6 +147,13 @@ test('log a Tournament and a Round against a new Opponent', async ({ page }) => 
   await page.getByRole('button', { name: 'Save Tournament' }).click()
   await expect(page.getByTestId('tournament-name')).toHaveText('Smoke test Regional')
 
+  // On wide screens the list stays beside the open Tournament, with its row selected.
+  const wide = test.info().project.name === 'desktop'
+  const row = page
+    .getByTestId('tournaments-list')
+    .getByRole('link', { name: /Smoke test Regional/ })
+  if (wide) await expect(row).toHaveAttribute('aria-current', 'page')
+
   await page.getByRole('link', { name: 'Log Round' }).click()
   await expect(page.getByRole('heading', { name: 'Log a Round' })).toBeVisible()
   await page.getByRole('combobox', { name: 'Opponent' }).fill('Smoke Opponent')
@@ -159,6 +166,17 @@ test('log a Tournament and a Round against a new Opponent', async ({ page }) => 
   await expect(page.getByTestId('record')).toContainText('Swiss 1-0-0')
   await expect(page.getByTestId('round')).toContainText('Smoke Opponent')
   await expect(page.getByTestId('game-line')).toHaveText('Game 1 · Win')
+
+  if (wide) {
+    await expect(row).toHaveAttribute('aria-current', 'page')
+    await page
+      .getByRole('navigation', { name: 'Main' })
+      .getByRole('link', { name: 'Tournaments' })
+      .click()
+    await expect(page.getByText('Select a Tournament')).toBeVisible()
+    await expect(row).toBeVisible()
+    await expect(row).not.toHaveAttribute('aria-current')
+  }
 })
 
 test('the chosen palette and mode survive a reload, also before logging in', async ({ page }) => {

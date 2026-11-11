@@ -7,6 +7,8 @@ const route = useRoute()
 const id = computed(() => String(route.params.id))
 const { query, tournament } = useTournament(id)
 useHead({ title: 'Log a Round · MyVGC' })
+// On wide screens, cancelling a create flow returns to the placeholder beside the list.
+const wide = useWideLayout()
 
 const queryClient = useQueryClient()
 const save = useMutation({
@@ -45,6 +47,7 @@ const failure = computed(() =>
       :tournament="tournament"
       :field-errors="fieldErrors"
       :pending="save.isPending.value"
+      :cancel-to="wide ? '/tournaments' : undefined"
       @submit="save.mutate"
     >
       <template #problem>
