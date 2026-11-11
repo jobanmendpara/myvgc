@@ -17,11 +17,15 @@ const props = defineProps<{
 }>()
 defineSlots<{ default(props: { item: T }): unknown }>()
 
+// Only the Grouped List style has headings; the others are one group with no label.
 const groups = computed(() =>
-  props.groupBy ? props.groupBy(props.items) : [{ label: '', items: props.items }],
+  props.listStyle === 'grouped' && props.groupBy
+    ? props.groupBy(props.items)
+    : [{ label: '', items: props.items }],
 )
 
 const listClass = computed(() => {
+  if (props.listStyle === 'grouped') return 'divide-y'
   if (props.listStyle === 'detailed')
     return props.wide ? 'flex flex-col gap-1 p-2' : 'grid grid-cols-1 gap-3 md:grid-cols-2'
   return props.wide
@@ -58,19 +62,7 @@ const linkClass = computed(() => {
 </script>
 
 <template>
-  <ul v-if="listStyle !== 'grouped'" :class="listClass">
-    <li v-for="item in items" :key="item.id">
-      <NuxtLink
-        :to="`${base}/${item.id}`"
-        :aria-current="item.id === selectedId ? 'page' : undefined"
-        :class="linkClass"
-      >
-        <slot :item="item" />
-      </NuxtLink>
-    </li>
-  </ul>
-
-  <div v-else :class="{ 'overflow-clip rounded-lg border': !wide }">
+  <div :class="{ 'overflow-clip rounded-lg border': listStyle === 'grouped' && !wide }">
     <section v-for="group in groups" :key="group.label">
       <h2
         v-if="group.label"
@@ -78,7 +70,7 @@ const linkClass = computed(() => {
       >
         {{ group.label }}
       </h2>
-      <ul class="divide-y">
+      <ul :class="listClass">
         <li v-for="item in group.items" :key="item.id">
           <NuxtLink
             :to="`${base}/${item.id}`"

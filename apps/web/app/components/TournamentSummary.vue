@@ -20,22 +20,22 @@ const props = defineProps<{
 const record = computed(() =>
   props.tournament.rounds.length ? formatRecord(props.tournament.record.swiss) : '',
 )
-const fact = computed(() => {
-  const t = props.tournament
-  if (t.upcoming) return 'Upcoming'
-  return t.placement ? ordinal(t.placement) : record.value
-})
+const placement = computed(() =>
+  props.tournament.placement ? ordinal(props.tournament.placement) : '',
+)
+// The one fact a Compact row shows.
+const compactFact = computed(() =>
+  props.tournament.upcoming ? 'Upcoming' : placement.value || record.value,
+)
 const recordAndPlacement = computed(() =>
-  [record.value, props.tournament.placement ? ordinal(props.tournament.placement) : '']
-    .filter(Boolean)
-    .join(' · '),
+  [record.value, placement.value].filter(Boolean).join(' · '),
 )
 </script>
 
 <template>
   <template v-if="listStyle === 'compact'">
     <span class="min-w-0 truncate">{{ tournament.name }}</span>
-    <span class="text-muted-foreground shrink-0">{{ fact }}</span>
+    <span class="text-muted-foreground shrink-0">{{ compactFact }}</span>
   </template>
 
   <template v-else-if="listStyle === 'grouped'">

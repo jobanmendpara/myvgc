@@ -113,14 +113,13 @@ const addError = computed(
         </template>
 
         <template #default="{ listStyle }">
-          <!-- While searching, the best matches come first, so the Grouped List style drops its headings. -->
           <ListRows
             :items="opponents.data.value ?? []"
             :list-style="listStyle"
             :wide="wide"
             :selected-id="selectedId"
             base="/opponents"
-            :group-by="q.trim() ? undefined : groupOpponents"
+            :group-by="groupOpponents"
             data-testid="opponents-list"
           >
             <template #default="{ item }">
