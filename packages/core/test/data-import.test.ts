@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { checkDataExport, readDataExport } from '../src'
+import { checkDataExport, importedPlayerDetails, playerDetailsSchema, readDataExport } from '../src'
 import { current, ids, pokemon, versionOne } from './data-export-file'
 
-const noAccount = { opponentIds: new Set<string>() }
+const noAccount = { opponentIds: new Set<string>(), today: '2026-11-11' }
 
 /** Reads a file that must parse, then checks it. */
 function check(file: unknown, account = noAccount) {
@@ -17,6 +17,18 @@ describe('Checking a Data export before it is imported', () => {
   it('finds nothing wrong with a file whose records all hold together', () => {
     expect(check(versionOne())).toEqual([])
     expect(check(current())).toEqual([])
+  })
+
+  it('refuses a Date of Birth in the future, as Settings does', () => {
+    const file = current()
+    file.playerDetails.dateOfBirth = '2026-11-12'
+    expect(check(file)).toEqual([
+      {
+        path: ['playerDetails', 'dateOfBirth'],
+        record: 'Player details',
+        message: "A Date of Birth can't be in the future.",
+      },
+    ])
   })
 
   it('refuses names the install doesn’t know in an Opponent’s Team', () => {
@@ -110,7 +122,7 @@ describe('Checking a Data export before it is imported', () => {
         message: 'Its Opponent isn’t in the file or in your account.',
       }),
     ])
-    expect(check(file, { opponentIds: new Set([ids.opponent]) })).toEqual([])
+    expect(check(file, { ...noAccount, opponentIds: new Set([ids.opponent]) })).toEqual([])
   })
 
   it('lets a Team snapshot point at a Team that is gone, since it keeps its own copy', () => {
@@ -145,5 +157,37 @@ describe('Checking a Data export before it is imported', () => {
         message: 'This ID is used twice in the file.',
       }),
     ])
+  })
+})
+
+describe('Importing Player details', () => {
+  const blank = playerDetailsSchema.parse({})
+  const fromFile = {
+    playerName: 'Ash Ketchum',
+    trainerName: 'Ash',
+    switchProfileName: 'ash',
+    playerId: '1234567',
+    supportId: 'ABCD-EFGH',
+    ageDivision: 'Masters',
+    dateOfBirth: '1997-04-01',
+  } as const
+
+  it('takes every Player detail from the file when the User has none', () => {
+    expect(importedPlayerDetails(blank, fromFile)).toEqual(fromFile)
+  })
+
+  it('never changes a Player detail the User has filled in', () => {
+    const own = { ...blank, playerName: 'Satoshi', ageDivision: 'Senior' as const }
+    expect(importedPlayerDetails(own, fromFile)).toEqual({
+      ...fromFile,
+      playerName: 'Satoshi',
+      ageDivision: 'Senior',
+    })
+  })
+
+  it('leaves a field empty when the file has it empty too', () => {
+    expect(importedPlayerDetails(blank, { ...fromFile, supportId: '', dateOfBirth: null })).toEqual(
+      { ...fromFile, supportId: '', dateOfBirth: null },
+    )
   })
 })

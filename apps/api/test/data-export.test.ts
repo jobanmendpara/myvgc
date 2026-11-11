@@ -10,6 +10,16 @@ const incineroar = {
   statPoints: { hp: 32, atk: 2, def: 0, spa: 0, spd: 32, spe: 0 },
 }
 
+const playerDetails = {
+  playerName: 'Ash Ketchum',
+  trainerName: 'Ash',
+  switchProfileName: 'ash',
+  playerId: '1234567',
+  supportId: 'ABCD-EFGH',
+  ageDivision: 'Masters',
+  dateOfBirth: '1997-04-01',
+}
+
 describe('Data export and import', () => {
   const apps: TestApp[] = []
   afterEach(async () => {
@@ -87,6 +97,7 @@ describe('Data export and import', () => {
       ),
     )
     await call(patch(t.app, `/api/tournaments/${tournament.id}`, { placement: 5 }, cookie))
+    await call(put(t.app, '/api/account/player-details', playerDetails, cookie))
     return { team, opponent, tournament }
   }
 
@@ -107,7 +118,7 @@ describe('Data export and import', () => {
     const text = await res.text()
     expect(text).not.toContain('ash@example.com')
     const file = JSON.parse(text)
-    expect(file).toMatchObject({ format: 'myvgc-export', version: 2 })
+    expect(file).toMatchObject({ format: 'myvgc-export', version: 3, playerDetails })
     expect(file.teams).toHaveLength(1)
     expect(file.opponents.map((o: { displayName: string }) => o.displayName).sort()).toEqual([
       'Lance',
@@ -194,6 +205,30 @@ describe('Data export and import', () => {
       swiss: { wins: 2, losses: 0, ties: 0 },
       topCut: { wins: 0, losses: 1, ties: 0 },
     })
+  })
+
+  it('takes each Player detail from the file only when the User’s own is empty', async () => {
+    const a = await install()
+    await fill(a)
+    const exported = await exportOf(a.t, a.cookie)
+    const details = async (cookie: string) =>
+      json(await get(a.t.app, '/api/account/player-details', cookie))
+
+    // A User with Player details of their own keeps every one they have filled in.
+    const own = { playerName: 'Satoshi', ageDivision: 'Senior' }
+    expect((await put(a.t.app, '/api/account/player-details', own, a.cookie)).status).toBe(200)
+    expect((await importInto(a.t, a.cookie, exported)).status).toBe(200)
+    expect(await details(a.cookie)).toEqual({
+      ...playerDetails,
+      playerName: 'Satoshi',
+      ageDivision: 'Senior',
+    })
+
+    // A User who never saved any gets them all.
+    const misty = (await signUp(a.t.app, 'misty@example.com')).cookie
+    const empty = { ...exported, teams: [], opponents: [], tournaments: [] }
+    expect((await importInto(a.t, misty, empty)).status).toBe(200)
+    expect(await details(misty)).toEqual(playerDetails)
   })
 
   it('counts everything as already there when the same file is imported again', async () => {

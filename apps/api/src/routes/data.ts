@@ -8,6 +8,7 @@ import {
   checkDataExport,
   compareRounds,
   importIssueText,
+  importedPlayerDetails,
   readDataExport,
   recordLabel,
   settleImportedRound,
@@ -22,6 +23,7 @@ import {
   opponentAlias,
   opponentNoteEntry,
   opponentTeam,
+  playerDetails,
   round,
   team,
   tournament,
@@ -29,6 +31,7 @@ import {
 import type { Database } from '../db/types'
 import { uniqueViolation } from './helpers'
 import { toNoteEntryView } from './note-entry-data'
+import { loadPlayerDetails, savePlayerDetails, toPlayerDetailsView } from './player-details-data'
 import { entryFeeOf } from './tournaments'
 
 /** The largest Data export an import takes (ADR 23). */
@@ -47,8 +50,9 @@ export async function exportData(db: Database, ownerId: string): Promise<DataExp
     .from(tournament)
     .where(eq(tournament.ownerId, ownerId))
 
-  const [teams, opponents, aliases, noteEntries, tournaments, rounds, opponentTeams] =
+  const [details, teams, opponents, aliases, noteEntries, tournaments, rounds, opponentTeams] =
     await Promise.all([
+      loadPlayerDetails(db, ownerId),
       db
         .select()
         .from(team)
@@ -94,6 +98,7 @@ export async function exportData(db: Database, ownerId: string): Promise<DataExp
     format: DATA_EXPORT_FORMAT,
     version: DATA_EXPORT_VERSION,
     exportedAt: new Date().toISOString(),
+    playerDetails: details,
     teams: teams.map((row) => ({
       id: row.id,
       name: row.name,
@@ -340,6 +345,7 @@ async function importData(tx: Tx, ownerId: string, file: ReadDataExport): Promis
     { ...file, tournaments: file.tournaments.map((t) => ({ ...t, defaultBestOf: bestOfFor(t) })) },
     {
       opponentIds: new Set(opponentIds.filter((id) => isOwn(opponentOwners, id))),
+      today: today(),
     },
   )
   const [firstIssue, ...moreIssues] = issues
@@ -379,6 +385,18 @@ async function importData(tx: Tx, ownerId: string, file: ReadDataExport): Promis
   }
   const [firstClash, ...moreClashes] = clashes
   if (firstClash) throw new Refused({ status: 409, issues: [firstClash, ...moreClashes] })
+
+  // Player details fill only the fields the User has left empty. The row stays locked until the
+  // import ends, so a save from Settings meanwhile isn't overwritten.
+  const [ownRow] = await tx
+    .select()
+    .from(playerDetails)
+    .where(eq(playerDetails.userId, ownerId))
+    .for('update')
+  const own = toPlayerDetailsView(ownRow)
+  const details = importedPlayerDetails(own, file.playerDetails)
+  if (Object.entries(details).some(([field, value]) => own[field as keyof typeof own] !== value))
+    await savePlayerDetails(tx, ownerId, details)
 
   const date = (text: string) => new Date(text)
   const times = (row: { createdAt: string; updatedAt: string }) => ({

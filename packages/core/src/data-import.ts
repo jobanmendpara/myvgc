@@ -1,5 +1,7 @@
 import { checkGames, checkPokemon } from './check-pokemon'
 import { type ImportIssue, type ReadDataExport, recordLabel } from './data-export'
+import type { CalendarDate } from './calendar'
+import { type PlayerDetails, playerDetailsSchemaOn } from './player-details'
 import {
   type Game,
   type GameScore,
@@ -45,15 +47,29 @@ export function settleImportedRound(
   return { phase, roundNumber, stage, bestOf, bye, games, gameScore, result: roundResult(settled) }
 }
 
+/**
+ * A User's Player details after an import (ADR 23): each field the User has left empty is taken
+ * from the file, and a field they have filled in is never changed.
+ */
+export function importedPlayerDetails(own: PlayerDetails, fromFile: PlayerDetails): PlayerDetails {
+  const filled = { ...own }
+  for (const field of Object.keys(own) as (keyof PlayerDetails)[])
+    if (own[field] === '' || own[field] === null)
+      Object.assign(filled, { [field]: fromFile[field] })
+  return filled
+}
+
 /** What an import needs to know about the account it goes into. */
 export interface ImportAccount {
   /** The ids of the User's Opponents that the file's Rounds name. */
   opponentIds: ReadonlySet<string>
+  /** The User's today, which a Date of Birth can't be after. */
+  today: CalendarDate
 }
 
 /**
  * Checks a Data export that has been read, before anything is written: the Champions data checks
- * a normal write gets, the rules a Round is saved with, clashes within the file, and that every
+ * a normal write gets, the Player details Settings would save, the rules a Round is saved with, clashes within the file, and that every
  * Round's Opponent is in the file or the account. A Team snapshot's link to its Team may dangle,
  * as the snapshot keeps its own copy.
  */
@@ -73,6 +89,14 @@ export function checkDataExport(file: ReadDataExport, account: ImportAccount): I
     if (ids.has(id)) add([...path, 'id'], 'This ID is used twice in the file.')
     ids.add(id)
   }
+
+  const details = playerDetailsSchemaOn(account.today).safeParse(file.playerDetails)
+  details.error?.issues.forEach((issue) =>
+    add(
+      ['playerDetails', ...issue.path.map((key) => (typeof key === 'number' ? key : String(key)))],
+      issue.message,
+    ),
+  )
 
   file.teams.forEach((team, t) => {
     once('team', team.id, ['teams', t])

@@ -8,7 +8,12 @@ export { judgeTeam } from './legality'
 export { nameBuild } from './names'
 export { readTeamsheet, type ReadTeamsheetResult } from './teamsheet'
 export { readPaste, writePaste, type PasteIssue, type ReadPasteResult } from './paste'
-export { checkDataExport, settleImportedRound, type ImportAccount } from './data-import'
+export {
+  checkDataExport,
+  importedPlayerDetails,
+  settleImportedRound,
+  type ImportAccount,
+} from './data-import'
 export {
   TEAM_LIST_SHA256,
   writeTeamsheet,
