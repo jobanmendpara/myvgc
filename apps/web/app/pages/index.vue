@@ -1,6 +1,6 @@
 <script setup lang="ts">
-// The Teams list is home.
-definePageMeta({ middleware: () => navigateTo('/teams', { replace: true }) })
+// The Dashboard is home.
+definePageMeta({ middleware: () => navigateTo('/dashboard', { replace: true }) })
 </script>
 
 <template>

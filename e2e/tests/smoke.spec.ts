@@ -25,8 +25,8 @@ test('sign up, import a Team and see its six Pokémon', async ({ page }) => {
   await page.getByLabel('Email').fill(email('smoke'))
   await page.getByLabel('Password').fill('smoke-test-password')
   await page.getByRole('button', { name: 'Create account' }).click()
-  await expect(page).toHaveURL(/\/teams$/)
-  await expect(page.getByRole('heading', { name: 'Your Teams' })).toBeVisible()
+  await expect(page).toHaveURL(/\/dashboard$/)
+  await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible()
 
   await page.goto('/teams/new')
   await expect(page.getByRole('heading', { name: 'New Team' })).toBeVisible()
@@ -65,7 +65,7 @@ test('build a one-Pokémon Team, then edit a move', async ({ page }) => {
   await page.getByLabel('Email').fill(email('smoke-build'))
   await page.getByLabel('Password').fill('smoke-test-password')
   await page.getByRole('button', { name: 'Create account' }).click()
-  await expect(page).toHaveURL(/\/teams$/)
+  await expect(page).toHaveURL(/\/dashboard$/)
 
   await page.goto('/teams/new')
   await page.getByRole('link', { name: /Build/ }).click()
@@ -136,7 +136,7 @@ test('log a Tournament and a Round against a new Opponent', async ({ page }) => 
   await page.getByLabel('Email').fill(email('smoke-round'))
   await page.getByLabel('Password').fill('smoke-test-password')
   await page.getByRole('button', { name: 'Create account' }).click()
-  await expect(page).toHaveURL(/\/teams$/)
+  await expect(page).toHaveURL(/\/dashboard$/)
 
   await page.getByRole('link', { name: 'Tournaments' }).click()
   await expect(page.getByRole('heading', { name: 'Your Tournaments' })).toBeVisible()
