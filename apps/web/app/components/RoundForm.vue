@@ -201,23 +201,36 @@ function copyOpponentTeam() {
 }
 
 // Reading their open teamsheet (ADR 24) fills in their Team for the User to check before saving.
-// What it read replaces what was there, though species picked for their side of a Game stay.
-const readLeftOut = ref<string[]>([])
+// What it read replaces what was there, though species picked for their side of a Game stay
+// while there's room. A read that finishes after the User picked another Opponent is dropped.
+const names = useChampionsNames()
+const leftOutOfRead = ref<string[]>([])
+let readingFor: string | undefined
 const reader = useTeamReader((read) => {
+  if (readingFor !== draftKey(opponent.value)) return
   const { pokemon, leftOut } = readToOpponentTeam(read)
   opponentTeam.value = pokemon
-  for (const game of games.value)
-    for (const species of [...game.opponentBrought, ...game.opponentLeads])
-      addToOpponentTeam(species)
-  readLeftOut.value = leftOut
+  const picked = new Set(games.value.flatMap((g) => [...g.opponentBrought, ...g.opponentLeads]))
+  for (const species of picked) {
+    addToOpponentTeam(species)
+    if (!opponentSpecies.value.includes(species))
+      leftOut.push(
+        `${names.data.value?.species[species] ?? species}, picked for a Game, wasn't added: their Team already has ${MAX_TEAM_SIZE} Pokémon.`,
+      )
+  }
+  leftOutOfRead.value = leftOut
   opponentTeamOpen.value = true
 })
 const readFileInput = reader.fileInput
+function chooseTeamsheet(event: Event) {
+  readingFor = draftKey(opponent.value)
+  reader.choose(event)
+}
 const readFlagged = computed(() => opponentTeam.value.some((build) => build.readFlags.length))
 watch(
   () => draftKey(opponent.value),
   () => {
-    readLeftOut.value = []
+    leftOutOfRead.value = []
     reader.read.reset()
   },
 )
@@ -411,7 +424,7 @@ const { DiscardDialog } = useDiscardGuard(dirty, 'this Round')
             :accept="TEAM_FILE_TYPES"
             class="sr-only"
             data-testid="their-teamsheet-file"
-            @change="reader.choose"
+            @change="chooseTeamsheet"
           />
           <Button
             type="button"
@@ -433,16 +446,18 @@ const { DiscardDialog } = useDiscardGuard(dirty, 'this Round')
           <Alert v-if="reader.failure.value" variant="destructive" role="alert">
             <AlertDescription>{{ reader.failure.value }}</AlertDescription>
           </Alert>
-          <Alert v-if="readFlagged || readLeftOut.length" data-testid="read-flags-note">
+          <Alert v-if="readFlagged || leftOutOfRead.length" data-testid="read-flags-note">
             <AlertDescription>
               <p v-if="readFlagged">
                 MyVGC wasn't sure of everything on the file. Check the Pokémon marked below before
                 saving.
               </p>
-              <p v-if="readLeftOut.length">Some Pokémon on the file were left out:</p>
-              <ul v-if="readLeftOut.length" class="list-disc pl-5">
-                <li v-for="(reason, index) in readLeftOut" :key="index">{{ reason }}</li>
-              </ul>
+              <template v-if="leftOutOfRead.length">
+                <p>Some Pokémon were left out:</p>
+                <ul class="list-disc pl-5">
+                  <li v-for="(reason, index) in leftOutOfRead" :key="index">{{ reason }}</li>
+                </ul>
+              </template>
             </AlertDescription>
           </Alert>
         </div>

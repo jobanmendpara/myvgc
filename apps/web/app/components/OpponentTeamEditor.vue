@@ -75,16 +75,7 @@ const error = (index: number, field: string) => props.errors[`${index}.${field}`
           >
         </div>
         <div v-if="opened === build.species" class="flex flex-col gap-4 border-t p-3">
-          <ul
-            v-if="build.readFlags.length"
-            class="text-muted-foreground flex flex-col gap-1 text-sm"
-            data-testid="read-flags"
-          >
-            <li v-for="flag in build.readFlags" :key="flag" class="flex items-start gap-1.5">
-              <ScanSearchIcon class="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-              {{ flag }}
-            </li>
-          </ul>
+          <ReadFlags :flags="build.readFlags" />
           <p v-if="error(index, 'species')" class="text-destructive text-sm">
             {{ error(index, 'species') }}
           </p>
