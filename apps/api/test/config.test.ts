@@ -20,6 +20,64 @@ describe('loadConfig', () => {
     expect(loadConfig({ ...valid, UPLOADS_DIR: '/data/uploads' }).UPLOADS_DIR).toBe('/data/uploads')
   })
 
+  it('keeps uploads on disk unless S3_BUCKET is set, treating blank S3 settings as unset', () => {
+    const blank = {
+      ...valid,
+      S3_BUCKET: ' ',
+      S3_REGION: '',
+      S3_ENDPOINT: '',
+      S3_ACCESS_KEY_ID: '',
+      S3_SECRET_ACCESS_KEY: '',
+      S3_FORCE_PATH_STYLE: '',
+    }
+    for (const env of [valid, blank]) {
+      const config = loadConfig(env)
+      expect(config.S3_BUCKET).toBeUndefined()
+      expect(config.S3_ENDPOINT).toBeUndefined()
+      expect(config.S3_REGION).toBe('us-east-1')
+      expect(config.S3_FORCE_PATH_STYLE).toBe(false)
+    }
+  })
+
+  it('reads the S3 settings', () => {
+    expect(
+      loadConfig({
+        ...valid,
+        S3_BUCKET: 'myvgc-uploads',
+        S3_REGION: 'auto',
+        S3_ENDPOINT: 'https://example.r2.cloudflarestorage.com',
+        S3_ACCESS_KEY_ID: 'key',
+        S3_SECRET_ACCESS_KEY: 'secret',
+        S3_FORCE_PATH_STYLE: 'true',
+      }),
+    ).toMatchObject({
+      S3_BUCKET: 'myvgc-uploads',
+      S3_REGION: 'auto',
+      S3_ENDPOINT: 'https://example.r2.cloudflarestorage.com',
+      S3_ACCESS_KEY_ID: 'key',
+      S3_SECRET_ACCESS_KEY: 'secret',
+      S3_FORCE_PATH_STYLE: true,
+    })
+  })
+
+  it('rejects an S3 access key without its secret', () => {
+    expect(() => loadConfig({ ...valid, S3_BUCKET: 'b', S3_ACCESS_KEY_ID: 'key' })).toThrow(
+      /S3_SECRET_ACCESS_KEY: set S3_ACCESS_KEY_ID and S3_SECRET_ACCESS_KEY together/,
+    )
+  })
+
+  it('rejects S3 settings without a bucket', () => {
+    expect(() => loadConfig({ ...valid, S3_ENDPOINT: 'https://s3.example.com' })).toThrow(
+      /S3_BUCKET: set S3_BUCKET/,
+    )
+  })
+
+  it('rejects an S3_ENDPOINT that is not a URL', () => {
+    expect(() => loadConfig({ ...valid, S3_BUCKET: 'b', S3_ENDPOINT: 's3.example.com' })).toThrow(
+      /S3_ENDPOINT/,
+    )
+  })
+
   it.each([
     ['false', false],
     ['FALSE', false],

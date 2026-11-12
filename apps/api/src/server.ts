@@ -3,7 +3,7 @@ import { serve } from '@hono/node-server'
 import { createApp } from './app'
 import { loadConfig } from './config'
 import { connectPostgres, migratePostgres } from './db/client'
-import { openDiskStorage } from './storage'
+import { openStorage } from './storage'
 import { anthropicTeamReader } from './team-reader'
 
 // Paths are relative to this file, which sits one folder below apps/api both as
@@ -21,7 +21,8 @@ const config = (() => {
   }
 })()
 
-const storage = await openDiskStorage(config.UPLOADS_DIR).catch((error: Error) => {
+// Disk unless S3_BUCKET is set (ADR 27).
+const storage = await openStorage(config).catch((error: Error) => {
   console.error(error.message)
   process.exit(1)
 })
