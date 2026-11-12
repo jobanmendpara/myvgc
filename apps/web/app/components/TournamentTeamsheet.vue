@@ -114,6 +114,12 @@ const details = computed(() => {
           ><a :href="url" target="_blank" rel="noopener">View PDF ↗</a></Button
         >
         <Button v-else variant="outline" size="sm" disabled>View PDF ↗</Button>
+        <Button v-if="online" as-child variant="outline" size="sm"
+          ><NuxtLink :to="`/teams/new/teamsheet?tournament=${tournament.id}`"
+            >Read into a Team</NuxtLink
+          ></Button
+        >
+        <Button v-else variant="outline" size="sm" disabled>Read into a Team</Button>
         <Button
           variant="outline"
           size="sm"

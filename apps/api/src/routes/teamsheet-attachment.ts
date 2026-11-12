@@ -1,5 +1,11 @@
 import { randomUUID } from 'node:crypto'
-import { MAX_TEAMSHEET_BYTES, TEAMSHEET_TOO_LARGE } from '@myvgc/core'
+import {
+  MAX_TEAMSHEET_BYTES,
+  type ReadTeamView,
+  TEAMSHEET_TOO_LARGE,
+  nameBuild,
+  readTeamsheet,
+} from '@myvgc/core'
 import { Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import type { AppEnv } from '../app'
@@ -94,6 +100,27 @@ export function teamsheetAttachmentRoutes(db: Database, storage: FileStorage) {
         'X-Content-Type-Options': 'nosniff',
         'Content-Security-Policy': 'sandbox allow-scripts',
       })
+    })
+    .post('/read', async (c) => {
+      // Reads the stored file into a draft Team for the Team builder, as POST /api/teams/read
+      // does for a file sent with the request (ADR 24). The attachment is kept; nothing is saved.
+      const id = c.req.param('tournamentId')
+      if (!isId(id)) return notFound(c)
+      const [row] = await db
+        .select()
+        .from(tournament)
+        .where(ownTournament(id, c.get('user').id))
+      const file = row?.teamsheetKey ? await storage.get(row.teamsheetKey) : undefined
+      if (!file) return notFound(c)
+
+      const read = await readTeamsheet(new Uint8Array(await new Response(file).arrayBuffer()))
+      if (!read.ok) return c.json({ error: read.error }, 422)
+      const draft: ReadTeamView = {
+        name: read.name,
+        pokemon: read.pokemon.map(nameBuild),
+        flags: read.flags,
+      }
+      return c.json(draft)
     })
     .delete('/', async (c) => {
       const id = c.req.param('tournamentId')
