@@ -3,6 +3,7 @@ import {
   MAX_TEAM_IMAGES,
   MAX_TEAM_IMAGE_BYTES,
   type ReadTeamView,
+  type TeamReadingView,
   TEAM_IMAGE_TOO_LARGE,
   TEAM_IMAGE_TYPES,
   TEAMSHEET_TOO_LARGE,
@@ -21,15 +22,15 @@ export const TEAM_IMAGE_FILE_TYPES = [...TEAM_IMAGE_TYPES, '.png', '.jpg', '.jpe
 
 /**
  * Whether this install reads Teams from images (ADR 24). It's off unless the operator set a key,
- * and the image upload is hidden while it's off or not yet known.
+ * and the image upload is hidden while it's off or not yet known (`undefined`).
  */
 export function useImageReading() {
   const query = useQuery({
     queryKey: ['team-reading'],
-    queryFn: () => $fetch<{ images: boolean }>('/api/teams/read'),
+    queryFn: () => $fetch<TeamReadingView>('/api/teams/read'),
     staleTime: 60 * 60 * 1000,
   })
-  return computed(() => query.data.value?.images === true)
+  return computed(() => query.data.value?.images)
 }
 
 /**
@@ -47,17 +48,20 @@ export function useTeamReader(
   const online = useOnline()
   const fileInput = ref<HTMLInputElement | null>(null)
 
+  function readImages(images: File[]) {
+    if (images.length > MAX_TEAM_IMAGES) throw new Error(TOO_MANY_TEAM_IMAGES)
+    if (images.some((image) => image.size > MAX_TEAM_IMAGE_BYTES))
+      throw new Error(TEAM_IMAGE_TOO_LARGE)
+    const body = new FormData()
+    for (const image of images) body.append('image', image)
+    return $fetch<ReadTeamView>('/api/teams/read/images', { method: 'POST', body })
+  }
+
   const read = useMutation({
-    // No file means the Tournament's stored Teamsheet, already on the server.
+    // One file is a Teamsheet PDF, a list is images, and none is the Tournament's stored
+    // Teamsheet, already on the server.
     mutationFn: (file?: File | File[]) => {
-      if (Array.isArray(file)) {
-        if (file.length > MAX_TEAM_IMAGES) throw new Error(TOO_MANY_TEAM_IMAGES)
-        if (file.some((image) => image.size > MAX_TEAM_IMAGE_BYTES))
-          throw new Error(TEAM_IMAGE_TOO_LARGE)
-        const body = new FormData()
-        for (const image of file) body.append('image', image)
-        return $fetch<ReadTeamView>('/api/teams/read/images', { method: 'POST', body })
-      }
+      if (Array.isArray(file)) return readImages(file)
       if (!file) {
         const url: string = `/api/tournaments/${tournamentId}/teamsheet/read`
         return $fetch<ReadTeamView>(url, { method: 'POST' })

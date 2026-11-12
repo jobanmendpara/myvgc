@@ -48,6 +48,7 @@ describe('image reading', () => {
   let cookie: string
   let reader: ImageTeamReader & { read: ReturnType<typeof vi.fn> }
   afterEach(async () => {
+    vi.restoreAllMocks()
     await t?.client.close()
   })
 
@@ -167,7 +168,6 @@ describe('image reading', () => {
         error: "Couldn't read the images right now. Try again in a little while.",
       })
       expect(logged).toHaveBeenCalledWith('Image reading failed: InternalServerError 500')
-      logged.mockRestore()
     })
 
     it('answers 404 when no key is set', async () => {
@@ -219,7 +219,6 @@ describe('image reading', () => {
       fail = false
       expect((await upload(image(PNG))).status).toBe(200)
       expect((await upload(image(PNG))).status).toBe(429)
-      vi.restoreAllMocks()
     })
 
     it("doesn't count reads, or keep anything, when there is no limit", async () => {

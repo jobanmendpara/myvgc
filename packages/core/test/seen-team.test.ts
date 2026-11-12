@@ -56,6 +56,19 @@ describe('readSeenTeam', () => {
     expect(read.flags).toEqual([])
   })
 
+  it('takes Stat Points where shown and works the other stats out from their values', () => {
+    const statPoints = { hp: 2, atk: 0, def: 0, spa: 32, spd: 0, spe: 32 }
+    const values = statValues(championsNames().baseStats.charizard!, statPoints, 'timid')
+
+    const read = readSeenTeam({
+      name: '',
+      pokemon: [seen({ statValues: { ...values, spa: 1 }, statPoints: { ...noStats, spa: 32 } })],
+    })
+
+    expect(read.pokemon[0]!.statPoints).toEqual(statPoints)
+    expect(read.flags).toEqual([])
+  })
+
   it('flags names it can not match, impossible Stat Points and what the reader was unsure of', () => {
     const read = readSeenTeam({
       name: '',

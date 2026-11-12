@@ -144,6 +144,12 @@ export const TEAM_IMAGE_TOO_LARGE = `Each image can be at most ${MAX_TEAM_IMAGE_
 export const TOO_MANY_TEAM_IMAGES = `Choose at most ${MAX_TEAM_IMAGES} images.`
 export const NOT_A_TEAM_IMAGE = 'Choose PNG, JPEG or WebP images.'
 
+/** What reading a Team from a file can do on this install (ADR 24), as the API returns it. */
+export interface TeamReadingView {
+  /** Whether images can be read: only when an operator set a model provider's key. */
+  images: boolean
+}
+
 /** An image's type from its first bytes, whatever its name or stated type says. */
 export function teamImageType(bytes: Uint8Array): TeamImageType | undefined {
   const starts = (offset: number, ...expected: number[]) =>

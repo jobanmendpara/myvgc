@@ -77,45 +77,46 @@ export function readBuild(text: BuildText, index: number, flags: ReadFlag[]): Po
       )
   }
 
+  // Stat Points shown win; stat values are worked backwards only for the stats without them.
   const points = text.statPoints ?? {}
-  if (Object.keys(points).length > 0) {
-    for (const stat of STAT_IDS) {
-      const value = points[stat]
-      if (value === undefined) continue
-      if (Number.isInteger(value) && value >= 0 && value <= MAX_STAT_POINTS)
-        build.statPoints[stat] = value
-      else
-        flag(
-          `${value} ${STAT_LABELS[stat]} Stat Points isn't possible, so it was set to 0.`,
-          'statPoints',
-          stat,
-        )
-    }
-    checkTotal()
-    return build
-  }
+  const values = Object.fromEntries(
+    Object.entries(text.statValues ?? {}).filter(([stat]) => points[stat as StatId] === undefined),
+  ) as Partial<Record<StatId, number>>
+  if (!text.statPoints && !text.statValues) return build
 
-  const values = text.statValues
-  if (!values) return build
-  const baseStats = championsNames().baseStats[build.species]
-  if (!baseStats) {
-    if (Object.keys(values).length > 0)
-      flag("Stat Points weren't worked out, since the species wasn't read.", 'statPoints')
-    return build
-  }
-
-  const read = statPointsFromValues(baseStats, values, build.nature)
-  build.statPoints = read.statPoints
-  // Without its Stat Alignment the raised and lowered stats can't fit, so one flag says it all.
-  if (text.statAlignment?.trim() && !build.nature)
-    flag('Stat Points were worked out with no Stat Alignment, so check them.', 'statPoints')
-  else
-    for (const stat of read.impossible)
+  for (const stat of STAT_IDS) {
+    const value = points[stat]
+    if (value === undefined) continue
+    if (Number.isInteger(value) && value >= 0 && value <= MAX_STAT_POINTS)
+      build.statPoints[stat] = value
+    else
       flag(
-        `No Stat Points give ${values[stat]} ${STAT_LABELS[stat]}, so it was set to 0.`,
+        `${value} ${STAT_LABELS[stat]} Stat Points isn't possible, so it was set to 0.`,
         'statPoints',
         stat,
       )
+  }
+
+  if (Object.keys(values).length > 0) {
+    const baseStats = championsNames().baseStats[build.species]
+    if (!baseStats) {
+      flag("Stat Points weren't worked out, since the species wasn't read.", 'statPoints')
+    } else {
+      const read = statPointsFromValues(baseStats, values, build.nature)
+      for (const stat of Object.keys(values) as StatId[])
+        build.statPoints[stat] = read.statPoints[stat]
+      // Without its Stat Alignment the raised and lowered stats can't fit, so one flag says it all.
+      if (text.statAlignment?.trim() && !build.nature)
+        flag('Stat Points were worked out with no Stat Alignment, so check them.', 'statPoints')
+      else
+        for (const stat of read.impossible)
+          flag(
+            `No Stat Points give ${values[stat]} ${STAT_LABELS[stat]}, so it was set to 0.`,
+            'statPoints',
+            stat,
+          )
+    }
+  }
   checkTotal()
   return build
 }

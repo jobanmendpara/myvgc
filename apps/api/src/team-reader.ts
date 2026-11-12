@@ -46,7 +46,9 @@ export function anthropicTeamReader({
   /** Tests pass a stub, so nothing reaches Anthropic. */
   fetch?: typeof globalThis.fetch
 }): ImageTeamReader {
-  const client = new Anthropic({ apiKey, fetch })
+  // No retries: one read is one request (and one charge). A failed read isn't counted against the
+  // daily limit, so the User can simply try again.
+  const client = new Anthropic({ apiKey, fetch, maxRetries: 0 })
   return {
     async read(images) {
       let response

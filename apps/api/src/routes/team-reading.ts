@@ -6,6 +6,7 @@ import {
   type ReadTeamView,
   TEAM_IMAGE_TOO_LARGE,
   TOO_MANY_TEAM_IMAGES,
+  type TeamReadingView,
   nameBuild,
   readSeenTeam,
   teamImageType,
@@ -23,12 +24,6 @@ export interface ImageReading {
   reader: ImageTeamReader
   /** Most reads from images per User per day. Leave out for no limit. */
   dailyLimit?: number
-}
-
-/** What reading a Team from a file can do on this install, for the web app (ADR 24). */
-export interface TeamReadingView {
-  /** Whether images can be read: only when an operator set a model provider's key. */
-  images: boolean
 }
 
 const NOT_TURNED_ON = "Reading Teams from images isn't turned on for this install."

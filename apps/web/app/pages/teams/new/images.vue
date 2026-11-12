@@ -32,18 +32,21 @@ async function save(body: TeamBody) {
     />
 
     <template v-else>
-      <p v-if="!imageReading" class="text-muted-foreground text-sm" role="status">
+      <p
+        v-if="imageReading"
+        class="text-muted-foreground text-sm"
+        data-testid="image-reading-notice"
+      >
+        The images are sent to Anthropic, whose AI model reads them. MyVGC doesn't keep them. PNG,
+        JPEG or WebP, up to {{ MAX_TEAM_IMAGE_MB }} MB each.
+      </p>
+      <!-- Offline, whether this install reads images may not be known yet, so say what's needed. -->
+      <p v-if="!online" class="text-muted-foreground text-sm" role="status">
+        Reading screenshots needs a connection.
+      </p>
+      <p v-else-if="imageReading === false" class="text-muted-foreground text-sm" role="status">
         Reading screenshots isn't turned on for this install.
       </p>
-      <template v-else>
-        <p class="text-muted-foreground text-sm" data-testid="image-reading-notice">
-          The images are sent to Anthropic, whose AI model reads them. MyVGC doesn't keep them. PNG,
-          JPEG or WebP, up to {{ MAX_TEAM_IMAGE_MB }} MB each.
-        </p>
-        <p v-if="!online" class="text-muted-foreground text-sm" role="status">
-          Reading screenshots needs a connection.
-        </p>
-      </template>
       <div class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
         <Button as-child variant="outline" size="lg"
           ><NuxtLink :to="cancelTo">Cancel</NuxtLink></Button
