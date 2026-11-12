@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import { expect, test } from './client'
 
 // The 2026 World Championships winner's open team list, a real paste also used by the
@@ -6,6 +7,10 @@ import { expect, test } from './client'
 const PASTE = readFileSync(
   new URL('../../packages/core/test/fixtures/worlds-2026-yamazaki-ots.txt', import.meta.url),
   'utf8',
+)
+// A Teamsheet filled in on teamsheet.gg, also used by the Teamsheet reader's tests.
+const TEAMSHEET = fileURLToPath(
+  new URL('../../packages/core/test/fixtures/teamsheet-gg-filled.pdf', import.meta.url),
 )
 const SPECIES = ['Floette-Eternal', 'Basculegion', 'Kingambit', 'Dragonite', 'Garchomp', 'Sneasler']
 
@@ -196,6 +201,13 @@ test('log a Tournament and a Round against a new Opponent', async ({ page }) => 
   await expect(page.getByRole('heading', { name: 'Log a Round' })).toBeVisible()
   await page.getByRole('combobox', { name: 'Opponent' }).fill('Smoke Opponent')
   await page.getByRole('option', { name: /Add “Smoke Opponent”/ }).click()
+  // Reading their open teamsheet fills in their Team for review (ADR 24); pdf-lib and the
+  // Champions data must be in the image.
+  const theirTeam = page.getByTestId('their-team-section')
+  await theirTeam.locator('summary').click()
+  await theirTeam.getByTestId('their-teamsheet-file').setInputFiles(TEAMSHEET)
+  await expect(theirTeam.getByTestId('their-team').locator(':scope > li')).toHaveCount(6)
+  await expect(theirTeam.getByTestId('their-pokemon-0')).toContainText('Charizard')
   await page.getByText('Win', { exact: true }).click()
   await page.getByTestId('games').locator('summary').click()
   await page.getByTestId('game-1').getByText('Win', { exact: true }).click()
@@ -245,6 +257,10 @@ test('log a Tournament and a Round against a new Opponent', async ({ page }) => 
   if (wide) await expect(page.getByText('Select an Opponent')).toBeVisible()
   await opponentRow.click()
   await expect(page.getByTestId('opponent-name')).toHaveText('Smoke Opponent')
+  // Their Team was saved with the Round, keeping only what an open teamsheet shows.
+  const savedTeam = page.getByRole('list', { name: "Opponent's Team" })
+  await expect(savedTeam.locator(':scope > li')).toHaveCount(6)
+  await expect(savedTeam).toContainText('Charizard @ Charizardite Y')
 
   if (wide) {
     await expect(opponentRow).toHaveAttribute('aria-current', 'page')

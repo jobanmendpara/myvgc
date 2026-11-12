@@ -24,11 +24,13 @@ import {
   opponentTeamOf,
 } from '@myvgc/core/schema'
 import { useQuery } from '@tanstack/vue-query'
+import { TEAM_FILE_TYPES } from '@/composables/useTeamReader'
 import { formatDates } from '@/lib/format'
 import type { OpponentChoice } from './OpponentPicker.vue'
 import {
   type OpponentBuildDraft,
   newOpponentBuild,
+  readToOpponentTeam,
   toOpponentBuildDraft,
   toOpponentTeamInput,
 } from '@/lib/opponent-team'
@@ -197,6 +199,42 @@ function copyOpponentTeam() {
   opponentTeam.value = copyable.value.pokemon.map(toOpponentBuildDraft)
   opponentTeamOpen.value = true
 }
+
+// Reading their open teamsheet (ADR 24) fills in their Team for the User to check before saving.
+// What it read replaces what was there, though species picked for their side of a Game stay
+// while there's room. A read that finishes after the User picked another Opponent is dropped.
+const names = useChampionsNames()
+const leftOutOfRead = ref<string[]>([])
+let readingFor: string | undefined
+const reader = useTeamReader((read) => {
+  if (readingFor !== draftKey(opponent.value)) return
+  const { pokemon, leftOut } = readToOpponentTeam(read)
+  opponentTeam.value = pokemon
+  const picked = new Set(games.value.flatMap((g) => [...g.opponentBrought, ...g.opponentLeads]))
+  for (const species of picked) {
+    addToOpponentTeam(species)
+    if (!opponentSpecies.value.includes(species))
+      leftOut.push(
+        `${names.data.value?.species[species] ?? species}, picked for a Game, wasn't added: their Team already has ${MAX_TEAM_SIZE} Pokémon.`,
+      )
+  }
+  leftOutOfRead.value = leftOut
+  opponentTeamOpen.value = true
+})
+const readFileInput = reader.fileInput
+function chooseTeamsheet(event: Event) {
+  readingFor = draftKey(opponent.value)
+  reader.choose(event)
+}
+const readFlagged = computed(() => opponentTeam.value.some((build) => build.readFlags.length))
+watch(
+  () => draftKey(opponent.value),
+  () => {
+    leftOutOfRead.value = []
+    reader.read.reset()
+  },
+)
+
 const opponentName = computed(() => opponent.value?.displayName ?? 'them')
 // What saving this Round with another Opponent loses: the old Opponent's Team, if no other
 // Round here is against them.
@@ -378,6 +416,50 @@ const { DiscardDialog } = useDiscardGuard(dirty, 'this Round')
             >Copy their Team from {{ copyable.tournament.name }},
             {{ formatDates(copyable.tournament.startDate) }}</Button
           >
+        </div>
+        <div class="mb-3 flex flex-col gap-2" data-testid="read-their-teamsheet">
+          <input
+            ref="readFileInput"
+            type="file"
+            :accept="TEAM_FILE_TYPES"
+            class="sr-only"
+            data-testid="their-teamsheet-file"
+            @change="chooseTeamsheet"
+          />
+          <Button
+            type="button"
+            variant="outline"
+            class="self-start"
+            :disabled="!reader.online.value || reader.read.isPending.value"
+            @click="readFileInput?.click()"
+            >{{ reader.read.isPending.value ? 'Reading…' : 'Read their Teamsheet' }}</Button
+          >
+          <p class="text-muted-foreground text-sm">
+            <template v-if="!reader.online.value">Reading a Teamsheet needs a connection.</template>
+            <template v-else
+              >A Teamsheet PDF filled in on teamsheet.gg. Only species, abilities, held items and
+              moves are kept<template v-if="opponentTeam.length"
+                >, and they replace the Pokémon below</template
+              >. The file isn't kept.</template
+            >
+          </p>
+          <Alert v-if="reader.failure.value" variant="destructive" role="alert">
+            <AlertDescription>{{ reader.failure.value }}</AlertDescription>
+          </Alert>
+          <Alert v-if="readFlagged || leftOutOfRead.length" data-testid="read-flags-note">
+            <AlertDescription>
+              <p v-if="readFlagged">
+                MyVGC wasn't sure of everything on the file. Check the Pokémon marked below before
+                saving.
+              </p>
+              <template v-if="leftOutOfRead.length">
+                <p>Some Pokémon were left out:</p>
+                <ul class="list-disc pl-5">
+                  <li v-for="(reason, index) in leftOutOfRead" :key="index">{{ reason }}</li>
+                </ul>
+              </template>
+            </AlertDescription>
+          </Alert>
         </div>
         <p v-if="error('opponentTeam')" class="text-destructive mb-3 text-sm">
           {{ error('opponentTeam') }}

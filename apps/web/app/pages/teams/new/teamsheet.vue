@@ -1,50 +1,12 @@
 <script setup lang="ts">
-import {
-  MAX_TEAMSHEET_BYTES,
-  type ReadTeamView,
-  TEAMSHEET_TOO_LARGE,
-  type TeamBody,
-} from '@myvgc/core/schema'
-import { useMutation } from '@tanstack/vue-query'
-import { useOnline } from '@vueuse/core'
-import { FetchError } from 'ofetch'
+import type { TeamBody } from '@myvgc/core/schema'
+import { TEAM_FILE_TYPES } from '@/composables/useTeamReader'
 import type { CreatedTeam } from '@/lib/api'
 
 useHead({ title: 'Read a Teamsheet · MyVGC' })
 const cancelTo = useNewTeamCancelTo()
 
-// Reading needs the API (ADR 24), so it's online only (ADR 17).
-const online = useOnline()
-const fileInput = ref<HTMLInputElement | null>(null)
-
-const read = useMutation({
-  mutationFn: (file: File) => {
-    if (file.size > MAX_TEAMSHEET_BYTES) throw new Error(TEAMSHEET_TOO_LARGE)
-    const body = new FormData()
-    body.append('file', file)
-    return $fetch<ReadTeamView>('/api/teams/read', { method: 'POST', body })
-  },
-  networkMode: 'always',
-  onSettled: () => {
-    if (fileInput.value) fileInput.value.value = ''
-  },
-})
-
-const failure = computed(() => {
-  const error = read.error.value
-  if (!error) return ''
-  if (error instanceof FetchError) {
-    if (error.statusCode === 401) return 'Your session has ended. Log in again to read a Teamsheet.'
-    if (error.data?.error) return error.data.error as string
-    return "Couldn't read the file. Check your connection and try again."
-  }
-  return error.message
-})
-
-function chooseFile(event: Event) {
-  const file = (event.target as HTMLInputElement).files?.[0]
-  if (file) read.mutate(file)
-}
+const { online, fileInput, read, failure, choose } = useTeamReader()
 
 async function save(body: TeamBody) {
   const { team } = await $fetch<CreatedTeam>('/api/teams', { method: 'POST', body })
@@ -80,10 +42,10 @@ async function save(body: TeamBody) {
         <input
           ref="fileInput"
           type="file"
-          accept="application/pdf,.pdf"
+          :accept="TEAM_FILE_TYPES"
           class="sr-only"
           data-testid="teamsheet-file"
-          @change="chooseFile"
+          @change="choose"
         />
         <Button size="lg" :disabled="!online || read.isPending.value" @click="fileInput?.click()">
           {{ read.isPending.value ? 'Reading…' : 'Choose a PDF' }}

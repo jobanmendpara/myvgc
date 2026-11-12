@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { MAX_TEAM_SIZE, type PokemonBuild, pokemonBuildSchema, statPointsSchema } from './build'
 import type { Game } from './round'
-import type { Regulation } from './team'
+import type { ReadFlag, Regulation } from './team'
 
 const NO_STAT_POINTS = { hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0 }
 
@@ -102,6 +102,54 @@ export function mergeOpponentTeams(
     if (merged.length < MAX_TEAM_SIZE && !merged.some((m) => m.species === build.species))
       merged.push(build)
   return merged
+}
+
+/** A Team read from a file, as an Opponent's Team (ADR 22, ADR 24). */
+export interface ReadOpponentTeam {
+  pokemon: PokemonBuild[]
+  /** The reader's flags on what is kept, pointing at this Team's Pokémon. */
+  flags: ReadFlag[]
+  /** Why a Pokémon on the file was left out, such as a species that wasn't read. */
+  leftOut: string[]
+}
+
+// What an open teamsheet shows, and so all an Opponent's Team keeps.
+const OPEN_TEAMSHEET_FIELDS: readonly unknown[] = ['ability', 'item', 'moves']
+
+/**
+ * A Team read from a file made into a draft of an Opponent's Team: only species, ability, held
+ * item and moves are kept, with the flags about them. A Pokémon whose species wasn't read, or
+ * whose species is already on the Team, is left out, since their Team lists each species once.
+ */
+export function opponentTeamFromRead(read: {
+  pokemon: readonly PokemonBuild[]
+  flags: readonly ReadFlag[]
+}): ReadOpponentTeam {
+  const result: ReadOpponentTeam = { pokemon: [], flags: [], leftOut: [] }
+  read.pokemon.forEach((build, index) => {
+    const flagsOn = read.flags.filter(({ path }) => path[0] === 'pokemon' && path[1] === index)
+    if (!build.species) {
+      const species = flagsOn.filter(({ path }) => path[2] === 'species')
+      result.leftOut.push(...species.map(({ message }) => message))
+      return
+    }
+    if (result.pokemon.some((kept) => kept.species === build.species)) {
+      result.leftOut.push('A species listed twice was read once.')
+      return
+    }
+    const position = result.pokemon.length
+    result.pokemon.push({
+      species: build.species,
+      ...(build.ability ? { ability: build.ability } : {}),
+      ...(build.item ? { item: build.item } : {}),
+      moves: [...build.moves],
+      statPoints: { ...NO_STAT_POINTS },
+    })
+    for (const { path, message } of flagsOn)
+      if (OPEN_TEAMSHEET_FIELDS.includes(path[2]))
+        result.flags.push({ path: ['pokemon', position, ...path.slice(2)], message })
+  })
+  return result
 }
 
 /** What `latestOpponentTeam` reads from a Tournament. */
