@@ -61,7 +61,7 @@ The map is DEV-77. The decisions are DEV-78 to DEV-83. The build issues are belo
 | DEV-98 | Bring ADR 13 and ADR 17 up to date | Merged in PR #129, `jobanmendpara/myvgc@33b9823` (2026-11-11) |
 | DEV-97 | The 1000-Opponent cap | Merged in PR #130, `jobanmendpara/myvgc@3bd06b2` (2026-11-11) |
 | DEV-95 | Gather the List style branching | Merged in PR #131, `jobanmendpara/myvgc@d8ef104` (2026-11-11) |
-| DEV-100 | Unit tests for the web app's own logic | Filed 2026-11-11. Built in `jobanmendpara/myvgc@aff4e71` |
+| DEV-100 | Unit tests for the web app's own logic | Filed 2026-11-11. Built in `jobanmendpara/myvgc@aff4e71`. (Superseded 2026-11-12: merged in PR #134, `jobanmendpara/myvgc@b017592` (2026-11-11), see below.) |
 
 - As of `jobanmendpara/myvgc@e837dd5` (DEV-94), `useDiscardGuard` returns a `DiscardDialog` component built with `h()`, and forms render `<DiscardDialog />`. The markup is in `components/DiscardChangesDialog.vue`. It is the only composable that returns a component. Nuxt also auto-registers `DiscardChangesDialog`, so a form could use it and bypass the guard; on 2026-11-11 that was left as a code comment only.
 - DEV-96 (PR #126, `jobanmendpara/myvgc@c8e6b3e`, 2026-11-11) added smoke coverage for merging an Opponent (wide screens) and deleting one (both widths). It found no bug.
@@ -74,6 +74,7 @@ The map is DEV-77. The decisions are DEV-78 to DEV-83. The build issues are belo
   - `TournamentRows.vue`, `TeamRows.vue` and `OpponentRows.vue` replace the `*Summary` components.
   - `ListColumn.vue` takes `loadFailed`.
   - The DEV-95 agent found that generic slot inference had been broken locally before DEV-99, by the same stray `~/node_modules`.
+- On 2026-11-12 the lint found DEV-100 merged in PR #134, `jobanmendpara/myvgc@b017592`; its row above still said "Filed". As of `jobanmendpara/myvgc@56af0fe` (2026-11-12), `apps/web/app/lib/opponent-list.ts` and `list-style-look.ts` still exist as described above, and ADR 13 records the web unit tests (amended 2026-11-11).
 - As of `jobanmendpara/myvgc@aff4e71` (DEV-100, 2026-11-11), `apps/web` has a `test` script running plain Vitest, so `pnpm test` and CI run it. `apps/web/test/` covers `fetchEveryOpponent`, with Nuxt's global `$fetch` stubbed, and `app/lib/format.ts`. Nuxt's typecheck includes `test/` through `typescript.tsConfig` in `nuxt.config.ts`. ADR 13 now says web unit tests cover web-only logic, while domain logic stays in `packages/core`.
 
 Related: [parallel agents](parallel-agents.md).
