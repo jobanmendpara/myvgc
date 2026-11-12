@@ -9,6 +9,7 @@
   },
   "scripts": {
     "dev": "pnpm --parallel --filter \"./apps/*\" dev",
+    "dev:lan": "WEB_HOST=0.0.0.0 pnpm dev",
     "db:up": "docker compose -f compose.yaml -f compose.dev.yaml up -d db",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
