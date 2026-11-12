@@ -52,17 +52,16 @@ describe('newTeamSchema, either way in', () => {
   })
 })
 
+const pokemon = [
+  {
+    species: 'incineroar',
+    moves: [],
+    statPoints: { hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0 },
+  },
+]
+const whole = { name: 'Sun', regulation: 'M-B', notes: '', replicaTeamId: '', pokemon }
+
 describe('teamSchema', () => {
-  const pokemon = [
-    {
-      species: 'incineroar',
-      moves: [],
-      statPoints: { hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0 },
-    },
-  ]
-
-  const whole = { name: 'Sun', regulation: 'M-B', notes: '', replicaTeamId: '', pokemon }
-
   it('takes the whole Team', () => {
     expect(
       teamSchema.parse({
@@ -88,27 +87,20 @@ describe('teamSchema', () => {
 })
 
 describe('Replica Team ID', () => {
-  const pokemon = [
-    {
-      species: 'incineroar',
-      moves: [],
-      statPoints: { hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0 },
-    },
-  ]
-  const withId = (replicaTeamId: string) =>
-    teamSchema.safeParse({ name: 'Sun', regulation: 'M-C', notes: '', replicaTeamId, pokemon })
+  const withId = (replicaTeamId: string) => teamSchema.safeParse({ ...whole, replicaTeamId })
 
   it.each([
     ['9TCG84KWXK', '9TCG84KWXK'],
     [' 9tcg84kwxk ', '9TCG84KWXK'],
     ['9TCG 84KW XK', '9TCG84KWXK'],
+    ['9TCG-84KW-XK', '9TCG84KWXK'],
     ['', ''],
     ['   ', ''],
   ])('reads %j as %j', (input, stored) => {
     expect(withId(input).data?.replicaTeamId).toBe(stored)
   })
 
-  it.each(['9TCG-84KWXK', '9TCG84KWX!', 'A'.repeat(MAX_REPLICA_TEAM_ID_LENGTH + 1)])(
+  it.each(['9TCG_84KWXK', '9TCG84KWX!', 'A'.repeat(MAX_REPLICA_TEAM_ID_LENGTH + 1)])(
     'rejects %j',
     (input) => {
       const result = withId(input)

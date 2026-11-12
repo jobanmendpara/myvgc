@@ -334,7 +334,7 @@ describe('Teams from the Team builder', () => {
       const res = await put(
         t!.app,
         `/api/teams/${id}`,
-        { ...whole, replicaTeamId: '9TCG-84KWXK' },
+        { ...whole, replicaTeamId: '9TCG_84KWXK' },
         cookie,
       )
       expect(res.status).toBe(400)

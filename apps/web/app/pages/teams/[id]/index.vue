@@ -122,7 +122,7 @@ const remove = useMutation({
           <Badge variant="secondary">Reg {{ team.regulation }}</Badge>
           <LegalityBadge :legality="team.legality" />
         </div>
-        <p v-if="team.replicaTeamId" class="text-sm" data-testid="team-replica-id">
+        <p v-if="team.replicaTeamId" class="text-sm" data-testid="team-replica-team-id">
           <span class="text-muted-foreground">Replica Team ID</span>
           <span class="ml-2 font-mono text-base font-medium tracking-wider select-all">{{
             team.replicaTeamId

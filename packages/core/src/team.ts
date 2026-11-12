@@ -25,12 +25,12 @@ const teamNotes = z
 export const MAX_REPLICA_TEAM_ID_LENGTH = 20
 
 /**
- * A Replica Team ID (CONTEXT.md), stored without spaces and in capitals, as the game shows it. An
- * empty string means the Team has none.
+ * A Replica Team ID (CONTEXT.md), stored without spaces or hyphens and in capitals, as the game
+ * shows it. An empty string means the Team has none.
  */
-export const replicaTeamIdSchema = z
+const replicaTeamIdSchema = z
   .string()
-  .transform((id) => id.replace(/\s+/g, '').toUpperCase())
+  .transform((id) => id.replace(/[\s-]+/g, '').toUpperCase())
   .pipe(
     z
       .string()
