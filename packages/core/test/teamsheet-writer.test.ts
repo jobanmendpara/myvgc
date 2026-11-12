@@ -66,7 +66,11 @@ const build = (species: string, more: Partial<PokemonBuild> = {}): PokemonBuild 
   ...more,
 })
 
-describe('writeTeamsheet', () => {
+// Each export embeds and deflates the full DejaVu Sans (ADR 28), about 0.2 s of CPU on an idle
+// machine, and the first test also loads the Champions data. With other test runs sharing the CPU,
+// as when agents run `pnpm test` side by side, a test here took up to 6 s, past Vitest's default
+// 5 s (DEV-101). The time limit is there to catch a hang, not to measure speed.
+describe('writeTeamsheet', { timeout: 30_000 }, () => {
   it('reads back as the same Team', async () => {
     const read = await readTeamsheet(await readFile(FIXTURE))
     if (!read.ok) throw new Error(read.error)
