@@ -48,7 +48,10 @@ const STAT_POINTS = (
   spe,
 })
 
-describe('readTeamsheet', () => {
+// Reading a Teamsheet is CPU-bound PDF work; with other test runs sharing the CPU a test here took
+// up to 3 s against Vitest's default 5 s. The limit is there to catch a hang (DEV-101, and see
+// teamsheet-writer.test.ts).
+describe('readTeamsheet', { timeout: 30_000 }, () => {
   it('reads every Pokémon build and the Battle Team name from a teamsheet.gg PDF', async () => {
     const read = await readTeamsheet(await fixture())
 
