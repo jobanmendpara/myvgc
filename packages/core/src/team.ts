@@ -132,6 +132,35 @@ export const MAX_TEAMSHEET_MB = 5
 export const MAX_TEAMSHEET_BYTES = MAX_TEAMSHEET_MB * 1024 * 1024
 export const TEAMSHEET_TOO_LARGE = `The file is larger than ${MAX_TEAMSHEET_MB} MB.`
 
+/** Image types the image reader takes (ADR 24). No HEIC. */
+export const TEAM_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp'] as const
+export type TeamImageType = (typeof TEAM_IMAGE_TYPES)[number]
+/** Most images read together into one Team. */
+export const MAX_TEAM_IMAGES = 6
+/** The largest image MyVGC reads. */
+export const MAX_TEAM_IMAGE_MB = 10
+export const MAX_TEAM_IMAGE_BYTES = MAX_TEAM_IMAGE_MB * 1024 * 1024
+export const TEAM_IMAGE_TOO_LARGE = `Each image can be at most ${MAX_TEAM_IMAGE_MB} MB.`
+export const TOO_MANY_TEAM_IMAGES = `Choose at most ${MAX_TEAM_IMAGES} images.`
+export const NOT_A_TEAM_IMAGE = 'Choose PNG, JPEG or WebP images.'
+
+/** What reading a Team from a file can do on this install (ADR 24), as the API returns it. */
+export interface TeamReadingView {
+  /** Whether images can be read: only when an operator set a model provider's key. */
+  images: boolean
+}
+
+/** An image's type from its first bytes, whatever its name or stated type says. */
+export function teamImageType(bytes: Uint8Array): TeamImageType | undefined {
+  const starts = (offset: number, ...expected: number[]) =>
+    expected.every((byte, at) => bytes[offset + at] === byte)
+  if (starts(0, 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a)) return 'image/png'
+  if (starts(0, 0xff, 0xd8, 0xff)) return 'image/jpeg'
+  // "RIFF", four bytes of size, then "WEBP".
+  if (starts(0, 0x52, 0x49, 0x46, 0x46) && starts(8, 0x57, 0x45, 0x42, 0x50)) return 'image/webp'
+  return undefined
+}
+
 /** Something a reader wasn't sure of in a Team it read from a file, shown next to that field. */
 export interface ReadFlag {
   /** The field it's about, such as `['pokemon', 2, 'item']`. */

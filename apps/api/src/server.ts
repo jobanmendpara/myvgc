@@ -4,6 +4,7 @@ import { createApp } from './app'
 import { loadConfig } from './config'
 import { connectPostgres, migratePostgres } from './db/client'
 import { openDiskStorage } from './storage'
+import { anthropicTeamReader } from './team-reader'
 
 // Paths are relative to this file, which sits one folder below apps/api both as
 // source (src/server.ts) and when bundled (dist/server.js).
@@ -33,6 +34,16 @@ const app = createApp({
   db,
   storage,
   webDir,
+  // Off unless an operator sets a key (ADR 2, ADR 24).
+  imageReading: config.ANTHROPIC_API_KEY
+    ? {
+        reader: anthropicTeamReader({
+          apiKey: config.ANTHROPIC_API_KEY,
+          model: config.TEAM_READER_MODEL,
+        }),
+        dailyLimit: config.TEAM_READER_DAILY_LIMIT,
+      }
+    : undefined,
   auth: {
     secret: config.BETTER_AUTH_SECRET,
     appUrl: config.APP_URL,

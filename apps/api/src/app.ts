@@ -4,6 +4,7 @@ import { type AuthOptions, type SessionUser, createAuth, withClientAddress } fro
 import type { Database } from './db/types'
 import { REGULATION_PERIODS, SEASONS, championsNames, currentRegulation, today } from '@myvgc/core'
 import { accountRoutes } from './routes/account'
+import { type ImageReading, teamReadingRoutes } from './routes/team-reading'
 import { teamRoutes } from './routes/teams'
 import { dashboardRoutes } from './routes/dashboard'
 import { dataRoutes } from './routes/data'
@@ -23,6 +24,8 @@ export interface AppOptions {
   storage: FileStorage
   /** Folder holding the generated web app. Leave out to serve only the API. */
   webDir?: string
+  /** Reading Teams from images (ADR 24). Leave out when no model provider is set up. */
+  imageReading?: ImageReading
 }
 
 export type AppEnv = { Variables: { user: SessionUser } }
@@ -30,7 +33,13 @@ export type AppEnv = { Variables: { user: SessionUser } }
 // Routes under /api that work without a session.
 const PUBLIC_API = ['/api/health', '/api/auth']
 
-export function createApp({ db, auth: authOptions, storage, webDir }: AppOptions): Hono<AppEnv> {
+export function createApp({
+  db,
+  auth: authOptions,
+  storage,
+  webDir,
+  imageReading,
+}: AppOptions): Hono<AppEnv> {
   const auth = createAuth({ db, ...authOptions })
   const app = new Hono<AppEnv>()
 
@@ -64,6 +73,7 @@ export function createApp({ db, auth: authOptions, storage, webDir }: AppOptions
   })
 
   app.route('/api/account', accountRoutes(db))
+  app.route('/api/teams/read', teamReadingRoutes(db, imageReading))
   app.route('/api/teams', teamRoutes(db))
   app.route('/api/tournaments/:tournamentId/rounds', roundRoutes(db))
   app.route('/api/tournaments/:tournamentId/teamsheet', teamsheetAttachmentRoutes(db, storage))

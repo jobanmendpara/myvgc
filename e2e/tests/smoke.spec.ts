@@ -33,8 +33,13 @@ test('sign up, import a Team and see its six Pokémon', async ({ page }) => {
   await expect(page).toHaveURL(/\/dashboard$/)
   await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible()
 
+  // With no ANTHROPIC_API_KEY, reading images is off and its upload is hidden (ADR 24).
+  const reading = page.waitForResponse((res) => res.url().endsWith('/api/teams/read'))
   await page.goto('/teams/new')
   await expect(page.getByRole('heading', { name: 'New Team' })).toBeVisible()
+  expect(await (await reading).json()).toEqual({ images: false })
+  await expect(page.getByRole('link', { name: /Read a Teamsheet/ })).toBeVisible()
+  await expect(page.getByRole('link', { name: /Read screenshots/ })).toHaveCount(0)
   await page.getByRole('link', { name: /Import a paste/ }).click()
   await expect(page.getByRole('heading', { name: 'Import a Team' })).toBeVisible()
   await page.getByLabel('Name', { exact: true }).fill('Smoke test Team')

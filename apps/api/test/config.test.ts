@@ -41,6 +41,42 @@ describe('loadConfig', () => {
     expect(() => loadConfig({ ...valid, BETTER_AUTH_SECRET: secret })).toThrow(message)
   })
 
+  it('leaves image reading off with no key, and treats blank values as unset', () => {
+    const blank = {
+      ...valid,
+      ANTHROPIC_API_KEY: ' ',
+      TEAM_READER_MODEL: '',
+      TEAM_READER_DAILY_LIMIT: '',
+    }
+    for (const env of [valid, blank]) {
+      const config = loadConfig(env)
+      expect(config.ANTHROPIC_API_KEY).toBeUndefined()
+      expect(config.TEAM_READER_MODEL).toBe('claude-sonnet-5-5')
+      expect(config.TEAM_READER_DAILY_LIMIT).toBeUndefined()
+    }
+  })
+
+  it('reads the image reader settings', () => {
+    expect(
+      loadConfig({
+        ...valid,
+        ANTHROPIC_API_KEY: 'sk-ant-test',
+        TEAM_READER_MODEL: 'claude-opus-5-5',
+        TEAM_READER_DAILY_LIMIT: '20',
+      }),
+    ).toMatchObject({
+      ANTHROPIC_API_KEY: 'sk-ant-test',
+      TEAM_READER_MODEL: 'claude-opus-5-5',
+      TEAM_READER_DAILY_LIMIT: 20,
+    })
+  })
+
+  it.each(['0', '2.5', 'lots'])('rejects TEAM_READER_DAILY_LIMIT=%s', (limit) => {
+    expect(() => loadConfig({ ...valid, TEAM_READER_DAILY_LIMIT: limit })).toThrow(
+      /TEAM_READER_DAILY_LIMIT/,
+    )
+  })
+
   it('rejects an APP_URL that is not a URL', () => {
     expect(() => loadConfig({ ...valid, APP_URL: 'localhost' })).toThrow(/APP_URL/)
   })

@@ -1,5 +1,5 @@
 import type { AgeDivision, ListStyle } from '@myvgc/core'
-import { date, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
+import { date, integer, pgTable, primaryKey, text, timestamp } from 'drizzle-orm/pg-core'
 import { user } from './auth-schema'
 
 /**
@@ -40,3 +40,20 @@ export const listStyles = pgTable('list_styles', {
     .defaultNow()
     .$onUpdate(() => new Date()),
 })
+
+/**
+ * How many times a User read a Team from images on each day, for the optional daily limit
+ * (`TEAM_READER_DAILY_LIMIT`, ADR 24). Only counts: nothing about the images is kept. Not part of
+ * the Data export.
+ */
+export const imageReads = pgTable(
+  'image_reads',
+  {
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    day: date('day').notNull(),
+    count: integer('count').notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.day] })],
+)

@@ -1,15 +1,6 @@
 import { PDFDocument, PDFTextField } from 'pdf-lib'
-import {
-  MAX_MOVES,
-  MAX_TOTAL_STAT_POINTS,
-  type PokemonBuild,
-  STAT_IDS,
-  STAT_LABELS,
-  repeatedMoves,
-  totalStatPoints,
-} from './build'
-import { type ChampionsKind, champions, championsNames } from './champions'
-import { statPointsFromValues } from './stat-values'
+import { MAX_MOVES, type PokemonBuild, STAT_IDS } from './build'
+import { type BuildText, readBuild } from './read-build'
 import {
   ABILITY,
   FIELD_COUNT,
@@ -64,7 +55,7 @@ export async function readTeamsheet(pdf: Uint8Array): Promise<ReadTeamsheetResul
   const flags: ReadFlag[] = []
   const pokemon = page.boxes
     .filter((first) => text(first + SPECIES))
-    .map((first, index) => readBox(text, first, page.stats, index, flags))
+    .map((first, index) => readBuild(boxText(text, first, page.stats), index, flags))
   // Players often fill in only one page's header.
   const name =
     text(page.header.battleTeamName) ||
@@ -73,77 +64,21 @@ export async function readTeamsheet(pdf: Uint8Array): Promise<ReadTeamsheetResul
   return { ok: true, name, pokemon, flags }
 }
 
-function readBox(
-  text: (field: number) => string,
-  /** The number of the box's first field, such as 19 for `f19`. */
-  first: number,
-  withStats: boolean,
-  index: number,
-  flags: ReadFlag[],
-): PokemonBuild {
-  const lookUp = (kind: ChampionsKind, offset: number, field: (string | number)[]) => {
-    const name = text(first + offset)
-    if (!name) return undefined
-    const found = champions[kind](name)
-    if (!found)
-      flags.push({ path: ['pokemon', index, ...field], message: `Couldn't read "${name}".` })
-    return found?.id
+/** The text of one Pokémon box, from the number of its first field, such as 19 for `f19`. */
+function boxText(text: (field: number) => string, first: number, withStats: boolean): BuildText {
+  const box: BuildText = {
+    species: text(first + SPECIES),
+    statAlignment: text(first + STAT_ALIGNMENT),
+    ability: text(first + ABILITY),
+    item: text(first + ITEM),
+    moves: Array.from({ length: MAX_MOVES }, (_, move) => text(first + FIRST_MOVE + move)),
   }
-
-  const build: PokemonBuild = {
-    species: lookUp('species', SPECIES, ['species']) ?? '',
-    moves: [],
-    statPoints: { hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0 },
-  }
-  const nature = lookUp('nature', STAT_ALIGNMENT, ['nature'])
-  if (nature) build.nature = nature
-  const ability = lookUp('ability', ABILITY, ['ability'])
-  if (ability) build.ability = ability
-  const item = lookUp('item', ITEM, ['item'])
-  if (item) build.item = item
-
-  for (let move = 0; move < MAX_MOVES; move++) {
-    const id = lookUp('move', FIRST_MOVE + move, ['moves', build.moves.length])
-    if (!id) continue
-    if (repeatedMoves([...build.moves, id]).length > 0) {
-      flags.push({
-        path: ['pokemon', index, 'moves'],
-        message: `"${text(first + FIRST_MOVE + move)}" was listed twice, so it was read once.`,
-      })
-      continue
-    }
-    build.moves.push(id)
-  }
-
-  if (!withStats) return build
-  const flagStats = (message: string, ...stat: string[]) =>
-    flags.push({ path: ['pokemon', index, 'statPoints', ...stat], message })
-  const values = Object.fromEntries(
-    STAT_IDS.flatMap((stat, offset) => {
-      const value = text(first + FIRST_STAT + offset)
-      return /^\d+$/.test(value) ? [[stat, Number(value)]] : []
-    }),
-  )
-  const baseStats = championsNames().baseStats[build.species]
-  if (!baseStats) {
-    if (Object.keys(values).length > 0)
-      flagStats("Stat Points weren't worked out, since the species wasn't read.")
-    return build
-  }
-
-  const read = statPointsFromValues(baseStats, values, build.nature)
-  build.statPoints = read.statPoints
-  // Without its Stat Alignment the raised and lowered stats can't fit, so one flag says it all.
-  if (text(first + STAT_ALIGNMENT) && !build.nature)
-    flagStats('Stat Points were worked out with no Stat Alignment, so check them.')
-  else
-    for (const stat of read.impossible)
-      flagStats(
-        `No Stat Points give ${values[stat]} ${STAT_LABELS[stat]}, so it was set to 0.`,
-        stat,
-      )
-  const total = totalStatPoints(read.statPoints)
-  if (total > MAX_TOTAL_STAT_POINTS)
-    flagStats(`The Stat Points read add up to ${total}; the most is ${MAX_TOTAL_STAT_POINTS}.`)
-  return build
+  if (withStats)
+    box.statValues = Object.fromEntries(
+      STAT_IDS.flatMap((stat, offset) => {
+        const value = text(first + FIRST_STAT + offset)
+        return /^\d+$/.test(value) ? [[stat, Number(value)]] : []
+      }),
+    )
+  return box
 }

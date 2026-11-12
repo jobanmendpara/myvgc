@@ -1,7 +1,10 @@
 <script setup lang="ts">
 useHead({ title: 'New Team · MyVGC' })
 
-const WAYS = [
+// Reading images is only offered when the install has it turned on (ADR 24).
+const imageReading = useImageReading()
+
+const WAYS = computed(() => [
   {
     to: '/teams/new/paste',
     title: 'Import a paste',
@@ -17,7 +20,17 @@ const WAYS = [
     title: 'Read a Teamsheet',
     description: 'Choose a Teamsheet PDF filled in on teamsheet.gg, then check what was read.',
   },
-]
+  ...(imageReading.value
+    ? [
+        {
+          to: '/teams/new/images',
+          title: 'Read screenshots',
+          description:
+            'Choose screenshots of a Replica Team or photos of a paper Teamsheet, then check what was read.',
+        },
+      ]
+    : []),
+])
 </script>
 
 <template>
