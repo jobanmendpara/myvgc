@@ -126,6 +126,8 @@ pnpm db:up   # Postgres in Docker, exposed on localhost:5432 (needs a .env copie
 pnpm dev     # API on :3001, web app on :3000 proxying /api
 ```
 
+To try the app from a phone or another computer on your network, run `pnpm dev:lan` instead. The web app then listens on every network address, without authentication. Set `APP_URL` in `.env` to the network address you open, such as `http://192.168.1.20:3000`, because log-ins only work from that address.
+
 `pnpm typecheck`, `pnpm lint`, `pnpm format:check` and `pnpm test` are what CI runs on every push.
 
 To run unreleased code in Docker, build the image from this checkout and run the smoke test against it:
