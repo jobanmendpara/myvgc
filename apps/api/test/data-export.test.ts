@@ -41,7 +41,14 @@ describe('Data export and import', () => {
       return json(answer)
     }
     const team = (
-      await call(post(t.app, '/api/teams', { name: 'Rain', pokemon: [incineroar] }, cookie))
+      await call(
+        post(
+          t.app,
+          '/api/teams',
+          { name: 'Rain', replicaTeamId: '9TCG84KWXK', pokemon: [incineroar] },
+          cookie,
+        ),
+      )
     ).team
     const opponent = await call(
       post(t.app, '/api/opponents', { displayName: 'Wolfe', aliases: ['wolfey'] }, cookie),
@@ -118,8 +125,9 @@ describe('Data export and import', () => {
     const text = await res.text()
     expect(text).not.toContain('ash@example.com')
     const file = JSON.parse(text)
-    expect(file).toMatchObject({ format: 'myvgc-export', version: 3, playerDetails })
+    expect(file).toMatchObject({ format: 'myvgc-export', version: 4, playerDetails })
     expect(file.teams).toHaveLength(1)
+    expect(file.teams[0].replicaTeamId).toBe('9TCG84KWXK')
     expect(file.opponents.map((o: { displayName: string }) => o.displayName).sort()).toEqual([
       'Lance',
       'Wolfe',

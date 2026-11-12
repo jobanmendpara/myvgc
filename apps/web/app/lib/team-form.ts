@@ -31,6 +31,7 @@ export interface TeamDraft {
   name: string
   regulation: Regulation
   notes: string
+  replicaTeamId: string
   pokemon: BuildDraft[]
 }
 
@@ -71,6 +72,7 @@ export function teamToDraft(team?: TeamView): TeamDraft {
     name: team?.name ?? '',
     regulation: team?.regulation ?? DEFAULT_REGULATION,
     notes: team?.notes ?? '',
+    replicaTeamId: team?.replicaTeamId ?? '',
     pokemon: team?.pokemon.map(buildToDraft) ?? [],
   }
 }
@@ -97,6 +99,7 @@ export function draftToBody(draft: TeamDraft): TeamBody {
     name: draft.name,
     regulation: draft.regulation,
     notes: draft.notes,
+    replicaTeamId: draft.replicaTeamId,
     pokemon: draft.pokemon.map((build) => ({
       species: build.species ?? '',
       nickname: build.nickname.trim() || undefined,

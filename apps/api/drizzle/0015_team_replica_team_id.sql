@@ -1,0 +1,1 @@
+ALTER TABLE "team" ADD COLUMN "replica_team_id" text DEFAULT '' NOT NULL;

@@ -16,7 +16,7 @@ import { newTournamentSchema } from './tournament'
  */
 export const DATA_EXPORT_FORMAT = 'myvgc-export'
 /** The version this install writes. Each new kind of User data bumps it, with an upgrade step. */
-export const DATA_EXPORT_VERSION = 3
+export const DATA_EXPORT_VERSION = 4
 
 const timestamp = z.iso.datetime('Use a time such as 2026-09-19T10:00:00.000Z.')
 const timestamps = { createdAt: timestamp, updatedAt: timestamp }
@@ -91,7 +91,7 @@ export type ExportedOpponentTeam = ExportedTournament['opponentTeams'][number]
 
 /**
  * Steps that upgrade a file by one version, keyed by the version they upgrade from. A file from
- * version 1 when the current version is 3 goes through `1` and then `2`.
+ * version 1 when the current version is 4 goes through `1`, `2` and then `3`.
  */
 const UPGRADES: Record<number, (file: Record<string, unknown>) => Record<string, unknown>> = {
   // Version 2 added Opponent's Teams (ADR 22), which version 1 files never have.
@@ -107,6 +107,15 @@ const UPGRADES: Record<number, (file: Record<string, unknown>) => Record<string,
   }),
   // Version 3 added Player details, which version 2 files never have: blank ones import nothing.
   2: (file) => ({ ...file, playerDetails: {} }),
+  // Version 4 added each Team's Replica Team ID, which version 3 Teams never have.
+  3: (file) => ({
+    ...file,
+    teams: Array.isArray(file.teams)
+      ? file.teams.map((team: unknown) =>
+          team && typeof team === 'object' ? { replicaTeamId: '', ...team } : team,
+        )
+      : file.teams,
+  }),
 }
 
 /** A problem with a Data export, naming the record it is in, such as `Tournament “Worlds”`. */

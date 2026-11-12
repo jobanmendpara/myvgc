@@ -68,6 +68,7 @@ describe('Team legality', () => {
         name: 'Dragons',
         regulation: 'M-B',
         notes: '',
+        replicaTeamId: '',
         pokemon: [build('incineroar', { item: 'rockyhelmet' }), build('salamence')],
       },
       ash,
@@ -97,7 +98,7 @@ describe('Team legality', () => {
     const res = await put(
       t.app,
       `/api/teams/${team.id}`,
-      { name: team.name, regulation: 'M-C', notes: '', pokemon: team.pokemon },
+      { name: team.name, regulation: 'M-C', notes: '', replicaTeamId: '', pokemon: team.pokemon },
       ash,
     )
     expect((await json(res)).legality).toEqual({

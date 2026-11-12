@@ -84,10 +84,25 @@ describe('POST /api/teams', () => {
     expect(row!.pokemon[0]).not.toHaveProperty('names')
   })
 
-  it('defaults the Regulation to M-C and the notes to empty', async () => {
+  it('defaults the Regulation to M-C, and the notes and Replica Team ID to empty', async () => {
     const { cookie } = await asUser()
     const res = await post(t!.app, '/api/teams', { name: 'Fairy rain', paste: PASTE }, cookie)
-    expect((await json(res)).team).toMatchObject({ regulation: 'M-C', notes: '' })
+    expect((await json(res)).team).toMatchObject({
+      regulation: 'M-C',
+      notes: '',
+      replicaTeamId: '',
+    })
+  })
+
+  it('keeps a Replica Team ID sent with a paste', async () => {
+    const { cookie } = await asUser()
+    const res = await post(
+      t!.app,
+      '/api/teams',
+      { name: 'Fairy rain', paste: PASTE, replicaTeamId: '9tcg84kwxk' },
+      cookie,
+    )
+    expect((await json(res)).team.replicaTeamId).toBe('9TCG84KWXK')
   })
 
   it('returns warnings with the new Team', async () => {
@@ -221,7 +236,13 @@ describe('Teams from the Team builder', () => {
     return (await json(res)).team
   }
 
-  const whole = { name: 'Rain', regulation: 'M-A', notes: 'Lead', pokemon: [INCINEROAR] }
+  const whole = {
+    name: 'Rain',
+    regulation: 'M-A',
+    notes: 'Lead',
+    replicaTeamId: '',
+    pokemon: [INCINEROAR],
+  }
 
   describe('POST /api/teams with Pokémon builds', () => {
     it('creates a Team, with display names and no warnings', async () => {
@@ -231,7 +252,12 @@ describe('Teams from the Team builder', () => {
       expect(res.status).toBe(201)
       const body = await json(res)
       expect(body.warnings).toEqual([])
-      expect(body.team).toMatchObject({ name: 'Sun', regulation: 'M-C', notes: '' })
+      expect(body.team).toMatchObject({
+        name: 'Sun',
+        regulation: 'M-C',
+        notes: '',
+        replicaTeamId: '',
+      })
       expect(body.team.pokemon[0]).toMatchObject({
         ...INCINEROAR,
         names: { species: 'Incineroar', ability: 'Intimidate', moves: ['Fake Out', 'Protect'] },
@@ -281,6 +307,40 @@ describe('Teams from the Team builder', () => {
       expect(body).toMatchObject({ id, createdAt, name: 'Rain', regulation: 'M-A', notes: 'Lead' })
       expect(body.pokemon[1].names.species).toBe('Garchomp')
       expect(await json(await get(t!.app, `/api/teams/${id}`, cookie))).toEqual(body)
+    })
+
+    it('sets, normalises and clears the Replica Team ID', async () => {
+      const cookie = await asUser()
+      const { id } = await createTeam(cookie)
+
+      const set = await put(
+        t!.app,
+        `/api/teams/${id}`,
+        { ...whole, replicaTeamId: ' 9tcg 84kwxk' },
+        cookie,
+      )
+      expect((await json(set)).replicaTeamId).toBe('9TCG84KWXK')
+      expect((await json(await get(t!.app, `/api/teams/${id}`, cookie))).replicaTeamId).toBe(
+        '9TCG84KWXK',
+      )
+
+      const cleared = await put(t!.app, `/api/teams/${id}`, whole, cookie)
+      expect((await json(cleared)).replicaTeamId).toBe('')
+    })
+
+    it('rejects a Replica Team ID with other characters, by field', async () => {
+      const cookie = await asUser()
+      const { id } = await createTeam(cookie)
+      const res = await put(
+        t!.app,
+        `/api/teams/${id}`,
+        { ...whole, replicaTeamId: '9TCG-84KWXK' },
+        cookie,
+      )
+      expect(res.status).toBe(400)
+      expect((await json(res)).fields).toEqual({
+        replicaTeamId: 'A Replica Team ID has only letters and digits, such as 9TCG84KWXK.',
+      })
     })
 
     it('changes what the paste says', async () => {
