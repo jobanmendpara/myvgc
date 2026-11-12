@@ -1,6 +1,7 @@
 import type { PGlite } from '@electric-sql/pglite'
 import type { Hono } from 'hono'
 import { type AppEnv, createApp } from '../src/app'
+import type { ImageReading } from '../src/routes/team-reading'
 import type { Database } from '../src/db/types'
 import { type FileStorage, memoryStorage } from '../src/storage'
 import { createTestDb } from './db'
@@ -16,7 +17,12 @@ export interface TestApp {
 
 /** The app on a fresh in-process Postgres with migrations applied. */
 export async function createTestApp(
-  options: { allowSignups?: boolean; webDir?: string; rateLimit?: boolean } = {},
+  options: {
+    allowSignups?: boolean
+    webDir?: string
+    rateLimit?: boolean
+    imageReading?: ImageReading
+  } = {},
 ): Promise<TestApp> {
   const { db, client } = await createTestDb()
   const storage = memoryStorage()
@@ -24,6 +30,7 @@ export async function createTestApp(
     db,
     storage,
     webDir: options.webDir,
+    imageReading: options.imageReading,
     auth: {
       secret: 'test-secret-that-is-at-least-32-characters-long',
       appUrl: APP_URL,
