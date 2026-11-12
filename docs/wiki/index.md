@@ -5,7 +5,7 @@ The chief-of-staff's record of decisions, recurring problems and preferences. It
 ## Workstreams
 
 - [List and detail rollout](list-detail-rollout.md): DEV-84 to DEV-89, the split layout, List styles and fuzzy search, and the follow-ups DEV-94 to DEV-100.
-- [Team reading rollout](team-reading-rollout.md): DEV-38 and DEV-62 to DEV-66, reading Teamsheets into Teams; DEV-63 (images) waits on an API key decision.
+- [Team reading rollout](team-reading-rollout.md): DEV-38 (closed 2026-11-12) and DEV-62 to DEV-66, reading Teamsheets and images into Teams; DEV-102 checks image reading against the real model.
 
 ## Preferences
 

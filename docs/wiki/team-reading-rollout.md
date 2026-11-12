@@ -5,7 +5,7 @@ DEV-38, "Read uploaded PDFs and replica-team screenshots into Teams". The sub-is
 | Issue | What | Status (dated) |
 | --- | --- | --- |
 | DEV-62 | Read a teamsheet.gg PDF into a Team | Merged in PR #71, `jobanmendpara/myvgc@93b4a27` (merge commit dated 2026-11-09) |
-| DEV-63 | Read images (replica-team screenshots) with a vision model | Open on 2026-11-11, waiting on the user's decision about an Anthropic API key |
+| DEV-63 | Read images (replica-team screenshots) with a vision model | Open on 2026-11-11, waiting on the user's decision about an Anthropic API key. (Superseded 2026-11-12: merged in PR #142, see the notes below.) |
 | DEV-64 | Read a Teamsheet into an Opponent's Team from the Round form | Merged in PR #138, `jobanmendpara/myvgc@eabc54a` (2026-11-11) |
 | DEV-65 | Read a stored Teamsheet attachment into a Team | Merged in PR #139, `jobanmendpara/myvgc@4ebfd44` (2026-11-11), after rebasing onto DEV-64 |
 | DEV-66 | Read MyVGC's own Teamsheet export back | Merged in PR #137, `jobanmendpara/myvgc@9636f0f` (2026-11-11) |
@@ -26,6 +26,13 @@ DEV-38, "Read uploaded PDFs and replica-team screenshots into Teams". The sub-is
   - `useTeamReader` gained an optional `{ tournamentId }` and `readStored()`. The page reads on open or when the connection returns. Cancel goes back to the Tournament.
   - Saving creates a new Team that is not linked to the Tournament. The attachment stays; the CONTEXT.md glossary was updated.
   - It came with 8 API tests and one new smoke test.
+- As of `jobanmendpara/myvgc@45590f5` (DEV-63, PR #142, 2026-11-12):
+  - The web app has `/teams/new/images`, and the API has an `image_reads` table (migration 0014). The PDF and image readers now share `readBuild`. See PR #142 for the file layout, tests and Merge Danger, and [ADR 24](../adr/0024-reading-teams-from-files.md) for the product choices.
+  - It was built against a stubbed model at the user's request. Nothing in tests or CI calls Anthropic. DEV-102 was filed to check image reading against the real Anthropic model, and is still open on 2026-11-12.
+- DEV-38 was closed as Done on 2026-11-12. Four Todo issues had been found sitting under it (last updated 2026-11-12 09:46 UTC, by whom isn't known) and were moved out, not built:
+  - DEV-60 and DEV-61 (Statistics follow-ups), now related to DEV-56.
+  - DEV-67 (Replica Team ID), related to DEV-38.
+  - DEV-71 (S3 storage), related to DEV-38 and DEV-37.
 - On 2026-11-11 the implementers for DEV-64, 65 and 66 ran at once and hit the session limit. See [parallel agents](parallel-agents.md).
 
 ## Gotchas
