@@ -34,4 +34,11 @@ How we run several implementation agents at once. First used on 2026-11-11 for D
 - Parallel agents share the session's scratchpad. On 2026-11-11 the DEV-99 agent's `pr-body.md` overwrote the DEV-96 agent's. Since then agents are told to put the issue identifier in every scratchpad file name.
 - `gh pr merge --delete-branch` deletes the remote branch but not the local one while it's checked out in a worktree. The chief-of-staff cleans these up.
 
-Related: [shipping flow](shipping-flow.md), [list and detail rollout](list-detail-rollout.md).
+## Session limit, SSH and worktree locks (2026-11-11, DEV-64 to DEV-66)
+
+- On 2026-11-11 three Opus implementers ran at once (DEV-64, 65, 66), each spawning code-review subagents. They hit the claude.ai session limit (HTTP 429) after about 7 minutes, and all three stopped mid-task. SendMessage resumed each from its transcript after the reset. A code-review subagent's hand-back (the DEV-64 spec review) was delivered to the chief-of-staff instead of the implementer that spawned it, so the chief-of-staff relayed it.
+- On 2026-11-11, mid-run, git over SSH failed with "agent refused operation" (the signing key was locked in the SSH agent), for both the DEV-66 agent and the chief-of-staff. The user's global git config has `url.git@github.com:.insteadof https://github.com/`, so every git network call failed, HTTPS included. The DEV-65 agent stopped before pushing. `gh` API calls still worked, and `gh api .../compare/main...<sha>` checks that main hasn't moved.
+- The DEV-64 agent found the workaround on 2026-11-11: `git -c "credential.helper=!gh auth git-credential" push https://jobanmendpara@github.com/jobanmendpara/myvgc.git <branch>` works, because the username in the URL stops the `insteadOf` rewrite. Fetch takes the same form. Its off-port smoke run (port 3464) passed 10/10.
+- On 2026-11-11 the chief-of-staff found that worktrees made with `isolation: worktree` stay locked after the agent finishes, so `git worktree remove` refuses them. The lock is held by the Claude Code process itself (the session's pid), not the agent, so it never clears mid-session. The chief-of-staff runs `git worktree unlock` then `remove` once a worktree is clean and its PR merged. This adds to, and only in part supersedes, the `gh pr merge --delete-branch` line above: the local branch survives while the worktree exists, and the worktree itself needs the unlock first.
+
+Related: [shipping flow](shipping-flow.md), [list and detail rollout](list-detail-rollout.md), [team reading rollout](team-reading-rollout.md).
