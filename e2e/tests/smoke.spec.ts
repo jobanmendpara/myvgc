@@ -318,6 +318,43 @@ test('log a Tournament and a Round against a new Opponent', async ({ page }) => 
   if (wide) await expect(page.getByText('Select an Opponent')).toBeVisible()
 })
 
+test('upload a Teamsheet PDF to a Tournament, then read it into a Team', async ({ page }) => {
+  await page.goto('/signup')
+  await expect(page.getByRole('heading', { name: 'Create an account' })).toBeVisible()
+  await page.getByLabel('Email').fill(email('smoke-teamsheet'))
+  await page.getByLabel('Password').fill('smoke-test-password')
+  await page.getByRole('button', { name: 'Create account' }).click()
+  await expect(page).toHaveURL(/\/dashboard$/)
+
+  await page.goto('/tournaments/new')
+  await expect(page.getByRole('heading', { name: 'New Tournament' })).toBeVisible()
+  await page.getByLabel('Name', { exact: true }).fill('Teamsheet Regional')
+  await page.getByLabel('Start date').fill('2026-09-19')
+  await page.getByRole('button', { name: 'Save Tournament' }).click()
+  await expect(page.getByTestId('tournament-name')).toHaveText('Teamsheet Regional')
+
+  // The attachment is stored on the server (ADR 27); reading it doesn't send the file again.
+  await page
+    .getByTestId('teamsheet-upload')
+    .setInputFiles(
+      new URL('../../packages/core/test/fixtures/teamsheet-gg-filled.pdf', import.meta.url)
+        .pathname,
+    )
+  await expect(page.getByTestId('teamsheet-file-name')).toHaveText('teamsheet-gg-filled.pdf')
+  await page.getByRole('link', { name: 'Read into a Team' }).click()
+  await expect(page.getByRole('heading', { name: 'Read a Teamsheet' })).toBeVisible()
+  await expect(page.getByLabel('Name', { exact: true })).toHaveValue('9TCG84KWXK')
+  await expect(page.getByTestId('build-slot')).toHaveCount(6)
+  await page.getByRole('button', { name: 'Save Team' }).click()
+
+  await expect(page).toHaveURL(/\/teams\/[0-9a-f-]{36}$/)
+  await expect(page.getByTestId('team-name')).toHaveText('9TCG84KWXK')
+  await expect(page.getByTestId('pokemon-build')).toHaveCount(6)
+  await expect(
+    page.getByTestId('pokemon-build').first().getByRole('heading', { level: 2 }),
+  ).toHaveText('Charizard')
+})
+
 test('the chosen List style survives a reload, and needs a connection to change', async ({
   page,
 }) => {

@@ -10,14 +10,23 @@ export const TEAM_FILE_TYPES = 'application/pdf,.pdf'
  * Reads a Team from a file the User chooses into a draft, through the API (ADR 24). Nothing is
  * saved and the file isn't kept. Reading needs the API, so it's online only (ADR 17).
  *
- * Bind `fileInput` to a hidden file input whose change calls `choose`.
+ * Bind `fileInput` to a hidden file input whose change calls `choose`. With `tournamentId`,
+ * `readStored` reads that Tournament's Teamsheet attachment instead (ADR 27), which stays stored.
  */
-export function useTeamReader(onRead?: (draft: ReadTeamView) => void) {
+export function useTeamReader(
+  onRead?: (draft: ReadTeamView) => void,
+  { tournamentId }: { tournamentId?: string } = {},
+) {
   const online = useOnline()
   const fileInput = ref<HTMLInputElement | null>(null)
 
   const read = useMutation({
-    mutationFn: (file: File) => {
+    // No file means the Tournament's stored Teamsheet, already on the server.
+    mutationFn: (file?: File) => {
+      if (!file) {
+        const url: string = `/api/tournaments/${tournamentId}/teamsheet/read`
+        return $fetch<ReadTeamView>(url, { method: 'POST' })
+      }
       if (file.size > MAX_TEAMSHEET_BYTES) throw new Error(TEAMSHEET_TOO_LARGE)
       const body = new FormData()
       body.append('file', file)
@@ -37,6 +46,8 @@ export function useTeamReader(onRead?: (draft: ReadTeamView) => void) {
     if (error instanceof FetchError) {
       if (error.statusCode === 401)
         return 'Your session has ended. Log in again to read a Teamsheet.'
+      if (tournamentId && error.statusCode === 404)
+        return "Couldn't find a Teamsheet PDF on this Tournament."
       if (error.data?.error) return error.data.error as string
       return "Couldn't read the file. Check your connection and try again."
     }
@@ -48,5 +59,9 @@ export function useTeamReader(onRead?: (draft: ReadTeamView) => void) {
     if (file) read.mutate(file)
   }
 
-  return { online, fileInput, read, failure, choose }
+  function readStored() {
+    if (tournamentId) read.mutate(undefined)
+  }
+
+  return { online, fileInput, read, failure, choose, readStored }
 }

@@ -34,7 +34,7 @@ MyVGC is a hub where a competitive player tracks their Pokémon VGC experience i
 - **Event tier**: the kind of Tournament, from a fixed list: Premier Challenge, Regional, International, Worlds, Grassroots, Online, Other.
 - **Teamsheet**: the official Play! Pokémon team list for a Tournament. It can be generated in the app from a Team, as a PDF whose fields the User can still edit, or uploaded as a PDF (a Teamsheet attachment).
 - **Teamsheet attachment**: a Teamsheet PDF the User uploaded to a Tournament, kept exactly as uploaded for reference. At most one per Tournament; uploading again replaces it. Not part of the Data export.
-- **Reading a Team**: turning a file, such as a Teamsheet PDF, into a draft Team that the User reviews before saving. Nothing is saved and the file isn't kept. Called reading, never importing: importing means pastes and the Data export.
+- **Reading a Team**: turning a file, such as a Teamsheet PDF, into a draft Team that the User reviews before saving. Nothing is saved and the file isn't kept, unless it is already a Tournament's Teamsheet attachment, which stays. Called reading, never importing: importing means pastes and the Data export.
 - **Replica Team**: Champions' in-game way of sharing a Battle Team, which judges may ask to see.
 - **Replica Team ID**: the code that identifies a Replica Team, such as `9TCG84KWXK`. Players often write it in a Teamsheet's "Battle Team Number / Name" box.
 - **Round**: one pairing in a Tournament. Never called "Match". It has a phase (Swiss or Top cut) and, within it, a round number (Swiss) or a Top cut stage, is best of 1 or best of 3 (defaulting to the Tournament's setting), and has a result, an Opponent, notes and, optionally, its Games. Every Round except a Bye has an Opponent.
