@@ -1,10 +1,12 @@
 <script setup lang="ts">
+import { ScanSearchIcon } from '@lucide/vue'
 import { MAX_MOVES, MAX_TEAM_SIZE } from '@myvgc/core/schema'
 import { type OpponentBuildDraft, newOpponentBuild } from '@/lib/opponent-team'
 
 /**
  * The Opponent's Team of one Opponent in one Tournament (ADR 22). Species are chips; tapping one
- * opens what an open teamsheet shows: ability, held item and moves.
+ * opens what an open teamsheet shows: ability, held item and moves. A Pokémon read from a file
+ * shows what the reader wasn't sure of (ADR 24).
  */
 const pokemon = defineModel<OpponentBuildDraft[]>({ required: true })
 const props = defineProps<{
@@ -55,6 +57,13 @@ const error = (index: number, field: string) => props.errors[`${index}.${field}`
             <span v-if="errorsOf(index).length" class="text-destructive text-xs font-normal"
               >· check this Pokémon</span
             >
+            <span
+              v-else-if="build.readFlags.length"
+              class="text-muted-foreground flex items-center gap-1 text-xs font-normal"
+              data-testid="read-flag"
+              ><ScanSearchIcon class="size-3.5 shrink-0" aria-hidden="true" />check this
+              Pokémon</span
+            >
           </button>
           <Button
             type="button"
@@ -66,6 +75,16 @@ const error = (index: number, field: string) => props.errors[`${index}.${field}`
           >
         </div>
         <div v-if="opened === build.species" class="flex flex-col gap-4 border-t p-3">
+          <ul
+            v-if="build.readFlags.length"
+            class="text-muted-foreground flex flex-col gap-1 text-sm"
+            data-testid="read-flags"
+          >
+            <li v-for="flag in build.readFlags" :key="flag" class="flex items-start gap-1.5">
+              <ScanSearchIcon class="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+              {{ flag }}
+            </li>
+          </ul>
           <p v-if="error(index, 'species')" class="text-destructive text-sm">
             {{ error(index, 'species') }}
           </p>

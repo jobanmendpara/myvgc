@@ -6,6 +6,7 @@ import {
   latestOpponentTeam,
   losesOpponentTeam,
   mergeOpponentTeams,
+  opponentTeamFromRead,
   roundInputSchema,
   roundIssues,
 } from '../src/schema'
@@ -231,5 +232,77 @@ describe('clearOpponentSide', () => {
     const saved = [game(['incineroar'])]
     expect(clearOpponentSide([game(['kingambit'])], saved)).toEqual([game(['kingambit'])])
     expect(clearOpponentSide([game(['kingambit'])], [])).toEqual([game(['kingambit'])])
+  })
+})
+
+describe('opponentTeamFromRead', () => {
+  it('keeps only what an open teamsheet shows: species, ability, held item and moves', () => {
+    const read = opponentTeamFromRead({
+      pokemon: [
+        mon('kingambit', {
+          nature: 'adamant',
+          ability: 'defiant',
+          item: 'chopleberry',
+          moves: ['kowtowcleave', 'suckerpunch'],
+          statPoints: { hp: 32, atk: 32, def: 0, spa: 0, spd: 0, spe: 2 },
+        }),
+      ],
+      flags: [],
+    })
+
+    expect(read).toEqual({
+      pokemon: [
+        mon('kingambit', {
+          ability: 'defiant',
+          item: 'chopleberry',
+          moves: ['kowtowcleave', 'suckerpunch'],
+        }),
+      ],
+      flags: [],
+      leftOut: [],
+    })
+  })
+
+  it('drops flags about Stat Points and Stat Alignment, which aren’t kept', () => {
+    const read = opponentTeamFromRead({
+      pokemon: [mon('kingambit')],
+      flags: [
+        { path: ['pokemon', 0, 'nature'], message: 'Couldn’t read "Adamnt".' },
+        { path: ['pokemon', 0, 'statPoints', 'spe'], message: 'No Stat Points give 999.' },
+        { path: ['pokemon', 0, 'item'], message: 'Couldn’t read "Chople Bery".' },
+      ],
+    })
+
+    expect(read.flags).toEqual([
+      { path: ['pokemon', 0, 'item'], message: 'Couldn’t read "Chople Bery".' },
+    ])
+  })
+
+  it('leaves out a Pokémon whose species wasn’t read, says why, and moves later flags up', () => {
+    const read = opponentTeamFromRead({
+      pokemon: [mon('incineroar'), mon(''), mon('rillaboom')],
+      flags: [
+        { path: ['pokemon', 1, 'species'], message: 'Couldn’t read "Amoongus".' },
+        { path: ['pokemon', 1, 'item'], message: 'Couldn’t read "Sitrus Bery".' },
+        { path: ['pokemon', 2, 'moves', 1], message: 'Couldn’t read "Fake Out".' },
+      ],
+    })
+
+    expect(read.pokemon.map((build) => build.species)).toEqual(['incineroar', 'rillaboom'])
+    expect(read.flags).toEqual([
+      { path: ['pokemon', 1, 'moves', 1], message: 'Couldn’t read "Fake Out".' },
+    ])
+    expect(read.leftOut).toEqual(['Couldn’t read "Amoongus".'])
+  })
+
+  it('reads a species listed twice once, as their Team lists each species once', () => {
+    const read = opponentTeamFromRead({
+      pokemon: [mon('garchomp', { item: 'lifeorb' }), mon('garchomp', { item: 'choicescarf' })],
+      flags: [{ path: ['pokemon', 1, 'moves', 0], message: 'Couldn’t read "Earthqake".' }],
+    })
+
+    expect(read.pokemon).toEqual([mon('garchomp', { item: 'lifeorb' })])
+    expect(read.flags).toEqual([])
+    expect(read.leftOut).toEqual(['A species listed twice was read once.'])
   })
 })
