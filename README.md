@@ -45,18 +45,19 @@ Database migrations run every time the app starts. `docker compose logs app` sho
 
 All settings come from `.env`.
 
-| Variable             | Default                 | What it does                                                                                                                       |
-| -------------------- | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `POSTGRES_USER`      | `myvgc`                 | Postgres user for the database container.                                                                                          |
-| `POSTGRES_PASSWORD`  | none                    | Postgres password. Letters and digits only.                                                                                        |
-| `POSTGRES_DB`        | `myvgc`                 | Postgres database name.                                                                                                            |
-| `BETTER_AUTH_SECRET` | none                    | Signs log-in sessions. At least 32 characters. Changing it logs everyone out.                                                      |
-| `APP_URL`            | `http://localhost:3000` | The address people use to reach MyVGC, exactly as typed in the browser. Log-ins only work from it; `https://` gets secure cookies. |
-| `ALLOW_SIGNUPS`      | `true`                  | Set to `false` to refuse new accounts. The first account can always be created.                                                    |
-| `PORT`               | `3000`                  | Port the app listens on, and the port Compose publishes.                                                                           |
-| `MYVGC_VERSION`      | `latest`                | Which published image to run, such as `0.1.0`.                                                                                     |
-| `DATABASE_URL`       | none                    | Only used outside Compose (development, or running the image on its own). Compose builds it from the `POSTGRES_*` values.          |
-| `UPLOADS_DIR`        | `/data/uploads`         | Where uploaded Teamsheet PDFs are kept. Compose puts `/data` on the `uploads` volume; `pnpm dev` uses `.data/uploads`.             |
+| Variable             | Default                 | What it does                                                                                                                                   |
+| -------------------- | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POSTGRES_USER`      | `myvgc`                 | Postgres user for the database container.                                                                                                      |
+| `POSTGRES_PASSWORD`  | none                    | Postgres password. Letters and digits only.                                                                                                    |
+| `POSTGRES_DB`        | `myvgc`                 | Postgres database name.                                                                                                                        |
+| `BETTER_AUTH_SECRET` | none                    | Signs log-in sessions. At least 32 characters. Changing it logs everyone out.                                                                  |
+| `APP_URL`            | `http://localhost:3000` | The address people use to reach MyVGC, exactly as typed in the browser. Log-ins only work from it; `https://` gets secure cookies.             |
+| `ALLOW_SIGNUPS`      | `true`                  | Set to `false` to refuse new accounts. The first account can always be created.                                                                |
+| `PORT`               | `3000`                  | Port the app listens on, and the port Compose publishes.                                                                                       |
+| `MYVGC_VERSION`      | `latest`                | Which published image to run, such as `0.1.0`.                                                                                                 |
+| `DATABASE_URL`       | none                    | Only used outside Compose (development, or running the image on its own). Compose builds it from the `POSTGRES_*` values.                      |
+| `UPLOADS_DIR`        | `/data/uploads`         | Where uploaded Teamsheet PDFs are kept. Compose puts `/data` on the `uploads` volume; `pnpm dev` uses `.data/uploads`.                         |
+| `S3_BUCKET`          | none                    | Optional. Keeps uploaded Teamsheet PDFs in this S3-compatible bucket instead of `UPLOADS_DIR`. The other `S3_` settings are in `.env.example`. |
 
 To serve MyVGC over HTTPS, put a reverse proxy such as Caddy or nginx in front of port 3000 and set `APP_URL` to the `https://` address. The copy-paste button needs HTTPS or `localhost`; elsewhere it shows the paste for you to copy by hand.
 
@@ -96,7 +97,7 @@ docker compose exec -T db pg_restore -U myvgc -d myvgc --clean --if-exists --no-
 docker compose start app
 ```
 
-Uploaded Teamsheet PDFs live in the `uploads` volume, not the database, so back them up too:
+Uploaded Teamsheet PDFs live in the `uploads` volume, not the database, so back them up too (with `S3_BUCKET` set they live in the bucket instead, and the bucket's own versioning or replication backs them up):
 
 ```bash
 docker compose exec -T app tar -C /data -cf - uploads > "myvgc-uploads-$(date +%F).tar"

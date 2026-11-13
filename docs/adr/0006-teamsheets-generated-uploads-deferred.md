@@ -1,7 +1,7 @@
 # 6. Teamsheets are generated from Teams; image uploads are deferred
 
 Date: 2026-11-03
-Status: Accepted. Storage for uploaded Teamsheets is settled in ADR 27.
+Status: Accepted. Storage for uploaded Teamsheets is settled in ADR 27, disk and S3-compatible drivers both (DEV-71).
 
 ## Context
 Each Tournament has a Teamsheet. A user may create it in the app or upload their own PDF. Later, users should be able to upload screenshots of replica teams and have the app read the team out of them (OCR or an AI vision model).
