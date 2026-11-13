@@ -10,4 +10,13 @@ On 2026-11-11 the user asked for each implementation agent to work this way: com
 
 On 2026-11-11 the user corrected how many agents to run: one per issue, not extra helpers. Don't add agents beyond the issues being worked on unless the user asks.
 
-Related: [parallel agents](parallel-agents.md).
+## Waiting for CI (retro on DEV-61, 2026-11-12)
+
+- On 2026-11-12 the DEV-61 implementer's brief said to merge PR #160 once `check` and `smoke / smoke` passed. It handed back twice before they finished, saying it "was told to hand back while checks were still running".
+- What told it: after opening the PR it started a Monitor on `gh pr checks`, then ended its turn with "PR #160 is open; waiting on CI." The harness at once sent `[handback-send-enforce] Your report has not been delivered. Call SubagentHandback ... now`, and the agent obeyed. A second nudge came when the Monitor's first event (`smoke / smoke: pass`) woke it and it ended its turn again. No skill told it to stop: `implement` ends at committing and `pr` covers only the PR body.
+- Earlier in the same run it had ended a turn while its code-review subagents were working, and no nudge came. So a subagent may end its turn while it has subagents of its own running, but a turn ending with only a Monitor or background command running counts as finished.
+- Both checks passed about six minutes after the PR opened. PR #160 was merged from the `jobanmendpara` account (`jobanmendpara/myvgc@319cadd`), not by the implementer.
+- On 2026-11-12, while shipping this wiki change (PR #163), the retro agent found that `gh pr checks <n> --watch` with a 600000 ms timeout doesn't hold a turn open either: the harness moved it to the background after 180 seconds. What held was a foreground loop that runs `gh pr checks <n>` every 30 seconds for at most 150 seconds, called again until neither check is `pending`.
+- Fixes were proposed to the chief-of-staff on 2026-11-12 and not yet made: brief implementers to wait for CI with such bounded foreground polls, called back to back, keeping their turn open until both checks pass and the PR is merged.
+
+Related: [parallel agents](parallel-agents.md), [2026-11-12 Todo round](todo-round-2026-11-12.md).
