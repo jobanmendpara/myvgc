@@ -3,19 +3,22 @@ import type { Counted, CountedRound, Rate } from '@myvgc/core/schema'
 import { formatRecord } from '@myvgc/core/schema'
 import { percent } from '@/lib/format'
 
-export type StatisticsTableRow = Rate & {
+export type StatisticsTableRow = {
   key: string
   name: string
   played: number
   /** The Rounds or Games the row counts. */
   counted: Counted[]
-}
+} & (Rate | { brought: number; bringRate: number })
 
 // One Statistics table: a row per species or Lead pair with its sample size, W-L-T and win
-// rate. Sorted by sample size until a column header is chosen; a win rate from fewer than
-// three is dimmed, as it says little. Clicking a row lists the Rounds or Games behind it.
+// rate, or for the bring-rate table how many Games it was Brought in and its bring rate. Sorted
+// by sample size until a column header is chosen; a rate from fewer than three is dimmed, as it
+// says little. Clicking a row lists the Rounds or Games behind it.
 const props = defineProps<{
   title: string
+  /** What the rows measure: the User's win rate (the default) or a species' bring rate. */
+  measure?: 'winRate' | 'bringRate'
   /** What the sample counts: Rounds or Games. */
   unit: 'Rounds' | 'Games'
   /** The first column's heading, such as Species or Leads. */
@@ -34,14 +37,16 @@ const SMALL_SAMPLE = 3
 type Column = 'name' | 'played' | 'record' | 'winRate'
 const sort = ref<{ column: Column; descending: boolean }>({ column: 'played', descending: true })
 
+const count = (row: StatisticsTableRow) => ('wins' in row ? row.wins : row.brought)
+const rateOf = (row: StatisticsTableRow) => ('winRate' in row ? row.winRate : row.bringRate)
 const value = (row: StatisticsTableRow, column: Column) =>
   column === 'name'
     ? row.name
     : column === 'played'
       ? row.played
       : column === 'record'
-        ? row.wins
-        : (row.winRate ?? -1)
+        ? count(row)
+        : (rateOf(row) ?? -1)
 
 const sorted = computed(() => {
   const { column, descending } = sort.value
@@ -69,8 +74,16 @@ const panelId = (key: string) => `${id}-${key.replace(/\s+/g, '-')}`
 const columns: { column: Column; label: () => string; align: string }[] = [
   { column: 'name', label: () => props.nameHeading, align: 'text-left' },
   { column: 'played', label: () => props.unit, align: 'text-right' },
-  { column: 'record', label: () => 'W-L-T', align: 'text-right' },
-  { column: 'winRate', label: () => 'Win rate', align: 'text-right' },
+  {
+    column: 'record',
+    label: () => (props.measure === 'bringRate' ? 'Brought' : 'W-L-T'),
+    align: 'text-right',
+  },
+  {
+    column: 'winRate',
+    label: () => (props.measure === 'bringRate' ? 'Bring rate' : 'Win rate'),
+    align: 'text-right',
+  },
 ]
 </script>
 
@@ -120,7 +133,9 @@ const columns: { column: Column; label: () => string; align: string }[] = [
                 </button>
               </td>
               <td class="py-2 text-right tabular-nums">{{ row.played }}</td>
-              <td class="py-2 text-right tabular-nums">{{ formatRecord(row) }}</td>
+              <td class="py-2 text-right tabular-nums">
+                {{ 'wins' in row ? formatRecord(row) : row.brought }}
+              </td>
               <td
                 class="py-2 text-right font-semibold tabular-nums"
                 :class="{ 'text-muted-foreground font-normal': row.played < SMALL_SAMPLE }"
@@ -128,7 +143,7 @@ const columns: { column: Column; label: () => string; align: string }[] = [
                   row.played < SMALL_SAMPLE ? `Fewer than ${SMALL_SAMPLE} ${unit}` : undefined
                 "
               >
-                {{ percent(row.winRate) }}
+                {{ percent(rateOf(row)) }}
               </td>
             </tr>
             <tr v-if="expanded === row.key" :id="panelId(row.key)">

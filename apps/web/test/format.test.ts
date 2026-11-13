@@ -106,6 +106,21 @@ describe('The Rounds and Games behind a Statistics row', () => {
     expect(listing[0]?.round).toBe(lost)
   })
 
+  it('says whether a species was Brought in each Game a bring-rate row counts', () => {
+    const listing = countedListing(
+      [
+        { round: 'r1', game: 1, brought: true },
+        { round: 'r1', game: 2, brought: false },
+      ],
+      { r1: lost },
+    )
+    expect(listing.map(({ key, result, brought }) => ({ key, result, brought }))).toEqual([
+      { key: 'r1-1', result: 'Win', brought: 'Brought' },
+      { key: 'r1-2', result: 'Loss', brought: 'Not brought' },
+    ])
+    expect(countedListing([{ round: 'r1', game: 1 }], { r1: lost })[0]?.brought).toBeUndefined()
+  })
+
   it('skips a Round it has no details for', () => {
     expect(countedListing([{ round: 'gone' }], {})).toEqual([])
   })

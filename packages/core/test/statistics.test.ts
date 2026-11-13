@@ -175,6 +175,164 @@ describe('statistics: Leads', () => {
   })
 })
 
+describe('statistics: the Opponent’s side of Games', () => {
+  const mine = ['incineroar', 'sinistcha', 'kingambit', 'rillaboom']
+  const theirs = (
+    number: Game['number'],
+    result: Game['result'],
+    opponentBrought: string[],
+    opponentLeads: string[] = opponentBrought.slice(0, 2),
+  ): Game => ({ ...game(number, result, mine), opponentBrought, opponentLeads })
+
+  it('counts each Game an Opponent Brought a species in, by the User’s Game result', () => {
+    const stats = statistics([
+      tournament([
+        round('win', {
+          games: [
+            theirs(1, 'loss', ['garchomp', 'sneasler', 'kingambit', 'whimsicott']),
+            theirs(2, 'win', ['garchomp', 'sneasler', 'basculegion', 'whimsicott']),
+            theirs(3, 'tie', ['garchomp', 'kingambit']),
+          ],
+        }),
+      ]),
+    ])
+    expect(stats.opponentBrought.rows.slice(0, 2)).toMatchObject([
+      { species: 'garchomp', played: 3, wins: 1, losses: 1, ties: 1, winRate: 1 / 3 },
+      { species: 'kingambit', played: 2, wins: 0, losses: 1, ties: 1, winRate: 0 },
+    ])
+    // The User's side is counted on its own.
+    expect(stats.brought.rows.map((row) => row.played)).toEqual([3, 3, 3, 3])
+  })
+
+  it('counts the Opponent’s Lead pairs in either order, and their single Leads', () => {
+    const bring = ['garchomp', 'sneasler', 'kingambit', 'whimsicott']
+    const stats = statistics([
+      tournament([
+        round('win', {
+          games: [
+            theirs(1, 'win', bring, ['sneasler', 'garchomp']),
+            theirs(2, 'loss', bring, ['garchomp', 'sneasler']),
+            theirs(3, 'win', bring, ['kingambit']),
+          ],
+        }),
+      ]),
+    ])
+    expect(stats.opponentLeadPairs.rows).toMatchObject([
+      { species: ['garchomp', 'sneasler'], played: 2, wins: 1, losses: 1, winRate: 0.5 },
+    ])
+    expect(stats.opponentLeadPairs.coverage).toEqual({
+      counted: 2,
+      of: 3,
+      noResult: 0,
+      noLeads: 0,
+      oneLead: 1,
+    })
+    expect(stats.opponentLeads.rows).toMatchObject([
+      { species: 'garchomp', played: 2, wins: 1, losses: 1 },
+      { species: 'sneasler', played: 2, wins: 1, losses: 1 },
+      { species: 'kingambit', played: 1, wins: 1, losses: 0 },
+    ])
+  })
+
+  it('leaves out Byes, Games with no Game result and Games without the Opponent’s picks', () => {
+    const stats = statistics([
+      tournament([
+        round('win', {
+          games: [
+            theirs(1, 'win', ['garchomp'], ['garchomp']),
+            theirs(2, null, ['garchomp']),
+            theirs(3, 'win', []),
+          ],
+        }),
+        bye(),
+      ]),
+    ])
+    expect(stats.opponentBrought.coverage).toEqual({
+      counted: 1,
+      of: 3,
+      noResult: 1,
+      noBrought: 1,
+    })
+    expect(stats.opponentLeads.coverage).toEqual({ counted: 1, of: 3, noResult: 1, noLeads: 1 })
+  })
+})
+
+describe('statistics: how often a species on an Opponent’s Team was Brought', () => {
+  const pick = (number: Game['number'], result: Game['result'], opponentBrought: string[]) => ({
+    ...game(number, result, []),
+    opponentBrought,
+  })
+
+  it('counts, per species on the Team, the Games it was Brought in out of the Games played', () => {
+    const stats = statistics([
+      tournament(
+        [
+          round('win', {
+            games: [
+              pick(1, 'win', ['garchomp', 'sneasler']),
+              pick(2, 'loss', ['garchomp', 'kingambit']),
+            ],
+          }),
+          round('loss', {
+            opponent: aaron,
+            games: [pick(1, 'loss', ['garchomp'])],
+          }),
+        ],
+        [
+          teamOf(wolfe, 'garchomp', 'sneasler', 'kingambit', 'whimsicott'),
+          teamOf(aaron, 'garchomp', 'whimsicott'),
+        ],
+      ),
+    ])
+    expect(stats.bringRates.rows).toMatchObject([
+      { species: 'garchomp', played: 3, brought: 3, bringRate: 1 },
+      { species: 'whimsicott', played: 3, brought: 0, bringRate: 0 },
+      { species: 'kingambit', played: 2, brought: 1, bringRate: 0.5 },
+      { species: 'sneasler', played: 2, brought: 1, bringRate: 0.5 },
+    ])
+  })
+
+  it('lists every Game a row counts, saying whether the species was Brought in it', () => {
+    const stats = statistics([
+      tournament(
+        [
+          round('win', {
+            id: 'r1',
+            games: [pick(1, 'win', ['garchomp']), pick(2, 'loss', ['sneasler'])],
+          }),
+        ],
+        [teamOf(wolfe, 'garchomp', 'sneasler')],
+      ),
+    ])
+    expect(stats.bringRates.rows.find((r) => r.species === 'garchomp')?.counted).toEqual([
+      { round: 'r1', game: 1, brought: true },
+      { round: 'r1', game: 2, brought: false },
+    ])
+  })
+
+  it('leaves out Games with no Game result, no Opponent’s Team or no Brought Pokémon', () => {
+    const stats = statistics([
+      tournament(
+        [
+          round('win', {
+            games: [pick(1, 'win', ['garchomp']), pick(2, null, ['garchomp']), pick(3, 'win', [])],
+          }),
+          round('win', { opponent: aaron, games: [pick(1, 'win', ['garchomp'])] }),
+          bye(),
+        ],
+        [teamOf(wolfe, 'garchomp')],
+      ),
+    ])
+    expect(stats.bringRates.coverage).toEqual({
+      counted: 1,
+      of: 4,
+      noResult: 1,
+      noOpponentTeam: 1,
+      noBrought: 1,
+    })
+  })
+})
+
 describe('statistics: the Rounds and Games behind a row', () => {
   it('lists the Rounds a species faced row counts, and looks each Round up', () => {
     const won = round('win', { id: 'won', roundNumber: 1 })

@@ -70,6 +70,68 @@ describe('GET /api/statistics', () => {
     })
   })
 
+  it('counts the Opponent’s Leads and Brought Pokémon, and how often their Team’s species were Brought', async () => {
+    await setUp()
+    const id = await addTournament()
+    const { round } = await json(
+      await logRound(id, {
+        bestOf: 3,
+        result: 'loss',
+        newOpponentName: 'Wolfe',
+        opponentTeam: [{ species: 'rillaboom' }, { species: 'kingambit' }],
+        games: [
+          {
+            number: 1,
+            result: 'win',
+            opponentBrought: ['rillaboom', 'kingambit'],
+            opponentLeads: ['rillaboom', 'kingambit'],
+          },
+          {
+            number: 2,
+            result: 'loss',
+            opponentBrought: ['rillaboom'],
+            opponentLeads: ['rillaboom'],
+          },
+        ],
+      }),
+    )
+
+    const { statistics: stats } = await statistics('?regulation=M-C')
+    expect(stats.opponentBrought.rows).toMatchObject([
+      { species: 'rillaboom', played: 2, wins: 1, losses: 1, ties: 0, winRate: 0.5 },
+      { species: 'kingambit', played: 1, wins: 1, losses: 0, ties: 0, winRate: 1 },
+    ])
+    expect(stats.opponentLeadPairs.rows).toMatchObject([
+      { species: ['kingambit', 'rillaboom'], played: 1, wins: 1 },
+    ])
+    expect(stats.opponentLeads.coverage).toEqual({ counted: 2, of: 2, noResult: 0, noLeads: 0 })
+    expect(stats.bringRates).toEqual({
+      rows: [
+        {
+          species: 'kingambit',
+          played: 2,
+          brought: 1,
+          bringRate: 0.5,
+          counted: [
+            { round: round.id, game: 1, brought: true },
+            { round: round.id, game: 2, brought: false },
+          ],
+        },
+        {
+          species: 'rillaboom',
+          played: 2,
+          brought: 2,
+          bringRate: 1,
+          counted: [
+            { round: round.id, game: 1, brought: true },
+            { round: round.id, game: 2, brought: true },
+          ],
+        },
+      ],
+      coverage: { counted: 2, of: 2, noResult: 0, noOpponentTeam: 0, noBrought: 0 },
+    })
+  })
+
   it('lists the Rounds and Games behind each row, most recent Tournament first', async () => {
     await setUp()
     const older = await addTournament({ name: 'Older', startDate: '2026-09-01' })

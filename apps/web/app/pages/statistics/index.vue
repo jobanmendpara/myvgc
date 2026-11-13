@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import {
+  type BringRateRow,
   type StatisticsRow,
   type StatisticsView,
   type TeamView,
@@ -24,7 +25,7 @@ const teams = useQuery({ queryKey: ['teams'], queryFn: () => $fetch<TeamView[]>(
 // The response holds species IDs; names come from the cached names list (ADR 14, ADR 17).
 const names = useChampionsNames()
 const speciesName = (id: string) => names.data.value?.species[id] ?? id
-const rowsOf = (rows: StatisticsRow<string>[]): StatisticsTableRow[] =>
+const rowsOf = (rows: (StatisticsRow<string> | BringRateRow)[]): StatisticsTableRow[] =>
   rows.map((row) => ({ ...row, key: row.species, name: speciesName(row.species) }))
 const pairRows = (rows: StatisticsRow<[string, string]>[]): StatisticsTableRow[] =>
   rows.map((row) => ({
@@ -67,6 +68,7 @@ const pairRows = (rows: StatisticsRow<[string, string]>[]): StatisticsTableRow[]
       >
     </Alert>
 
+    <!-- Each row pairs the User's side of a Game with the Opponent's. -->
     <div v-else-if="stats" class="grid items-start gap-8 lg:grid-cols-2">
       <StatisticsTable
         title="Species faced"
@@ -78,7 +80,32 @@ const pairRows = (rows: StatisticsRow<[string, string]>[]): StatisticsTableRow[]
         data-testid="species-faced"
       />
       <StatisticsTable
-        title="Lead pairs"
+        title="Brought from Opponent’s Teams"
+        measure="bringRate"
+        unit="Games"
+        name-heading="Species"
+        :rows="rowsOf(stats.bringRates.rows)"
+        :rounds="stats.rounds"
+        :coverage="describeCoverage(stats.bringRates.coverage, 'Games')"
+      />
+      <StatisticsTable
+        title="Your Brought Pokémon"
+        unit="Games"
+        name-heading="Species"
+        :rows="rowsOf(stats.brought.rows)"
+        :rounds="stats.rounds"
+        :coverage="describeCoverage(stats.brought.coverage, 'Games')"
+      />
+      <StatisticsTable
+        title="Opponent’s Brought Pokémon"
+        unit="Games"
+        name-heading="Species"
+        :rows="rowsOf(stats.opponentBrought.rows)"
+        :rounds="stats.rounds"
+        :coverage="describeCoverage(stats.opponentBrought.coverage, 'Games')"
+      />
+      <StatisticsTable
+        title="Your Lead pairs"
         unit="Games"
         name-heading="Leads"
         :rows="pairRows(stats.leadPairs.rows)"
@@ -86,7 +113,15 @@ const pairRows = (rows: StatisticsRow<[string, string]>[]): StatisticsTableRow[]
         :coverage="describeCoverage(stats.leadPairs.coverage, 'Games')"
       />
       <StatisticsTable
-        title="Single Leads"
+        title="Opponent’s Lead pairs"
+        unit="Games"
+        name-heading="Leads"
+        :rows="pairRows(stats.opponentLeadPairs.rows)"
+        :rounds="stats.rounds"
+        :coverage="describeCoverage(stats.opponentLeadPairs.coverage, 'Games')"
+      />
+      <StatisticsTable
+        title="Your single Leads"
         unit="Games"
         name-heading="Lead"
         :rows="rowsOf(stats.leads.rows)"
@@ -94,12 +129,12 @@ const pairRows = (rows: StatisticsRow<[string, string]>[]): StatisticsTableRow[]
         :coverage="describeCoverage(stats.leads.coverage, 'Games')"
       />
       <StatisticsTable
-        title="Brought Pokémon"
+        title="Opponent’s single Leads"
         unit="Games"
-        name-heading="Species"
-        :rows="rowsOf(stats.brought.rows)"
+        name-heading="Lead"
+        :rows="rowsOf(stats.opponentLeads.rows)"
         :rounds="stats.rounds"
-        :coverage="describeCoverage(stats.brought.coverage, 'Games')"
+        :coverage="describeCoverage(stats.opponentLeads.coverage, 'Games')"
       />
     </div>
   </div>
