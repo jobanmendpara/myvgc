@@ -21,6 +21,26 @@ const teamNotes = z
   .string()
   .max(MAX_NOTES_LENGTH, `Notes can be at most ${MAX_NOTES_LENGTH} characters.`)
 
+/** Replica Team IDs seen so far, such as `9TCG84KWXK`, are 10 characters; this leaves room. */
+export const MAX_REPLICA_TEAM_ID_LENGTH = 20
+
+/**
+ * A Replica Team ID (CONTEXT.md), stored without spaces or hyphens and in capitals, as the game
+ * shows it. An empty string means the Team has none.
+ */
+const replicaTeamIdSchema = z
+  .string()
+  .transform((id) => id.replace(/[\s-]+/g, '').toUpperCase())
+  .pipe(
+    z
+      .string()
+      .max(
+        MAX_REPLICA_TEAM_ID_LENGTH,
+        `A Replica Team ID can be at most ${MAX_REPLICA_TEAM_ID_LENGTH} characters.`,
+      )
+      .regex(/^[A-Z0-9]*$/, 'A Replica Team ID has only letters and digits, such as 9TCG84KWXK.'),
+  )
+
 /** What a User sends to create a Team: from a paste, or from the Team builder's Pokémon builds. */
 export const newTeamSchema = z
   .object({
@@ -32,6 +52,7 @@ export const newTeamSchema = z
       .optional(),
     pokemon: teamPokemonSchema.optional(),
     notes: teamNotes.default(''),
+    replicaTeamId: replicaTeamIdSchema.default(''),
   })
   .refine((team) => (team.paste === undefined) !== (team.pokemon === undefined), {
     message: 'Send either a paste or Pokémon builds.',
@@ -43,6 +64,7 @@ export const teamSchema = z.object({
   name: teamName,
   regulation: z.enum(REGULATIONS),
   notes: teamNotes,
+  replicaTeamId: replicaTeamIdSchema,
   pokemon: teamPokemonSchema,
 })
 
@@ -120,6 +142,8 @@ export interface TeamView {
   name: string
   regulation: Regulation
   notes: string
+  /** Empty when the Team has none. */
+  replicaTeamId: string
   pokemon: NamedPokemonBuild[]
   /** Judged against its own Regulation. */
   legality: Legality

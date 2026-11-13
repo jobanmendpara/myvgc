@@ -112,8 +112,8 @@ export const versionTwo = () => {
   }
 }
 
-/** A file in the current version, version 3: version 2 plus Player details. */
-export const current = () => ({
+/** A version 3 file: version 2 plus Player details. */
+export const versionThree = () => ({
   ...versionTwo(),
   version: 3,
   playerDetails: {
@@ -126,3 +126,13 @@ export const current = () => ({
     dateOfBirth: '1997-04-01',
   },
 })
+
+/** A file in the current version, version 4: version 3 plus each Team's Replica Team ID. */
+export const current = () => {
+  const file = versionThree()
+  return {
+    ...file,
+    version: 4,
+    teams: file.teams.map((team) => ({ ...team, replicaTeamId: '9TCG84KWXK' })),
+  }
+}

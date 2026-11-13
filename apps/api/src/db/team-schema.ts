@@ -14,6 +14,8 @@ export const team = pgTable(
     name: text('name').notNull(),
     regulation: regulation('regulation').notNull().default('M-C'),
     notes: text('notes').notNull().default(''),
+    // Empty when the Team has none.
+    replicaTeamId: text('replica_team_id').notNull().default(''),
     // Pokémon builds, validated by the core schema before every write. Stored as one JSON
     // value so a Team snapshot (ADR 9) is a plain copy.
     pokemon: jsonb('pokemon').$type<PokemonBuild[]>().notNull(),

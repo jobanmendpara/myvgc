@@ -32,6 +32,7 @@ function toView(row: TeamRow): TeamView {
     name: row.name,
     regulation: row.regulation,
     notes: row.notes,
+    replicaTeamId: row.replicaTeamId,
     pokemon: row.pokemon.map(nameBuild),
     legality: judgeTeam(row.pokemon, row.regulation),
     createdAt: row.createdAt.toISOString(),
@@ -59,8 +60,8 @@ export function teamRoutes(db: Database) {
         const input = await readBody(c, newTeamSchema)
         if (!input.ok) return input.response
 
-        const { name, regulation, notes, paste, pokemon } = input.data
-        const owned = { ownerId: c.get('user').id, name, regulation, notes }
+        const { name, regulation, notes, replicaTeamId, paste, pokemon } = input.data
+        const owned = { ownerId: c.get('user').id, name, regulation, notes, replicaTeamId }
 
         if (pokemon) {
           const issues = checkPokemon(pokemon)

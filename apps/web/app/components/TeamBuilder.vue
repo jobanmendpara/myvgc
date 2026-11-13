@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {
   MAX_NOTES_LENGTH,
+  MAX_REPLICA_TEAM_ID_LENGTH,
   MAX_TEAM_NAME_LENGTH,
   MAX_TEAM_SIZE,
   REGULATIONS,
@@ -149,6 +150,30 @@ const { DiscardDialog } = useDiscardGuard(dirty, 'this Team')
           Reg {{ reg }}
         </NativeSelectOption>
       </NativeSelect>
+    </div>
+
+    <div class="flex flex-col gap-2">
+      <Label for="replica-team-id"
+        >Replica Team ID <span class="text-muted-foreground font-normal">(optional)</span></Label
+      >
+      <Input
+        id="replica-team-id"
+        v-model="draft.replicaTeamId"
+        autocomplete="off"
+        autocapitalize="characters"
+        spellcheck="false"
+        class="w-60 font-mono uppercase"
+        placeholder="9TCG84KWXK"
+        :maxlength="MAX_REPLICA_TEAM_ID_LENGTH"
+        :aria-invalid="errors.replicaTeamId ? true : undefined"
+        aria-describedby="replica-team-id-hint replica-team-id-error"
+      />
+      <p id="replica-team-id-hint" class="text-muted-foreground text-sm">
+        The code Champions gives this Battle Team as a Replica Team, for when a judge asks.
+      </p>
+      <p v-if="errors.replicaTeamId" id="replica-team-id-error" class="text-destructive text-sm">
+        {{ errors.replicaTeamId }}
+      </p>
     </div>
 
     <section class="flex flex-col gap-2" aria-labelledby="slots-title">
