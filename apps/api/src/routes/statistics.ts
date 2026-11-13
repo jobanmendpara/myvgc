@@ -1,5 +1,5 @@
 import { type StatisticsView, statistics, statisticsFiltersSchema } from '@myvgc/core'
-import { and, eq } from 'drizzle-orm'
+import { and, desc, eq } from 'drizzle-orm'
 import { Hono } from 'hono'
 import type { AppEnv } from '../app'
 import { tournament } from '../db/schema'
@@ -19,7 +19,7 @@ export function statisticsRoutes(db: Database) {
     const filters = { ...applied, team: parsed.data.team ?? null }
 
     const rows = await db
-      .select({ id: tournament.id })
+      .select({ id: tournament.id, name: tournament.name })
       .from(tournament)
       .where(
         and(
@@ -28,6 +28,8 @@ export function statisticsRoutes(db: Database) {
           filters.team ? eq(tournament.teamId, filters.team) : undefined,
         ),
       )
+      // Most recent first, so a row lists the Rounds and Games behind it in that order.
+      .orderBy(desc(tournament.startDate), desc(tournament.createdAt), desc(tournament.id))
     const ids = rows.map((row) => row.id)
     const [rounds, opponentTeams] = await Promise.all([
       loadRounds(db, ids),
@@ -36,7 +38,12 @@ export function statisticsRoutes(db: Database) {
     const view: StatisticsView = {
       filters,
       statistics: statistics(
-        ids.map((id) => ({ rounds: rounds.get(id)!, opponentTeams: opponentTeams.get(id)! })),
+        rows.map(({ id, name }) => ({
+          id,
+          name,
+          rounds: rounds.get(id)!,
+          opponentTeams: opponentTeams.get(id)!,
+        })),
       ),
     }
     return c.json(view)

@@ -1,18 +1,52 @@
 import { type AppliedFilters, type Rate, rate, tally } from './dashboard'
 import { type OpponentTeamView, opponentTeamOf } from './opponent-team'
-import { type RoundResult, type RoundView, type Tally, tallyResult } from './round'
+import {
+  type Game,
+  type GameNumber,
+  type RoundResult,
+  type RoundView,
+  type Tally,
+  tallyResult,
+} from './round'
+
+/** What a Round shows when it is listed behind a Statistics row: where it was, who, and how. */
+type RoundListing = Pick<
+  RoundView,
+  'id' | 'phase' | 'roundNumber' | 'stage' | 'result' | 'gameScore' | 'opponent'
+>
 
 /** A Round as Statistics need it. */
-export type StatisticsRound = Pick<RoundView, 'bye' | 'result' | 'opponent' | 'games'>
+export type StatisticsRound = RoundListing & Pick<RoundView, 'bye' | 'games'>
 
 /** A Tournament as Statistics need it: its Rounds and the species of its Opponent's Teams. */
 export interface StatisticsTournament {
+  id: string
+  name: string
+  /** In the order they were played. */
   rounds: StatisticsRound[]
   opponentTeams: { opponentId: OpponentTeamView['opponentId']; pokemon: { species: string }[] }[]
 }
 
-/** A row of a Statistics table: its record, and how many Rounds or Games it was counted in. */
-export type StatisticsRow<S> = Rate & { species: S; played: number }
+/**
+ * A Round or Game a Statistics row counted: the Round's id, and the Game's number when the
+ * table counts Games. The Round is looked up in `Statistics.rounds`.
+ */
+export interface Counted {
+  round: string
+  game?: GameNumber
+}
+
+/** A Round behind a Statistics row, with its Tournament and its Game results. */
+export type CountedRound = RoundListing & {
+  tournament: { id: string; name: string }
+  games: Pick<Game, 'number' | 'result'>[]
+}
+
+/**
+ * A row of a Statistics table: its record, how many Rounds or Games it was counted in, and
+ * which ones, in the order the Tournaments were given and then as played.
+ */
+export type StatisticsRow<S> = Rate & { species: S; played: number; counted: Counted[] }
 
 /**
  * How many Rounds or Games a table counted, out of how many, and how many were left out for
@@ -53,6 +87,8 @@ export interface Statistics {
   leads: StatisticsTable<string, LeadReason>
   /** Per species the User Brought, counting Games. */
   brought: StatisticsTable<string, BroughtReason>
+  /** Every Round the tables could count (all but Byes), by id, to list what a row counts. */
+  rounds: Record<string, CountedRound>
 }
 
 /** What the Statistics endpoint answers: the tables and the filters it applied. */
@@ -65,7 +101,7 @@ const played = (t: Tally) => t.wins + t.losses + t.ties
 
 /** A table being counted: a tally per row, and its coverage. */
 class Table<S, Reason extends LeftOutReason> {
-  private readonly byKey = new Map<string, { species: S; tally: Tally }>()
+  private readonly byKey = new Map<string, { species: S; tally: Tally; counted: Counted[] }>()
   private readonly coverage: Coverage<Reason>
 
   constructor(reasons: readonly Reason[]) {
@@ -82,13 +118,14 @@ class Table<S, Reason extends LeftOutReason> {
   }
 
   /** Counts one Round or Game with this result in the row of each of its species or pairs. */
-  count(subjects: S[], result: RoundResult) {
+  count(subjects: S[], result: RoundResult, counted: Counted) {
     this.coverage.of++
     this.coverage.counted++
     for (const species of subjects) {
       const key = String(species)
-      const entry = this.byKey.get(key) ?? { species, tally: tally() }
+      const entry = this.byKey.get(key) ?? { species, tally: tally(), counted: [] }
       tallyResult(entry.tally, result)
+      entry.counted.push(counted)
       this.byKey.set(key, entry)
     }
   }
@@ -96,7 +133,12 @@ class Table<S, Reason extends LeftOutReason> {
   read(): StatisticsTable<S, Reason> {
     const rows = [...this.byKey.entries()]
       .sort(([a, x], [b, y]) => played(y.tally) - played(x.tally) || a.localeCompare(b))
-      .map(([, { species, tally: t }]) => ({ species, played: played(t), ...rate(t) }))
+      .map(([, { species, tally: t, counted }]) => ({
+        species,
+        played: played(t),
+        ...rate(t),
+        counted,
+      }))
     return { rows, coverage: this.coverage }
   }
 }
@@ -110,19 +152,35 @@ export function statistics(tournaments: StatisticsTournament[]): Statistics {
   const leadPairs = new Table<[string, string], LeadPairReason>(['noResult', 'noLeads', 'oneLead'])
   const leads = new Table<string, LeadReason>(['noResult', 'noLeads'])
   const brought = new Table<string, BroughtReason>(['noResult', 'noBrought'])
+  const rounds: Record<string, CountedRound> = {}
 
   for (const t of tournaments) {
     for (const r of t.rounds) {
       if (r.bye) continue
+      const { id, phase, roundNumber, stage, result, gameScore, opponent } = r
+      rounds[id] = {
+        id,
+        tournament: { id: t.id, name: t.name },
+        phase,
+        roundNumber,
+        stage,
+        result,
+        gameScore,
+        opponent,
+        games: r.games.map((g) => ({ number: g.number, result: g.result })),
+      }
+
       const team = opponentTeamOf(t.opponentTeams, r.opponent?.id)
       if (team)
         faced.count(
           team.pokemon.map((p) => p.species),
           r.result,
+          { round: id },
         )
       else faced.leaveOut('noOpponentTeam')
 
       for (const game of r.games) {
+        const counted = { round: id, game: game.number }
         if (!game.result) {
           for (const table of [leadPairs, leads, brought]) table.leaveOut('noResult')
           continue
@@ -130,10 +188,10 @@ export function statistics(tournaments: StatisticsTournament[]): Statistics {
         const [first, second] = [...game.leads].sort()
         if (!first) leadPairs.leaveOut('noLeads')
         else if (!second) leadPairs.leaveOut('oneLead')
-        else leadPairs.count([[first, second]], game.result)
-        if (game.leads.length) leads.count(game.leads, game.result)
+        else leadPairs.count([[first, second]], game.result, counted)
+        if (game.leads.length) leads.count(game.leads, game.result, counted)
         else leads.leaveOut('noLeads')
-        if (game.brought.length) brought.count(game.brought, game.result)
+        if (game.brought.length) brought.count(game.brought, game.result, counted)
         else brought.leaveOut('noBrought')
       }
     }
@@ -144,6 +202,7 @@ export function statistics(tournaments: StatisticsTournament[]): Statistics {
     leadPairs: leadPairs.read(),
     leads: leads.read(),
     brought: brought.read(),
+    rounds,
   }
 }
 

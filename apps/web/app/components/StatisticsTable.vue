@@ -1,13 +1,19 @@
 <script setup lang="ts">
-import type { Rate } from '@myvgc/core/schema'
+import type { Counted, CountedRound, Rate } from '@myvgc/core/schema'
 import { formatRecord } from '@myvgc/core/schema'
 import { percent } from '@/lib/format'
 
-export type StatisticsTableRow = Rate & { key: string; name: string; played: number }
+export type StatisticsTableRow = Rate & {
+  key: string
+  name: string
+  played: number
+  /** The Rounds or Games the row counts. */
+  counted: Counted[]
+}
 
 // One Statistics table: a row per species or Lead pair with its sample size, W-L-T and win
 // rate. Sorted by sample size until a column header is chosen; a win rate from fewer than
-// three is dimmed, as it says little.
+// three is dimmed, as it says little. Clicking a row lists the Rounds or Games behind it.
 const props = defineProps<{
   title: string
   /** What the sample counts: Rounds or Games. */
@@ -16,7 +22,13 @@ const props = defineProps<{
   nameHeading: string
   rows: StatisticsTableRow[]
   coverage: string
+  /** The Rounds the rows count, by id. */
+  rounds: Record<string, CountedRound>
 }>()
+
+// The row whose Rounds or Games are listed, by key.
+const open = ref<string>()
+const toggle = (key: string) => (open.value = open.value === key ? undefined : key)
 
 const SMALL_SAMPLE = 3
 type Column = 'name' | 'played' | 'record' | 'winRate'
@@ -52,6 +64,8 @@ const ariaSort = (column: Column) =>
   sort.value.column === column ? (sort.value.descending ? 'descending' : 'ascending') : 'none'
 
 const id = useId()
+// A Lead pair's key has a space in it, which an id can't.
+const panelId = (key: string) => `${id}-${key.replace(/\s+/g, '-')}`
 const columns: { column: Column; label: () => string; align: string }[] = [
   { column: 'name', label: () => props.nameHeading, align: 'text-left' },
   { column: 'played', label: () => props.unit, align: 'text-right' },
@@ -90,18 +104,39 @@ const columns: { column: Column; label: () => string; align: string }[] = [
           </tr>
         </thead>
         <tbody class="divide-y">
-          <tr v-for="row in sorted" :key="row.key">
-            <td class="py-2">{{ row.name }}</td>
-            <td class="py-2 text-right tabular-nums">{{ row.played }}</td>
-            <td class="py-2 text-right tabular-nums">{{ formatRecord(row) }}</td>
-            <td
-              class="py-2 text-right font-semibold tabular-nums"
-              :class="{ 'text-muted-foreground font-normal': row.played < SMALL_SAMPLE }"
-              :title="row.played < SMALL_SAMPLE ? `Fewer than ${SMALL_SAMPLE} ${unit}` : undefined"
-            >
-              {{ percent(row.winRate) }}
-            </td>
-          </tr>
+          <template v-for="row in sorted" :key="row.key">
+            <tr class="hover:bg-muted/50 cursor-pointer" @click="toggle(row.key)">
+              <td class="py-2">
+                <button
+                  type="button"
+                  class="focus-visible:ring-ring/50 inline-flex items-center gap-1 rounded text-left outline-none focus-visible:ring-3"
+                  :aria-expanded="open === row.key"
+                  :aria-controls="panelId(row.key)"
+                >
+                  <span aria-hidden="true" class="text-muted-foreground w-3 text-xs">{{
+                    open === row.key ? '▾' : '▸'
+                  }}</span>
+                  {{ row.name }}
+                </button>
+              </td>
+              <td class="py-2 text-right tabular-nums">{{ row.played }}</td>
+              <td class="py-2 text-right tabular-nums">{{ formatRecord(row) }}</td>
+              <td
+                class="py-2 text-right font-semibold tabular-nums"
+                :class="{ 'text-muted-foreground font-normal': row.played < SMALL_SAMPLE }"
+                :title="
+                  row.played < SMALL_SAMPLE ? `Fewer than ${SMALL_SAMPLE} ${unit}` : undefined
+                "
+              >
+                {{ percent(row.winRate) }}
+              </td>
+            </tr>
+            <tr v-if="open === row.key" :id="panelId(row.key)">
+              <td colspan="4" class="pb-2">
+                <StatisticsCounted :counted="row.counted" :rounds="rounds" />
+              </td>
+            </tr>
+          </template>
         </tbody>
       </table>
     </div>

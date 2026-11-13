@@ -9,10 +9,11 @@ import {
 
 const wolfe = { id: 'o1', displayName: 'Wolfe' }
 const aaron = { id: 'o2', displayName: 'Aaron' }
+let ids = 0
 const tournament = (
   rounds: StatisticsRound[],
   opponentTeams: StatisticsTournament['opponentTeams'] = [],
-): StatisticsTournament => ({ rounds, opponentTeams })
+): StatisticsTournament => ({ id: `t${++ids}`, name: 'Regional', rounds, opponentTeams })
 const teamOf = (opponent: { id: string }, ...species: string[]) => ({
   opponentId: opponent.id,
   pokemon: species.map((s) => ({ species: s })),
@@ -20,7 +21,18 @@ const teamOf = (opponent: { id: string }, ...species: string[]) => ({
 const round = (
   result: StatisticsRound['result'],
   overrides: Partial<StatisticsRound> = {},
-): StatisticsRound => ({ bye: false, result, opponent: wolfe, games: [], ...overrides })
+): StatisticsRound => ({
+  id: `r${++ids}`,
+  phase: 'swiss',
+  roundNumber: 1,
+  stage: null,
+  bye: false,
+  result,
+  gameScore: null,
+  opponent: wolfe,
+  games: [],
+  ...overrides,
+})
 const bye = () => round('win', { bye: true, opponent: null })
 const game = (
   number: Game['number'],
@@ -46,7 +58,7 @@ describe('statistics: species faced', () => {
       ),
       tournament([round('loss')], [teamOf(wolfe, 'incineroar')]),
     ])
-    expect(stats.speciesFaced.rows).toEqual([
+    expect(stats.speciesFaced.rows).toMatchObject([
       { species: 'incineroar', played: 3, wins: 1, losses: 1, ties: 1, winRate: 1 / 3 },
       { species: 'rillaboom', played: 1, wins: 1, losses: 0, ties: 0, winRate: 1 },
     ])
@@ -76,7 +88,7 @@ describe('statistics: Brought Pokémon', () => {
         }),
       ]),
     ])
-    expect(stats.brought.rows).toEqual([
+    expect(stats.brought.rows).toMatchObject([
       { species: 'incineroar', played: 3, wins: 2, losses: 1, ties: 0, winRate: 2 / 3 },
       { species: 'rillaboom', played: 3, wins: 2, losses: 1, ties: 0, winRate: 2 / 3 },
       { species: 'amoonguss', played: 2, wins: 1, losses: 1, ties: 0, winRate: 0.5 },
@@ -99,7 +111,7 @@ describe('statistics: Brought Pokémon', () => {
         bye(),
       ]),
     ])
-    expect(stats.brought.rows).toEqual([
+    expect(stats.brought.rows).toMatchObject([
       { species: 'incineroar', played: 1, wins: 1, losses: 0, ties: 0, winRate: 1 },
     ])
     expect(stats.brought.coverage).toEqual({ counted: 1, of: 4, noResult: 1, noBrought: 2 })
@@ -121,7 +133,7 @@ describe('statistics: Leads', () => {
         }),
       ]),
     ])
-    expect(stats.leadPairs.rows).toEqual([
+    expect(stats.leadPairs.rows).toMatchObject([
       {
         species: ['amoonguss', 'incineroar'],
         played: 2,
@@ -147,7 +159,7 @@ describe('statistics: Leads', () => {
         round('loss', { games: [game(1, null, bring, ['incineroar', 'amoonguss'])] }),
       ]),
     ])
-    expect(stats.leads.rows).toEqual([
+    expect(stats.leads.rows).toMatchObject([
       { species: 'incineroar', played: 2, wins: 1, losses: 0, ties: 1, winRate: 0.5 },
       { species: 'amoonguss', played: 1, wins: 1, losses: 0, ties: 0, winRate: 1 },
     ])
@@ -160,6 +172,80 @@ describe('statistics: Leads', () => {
       noLeads: 1,
       oneLead: 1,
     })
+  })
+})
+
+describe('statistics: the Rounds and Games behind a row', () => {
+  it('lists the Rounds a species faced row counts, and looks each Round up', () => {
+    const won = round('win', { id: 'won', roundNumber: 1 })
+    const lost = round('loss', {
+      id: 'lost',
+      phase: 'top-cut',
+      roundNumber: null,
+      stage: 'top-8',
+      gameScore: { won: 1, lost: 2 },
+      opponent: aaron,
+      games: [game(1, 'win', []), game(2, 'loss', []), game(3, 'loss', [])],
+    })
+    const unknown = round('win', { id: 'unknown', opponent: null })
+    const stats = statistics([
+      {
+        id: 'ny',
+        name: 'New York Regional',
+        rounds: [won, lost, unknown, round('win', { id: 'bye', bye: true, opponent: null })],
+        opponentTeams: [teamOf(wolfe, 'incineroar', 'rillaboom'), teamOf(aaron, 'incineroar')],
+      },
+    ])
+
+    const row = (species: string) => stats.speciesFaced.rows.find((r) => r.species === species)
+    expect(row('incineroar')?.counted).toEqual([{ round: 'won' }, { round: 'lost' }])
+    expect(row('rillaboom')?.counted).toEqual([{ round: 'won' }])
+    expect(stats.rounds.lost).toEqual({
+      id: 'lost',
+      tournament: { id: 'ny', name: 'New York Regional' },
+      phase: 'top-cut',
+      roundNumber: null,
+      stage: 'top-8',
+      result: 'loss',
+      gameScore: { won: 1, lost: 2 },
+      opponent: aaron,
+      games: [
+        { number: 1, result: 'win' },
+        { number: 2, result: 'loss' },
+        { number: 3, result: 'loss' },
+      ],
+    })
+    expect(stats.rounds.unknown).toBeDefined()
+    expect(stats.rounds.bye).toBeUndefined()
+  })
+
+  it('lists the Games a Lead pair, Single Lead or Brought Pokémon row counts', () => {
+    const bring = ['incineroar', 'amoonguss', 'kingambit', 'rillaboom']
+    const stats = statistics([
+      tournament([
+        round('win', {
+          id: 'r1',
+          games: [
+            game(1, 'win', bring, ['incineroar', 'amoonguss']),
+            game(2, 'loss', bring, ['amoonguss', 'incineroar']),
+            game(3, null, bring, ['incineroar', 'amoonguss']),
+          ],
+        }),
+        round('loss', { id: 'r2', games: [game(1, 'loss', ['incineroar'], ['incineroar'])] }),
+      ]),
+    ])
+
+    const games = [
+      { round: 'r1', game: 1 },
+      { round: 'r1', game: 2 },
+    ]
+    expect(stats.leadPairs.rows[0]?.counted).toEqual(games)
+    expect(stats.leads.rows.find((r) => r.species === 'incineroar')?.counted).toEqual([
+      ...games,
+      { round: 'r2', game: 1 },
+    ])
+    expect(stats.brought.rows.find((r) => r.species === 'kingambit')?.counted).toEqual(games)
+    expect(Object.keys(stats.rounds)).toEqual(['r1', 'r2'])
   })
 })
 
