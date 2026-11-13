@@ -94,11 +94,13 @@ export interface S3Options {
   forcePathStyle?: boolean
 }
 
+// A missing key only. A missing bucket (NoSuchBucket, also a 404) is a misconfiguration and
+// should surface as an error, not as every attachment being gone.
 const isNotFound = (error: unknown) =>
-  error instanceof S3ServiceException &&
-  (error.name === 'NoSuchKey' ||
-    error.name === 'NotFound' ||
-    error.$metadata.httpStatusCode === 404)
+  error instanceof S3ServiceException && (error.name === 'NoSuchKey' || error.name === 'NotFound')
+
+/** Deletes sent at once by deletePrefix, well inside the client's 50 connections. */
+const DELETE_BATCH = 10
 
 /**
  * Files in an S3-compatible bucket (DEV-71). Checks the bucket can be reached, and refuses to
@@ -156,11 +158,10 @@ export async function openS3Storage(options: S3Options): Promise<FileStorage> {
         { Bucket: bucket, Prefix: prefix },
       )) {
         const keys = (page.Contents ?? []).flatMap(({ Key }) => (Key ? [Key] : []))
-        // A few at a time, well inside the client's 50 connections.
-        for (let start = 0; start < keys.length; start += 10)
+        for (let start = 0; start < keys.length; start += DELETE_BATCH)
           await Promise.all(
             keys
-              .slice(start, start + 10)
+              .slice(start, start + DELETE_BATCH)
               .map((Key) => client.send(new DeleteObjectCommand({ Bucket: bucket, Key }))),
           )
       }
