@@ -1,6 +1,13 @@
-import type { RoundView } from '@myvgc/core/schema'
+import type { CountedRound, RoundView } from '@myvgc/core/schema'
 import { describe, expect, it } from 'vitest'
-import { formatDates, ordinal, percent, roundLabel, roundOutcome } from '../app/lib/format'
+import {
+  countedListing,
+  formatDates,
+  ordinal,
+  percent,
+  roundLabel,
+  roundOutcome,
+} from '../app/lib/format'
 
 /** A Swiss Round won 1-0, with these fields changed. */
 function round(changes: Partial<RoundView> = {}): RoundView {
@@ -71,5 +78,35 @@ describe('Placements and rates', () => {
     expect(percent(2 / 3)).toBe('67%')
     expect(percent(0)).toBe('0%')
     expect(percent(null)).toBe('—')
+  })
+})
+
+describe('The Rounds and Games behind a Statistics row', () => {
+  const lost: CountedRound = {
+    id: 'r1',
+    tournament: { id: 't1', name: 'New York Regional' },
+    phase: 'swiss',
+    roundNumber: 2,
+    stage: null,
+    result: 'loss',
+    gameScore: { won: 1, lost: 2 },
+    opponent: { id: 'o1', displayName: 'Wolfe' },
+    games: [
+      { number: 1, result: 'win' },
+      { number: 2, result: 'loss' },
+    ],
+  }
+
+  it('shows a Round with its Round result and a Game with its Game result', () => {
+    const listing = countedListing([{ round: 'r1' }, { round: 'r1', game: 1 }], { r1: lost })
+    expect(listing.map(({ key, game, result }) => ({ key, game, result }))).toEqual([
+      { key: 'r1', game: undefined, result: 'Loss 1-2' },
+      { key: 'r1-1', game: 1, result: 'Win' },
+    ])
+    expect(listing[0]?.round).toBe(lost)
+  })
+
+  it('skips a Round it has no details for', () => {
+    expect(countedListing([{ round: 'gone' }], {})).toEqual([])
   })
 })

@@ -1,15 +1,47 @@
 // Display helpers shared by the Tournament, Opponent, dashboard and Statistics pages.
-import { ROUND_RESULT_LABELS, TOP_CUT_STAGE_LABELS, type RoundView } from '@myvgc/core/schema'
+import {
+  type Counted,
+  type CountedRound,
+  ROUND_RESULT_LABELS,
+  TOP_CUT_STAGE_LABELS,
+  type RoundView,
+} from '@myvgc/core/schema'
 
 /** A Round's place in its Tournament, such as "Round 3" or "Top 8". */
-export const roundLabel = (r: RoundView) =>
+export const roundLabel = (r: Pick<RoundView, 'phase' | 'roundNumber' | 'stage'>) =>
   r.phase === 'swiss' ? `Round ${r.roundNumber}` : TOP_CUT_STAGE_LABELS[r.stage!]
 
 /** A Round's result, with its Game score when there is one, such as "Win 2-1". */
-export const roundOutcome = (r: RoundView) =>
+export const roundOutcome = (r: Pick<RoundView, 'result' | 'gameScore'>) =>
   r.gameScore
     ? `${ROUND_RESULT_LABELS[r.result]} ${r.gameScore.won}-${r.gameScore.lost}`
     : ROUND_RESULT_LABELS[r.result]
+
+/** A Round or Game behind a Statistics row, ready to list. */
+export interface CountedItem extends Omit<Counted, 'round'> {
+  key: string
+  round: CountedRound
+  result: string
+}
+
+/**
+ * The Rounds or Games behind a Statistics row, as listed: each with its Round, its Game number
+ * when it is a Game, and its result, such as "Win 2-1" for a Round or "Loss" for a Game.
+ */
+export function countedListing(
+  counted: Counted[],
+  rounds: Record<string, CountedRound>,
+): CountedItem[] {
+  return counted.flatMap(({ round: id, game }): CountedItem[] => {
+    const round = rounds[id]
+    if (!round) return []
+    if (game === undefined) return [{ key: id, round, game, result: roundOutcome(round) }]
+    const result = round.games.find((g) => g.number === game)?.result
+    return [
+      { key: `${id}-${game}`, round, game, result: result ? ROUND_RESULT_LABELS[result] : '' },
+    ]
+  })
+}
 
 const dayMonthYear = new Intl.DateTimeFormat('en-GB', {
   day: 'numeric',

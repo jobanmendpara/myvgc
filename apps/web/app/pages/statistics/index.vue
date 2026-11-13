@@ -73,6 +73,7 @@ const pairRows = (rows: StatisticsRow<[string, string]>[]): StatisticsTableRow[]
         unit="Rounds"
         name-heading="Species"
         :rows="rowsOf(stats.speciesFaced.rows)"
+        :rounds="stats.rounds"
         :coverage="describeCoverage(stats.speciesFaced.coverage, 'Rounds')"
         data-testid="species-faced"
       />
@@ -81,6 +82,7 @@ const pairRows = (rows: StatisticsRow<[string, string]>[]): StatisticsTableRow[]
         unit="Games"
         name-heading="Leads"
         :rows="pairRows(stats.leadPairs.rows)"
+        :rounds="stats.rounds"
         :coverage="describeCoverage(stats.leadPairs.coverage, 'Games')"
       />
       <StatisticsTable
@@ -88,6 +90,7 @@ const pairRows = (rows: StatisticsRow<[string, string]>[]): StatisticsTableRow[]
         unit="Games"
         name-heading="Lead"
         :rows="rowsOf(stats.leads.rows)"
+        :rounds="stats.rounds"
         :coverage="describeCoverage(stats.leads.coverage, 'Games')"
       />
       <StatisticsTable
@@ -95,6 +98,7 @@ const pairRows = (rows: StatisticsRow<[string, string]>[]): StatisticsTableRow[]
         unit="Games"
         name-heading="Species"
         :rows="rowsOf(stats.brought.rows)"
+        :rounds="stats.rounds"
         :coverage="describeCoverage(stats.brought.coverage, 'Games')"
       />
     </div>

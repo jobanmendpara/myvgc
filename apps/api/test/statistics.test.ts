@@ -52,14 +52,14 @@ describe('GET /api/statistics', () => {
 
     const body = await statistics('?regulation=M-C')
     expect(body.filters).toMatchObject({ regulation: 'M-C', team: null })
-    expect(body.statistics.speciesFaced).toEqual({
+    expect(body.statistics.speciesFaced).toMatchObject({
       rows: [
         { species: 'kingambit', played: 1, wins: 1, losses: 0, ties: 0, winRate: 1 },
         { species: 'rillaboom', played: 1, wins: 1, losses: 0, ties: 0, winRate: 1 },
       ],
       coverage: { counted: 1, of: 2, noOpponentTeam: 1 },
     })
-    expect(body.statistics.leads.rows).toEqual([
+    expect(body.statistics.leads.rows).toMatchObject([
       { species: 'incineroar', played: 1, wins: 1, losses: 0, ties: 0, winRate: 1 },
     ])
     expect(body.statistics.brought.coverage).toEqual({
@@ -67,6 +67,48 @@ describe('GET /api/statistics', () => {
       of: 1,
       noResult: 0,
       noBrought: 0,
+    })
+  })
+
+  it('lists the Rounds and Games behind each row, most recent Tournament first', async () => {
+    await setUp()
+    const older = await addTournament({ name: 'Older', startDate: '2026-09-01' })
+    const newer = await addTournament({ name: 'Newer', startDate: '2026-10-10' })
+    const wolfe = await json(
+      await logRound(older, {
+        roundNumber: 2,
+        result: 'loss',
+        newOpponentName: 'Wolfe',
+        opponentTeam: [{ species: 'rillaboom' }],
+      }),
+    )
+    const aaron = await json(
+      await logRound(newer, {
+        bestOf: 1,
+        newOpponentName: 'Aaron',
+        opponentTeam: [{ species: 'rillaboom' }],
+        games: [{ number: 1, result: 'win', brought: ['incineroar'], leads: ['incineroar'] }],
+      }),
+    )
+    await logRound(newer, { bye: true })
+
+    const { statistics: stats } = await statistics('?regulation=all')
+    expect(stats.speciesFaced.rows[0].counted).toEqual([
+      { round: aaron.round.id },
+      { round: wolfe.round.id },
+    ])
+    expect(stats.brought.rows[0].counted).toEqual([{ round: aaron.round.id, game: 1 }])
+    expect(Object.keys(stats.rounds)).toHaveLength(2)
+    expect(stats.rounds[wolfe.round.id]).toEqual({
+      id: wolfe.round.id,
+      tournament: { id: older, name: 'Older' },
+      phase: 'swiss',
+      roundNumber: 2,
+      stage: null,
+      result: 'loss',
+      gameScore: null,
+      opponent: { id: wolfe.round.opponent.id, displayName: 'Wolfe' },
+      games: [],
     })
   })
 
