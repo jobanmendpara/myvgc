@@ -18,5 +18,6 @@ On 2026-11-11 the user corrected how many agents to run: one per issue, not extr
 - Both checks passed about six minutes after the PR opened. PR #160 was merged from the `jobanmendpara` account (`jobanmendpara/myvgc@319cadd`), not by the implementer.
 - On 2026-11-12, while shipping this wiki change (PR #163), the retro agent found that `gh pr checks <n> --watch` with a 600000 ms timeout doesn't hold a turn open either: the harness moved it to the background after 180 seconds. What held was a foreground loop that runs `gh pr checks <n>` every 30 seconds for at most 150 seconds, called again until neither check is `pending`.
 - Fixes were proposed to the chief-of-staff on 2026-11-12 and not yet made: brief implementers to wait for CI with such bounded foreground polls, called back to back, keeping their turn open until both checks pass and the PR is merged.
+- On 2026-11-12 DEV-117 added that poll as `scripts/wait-for-checks.sh <pr>`. It polls `check` and `smoke / smoke` every 30 seconds for up to 150 seconds, and treats "no checks reported" as pending. It exits 0 when both pass, 1 when one fails (or is cancelled or skipped) and 2 when one is still pending. Briefs can say: run `scripts/wait-for-checks.sh <n>` in the foreground until it exits 0 or 1.
 
 Related: [parallel agents](parallel-agents.md), [2026-11-12 Todo round](todo-round-2026-11-12.md).
