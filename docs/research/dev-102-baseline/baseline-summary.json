@@ -1,0 +1,133 @@
+[
+  {
+    "label": "sonnet-pair-1",
+    "model": "claude-sonnet-5-5",
+    "images": 2,
+    "seconds": 12.2,
+    "input": 9564,
+    "output": 1746,
+    "cost": 0.0366,
+    "name": "9TCG84KWXK",
+    "errors": [
+      "charizard.nature: ∅ (want timid)",
+      "venusaur.nature: ∅ (want calm)",
+      "whimsicott.nature: ∅ (want timid)",
+      "kingambit.nature: ∅ (want adamant)",
+      "garchomp.nature: ∅ (want jolly)",
+      "basculegion.nature: ∅ (want adamant)"
+    ],
+    "flags": []
+  },
+  {
+    "label": "sonnet-pair-2",
+    "model": "claude-sonnet-5-5",
+    "images": 2,
+    "seconds": 11.3,
+    "input": 9564,
+    "output": 1525,
+    "cost": 0.0344,
+    "name": "9TCG84KWXK",
+    "errors": [
+      "charizard.nature: ∅ (want timid)",
+      "venusaur.nature: ∅ (want calm)",
+      "whimsicott.nature: ∅ (want timid)",
+      "kingambit.nature: ∅ (want adamant)",
+      "garchomp.nature: ∅ (want jolly)",
+      "basculegion.nature: ∅ (want adamant)"
+    ],
+    "flags": []
+  },
+  {
+    "label": "sonnet-detail",
+    "model": "claude-sonnet-5-5",
+    "images": 6,
+    "seconds": 8.9,
+    "input": 25400,
+    "output": 970,
+    "cost": 0.0605,
+    "name": "",
+    "errors": [
+      "charizard.item: ∅ (want charizarditey)",
+      "venusaur.item: ∅ (want sitrusberry)",
+      "whimsicott.item: ∅ (want focussash)",
+      "kingambit.item: ∅ (want chopleberry)",
+      "garchomp.item: ∅ (want lifeorb)",
+      "basculegion.item: ∅ (want mysticwater)"
+    ],
+    "flags": []
+  },
+  {
+    "label": "sonnet-all-1",
+    "model": "claude-sonnet-5-5",
+    "images": 8,
+    "seconds": 10.1,
+    "input": 33318,
+    "output": 1011,
+    "cost": 0.0767,
+    "name": "9TCG84KWXK",
+    "errors": [],
+    "flags": []
+  },
+  {
+    "label": "sonnet-all-2",
+    "model": "claude-sonnet-5-5",
+    "images": 8,
+    "seconds": 10.3,
+    "input": 33318,
+    "output": 1006,
+    "cost": 0.0767,
+    "name": "Banjo",
+    "errors": [],
+    "flags": []
+  },
+  {
+    "label": "haiku-pair",
+    "model": "claude-haiku-5-5",
+    "images": 2,
+    "seconds": 8.8,
+    "input": 9564,
+    "output": 1710,
+    "cost": 0.0018,
+    "name": "9TCG84KWXK",
+    "errors": [
+      "charizard.nature: ∅ (want timid)",
+      "venusaur.nature: ∅ (want calm)",
+      "whimsicott.nature: ∅ (want timid)",
+      "kingambit.nature: ∅ (want adamant)",
+      "garchomp.nature: ∅ (want jolly)",
+      "basculegion.nature: ∅ (want adamant)"
+    ],
+    "flags": []
+  },
+  {
+    "label": "haiku-detail",
+    "model": "claude-haiku-5-5",
+    "images": 6,
+    "seconds": 9.9,
+    "input": 25400,
+    "output": 1811,
+    "cost": 0.0034,
+    "name": "",
+    "errors": [
+      "charizard.item: ∅ (want charizarditey)",
+      "venusaur.item: ∅ (want sitrusberry)",
+      "whimsicott.item: ∅ (want focussash)",
+      "kingambit.item: ∅ (want chopleberry)",
+      "garchomp.item: ∅ (want lifeorb)",
+      "basculegion.item: ∅ (want mysticwater)"
+    ],
+    "flags": []
+  },
+  {
+    "label": "haiku-all",
+    "model": "claude-haiku-5-5",
+    "images": 8,
+    "seconds": 11.6,
+    "input": 33318,
+    "output": 2241,
+    "cost": 0.0045,
+    "name": "Banjo",
+    "errors": [],
+    "flags": []
+  }
+]

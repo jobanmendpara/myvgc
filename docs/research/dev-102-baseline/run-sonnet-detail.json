@@ -1,0 +1,332 @@
+{
+  "seen": {
+    "name": "",
+    "pokemon": [
+      {
+        "species": "Charizard",
+        "ability": "Solar Power",
+        "item": null,
+        "statAlignment": "Timid",
+        "moves": [
+          "Heat Wave",
+          "Weather Ball",
+          "Solar Beam",
+          "Protect"
+        ],
+        "statValues": {
+          "hp": 155,
+          "atk": 93,
+          "def": 98,
+          "spa": 161,
+          "spd": 105,
+          "spe": 167
+        },
+        "statPoints": {
+          "hp": 2,
+          "atk": 0,
+          "def": 0,
+          "spa": 32,
+          "spd": 0,
+          "spe": 32
+        },
+        "unsure": []
+      },
+      {
+        "species": "Venusaur",
+        "ability": "Overgrow",
+        "item": null,
+        "statAlignment": "Calm",
+        "moves": [
+          "Giga Drain",
+          "Sludge Bomb",
+          "Sleep Powder",
+          "Protect"
+        ],
+        "statValues": {
+          "hp": 187,
+          "atk": 91,
+          "def": 105,
+          "spa": 136,
+          "spd": 149,
+          "spe": 100
+        },
+        "statPoints": {
+          "hp": 32,
+          "atk": 0,
+          "def": 2,
+          "spa": 16,
+          "spd": 16,
+          "spe": 0
+        },
+        "unsure": []
+      },
+      {
+        "species": "Whimsicott",
+        "ability": "Prankster",
+        "item": null,
+        "statAlignment": "Timid",
+        "moves": [
+          "Moonblast",
+          "Encore",
+          "Tailwind",
+          "Protect"
+        ],
+        "statValues": {
+          "hp": 139,
+          "atk": 78,
+          "def": 105,
+          "spa": 127,
+          "spd": 95,
+          "spe": 184
+        },
+        "statPoints": {
+          "hp": 4,
+          "atk": 0,
+          "def": 0,
+          "spa": 30,
+          "spd": 0,
+          "spe": 32
+        },
+        "unsure": []
+      },
+      {
+        "species": "Kingambit",
+        "ability": "Defiant",
+        "item": null,
+        "statAlignment": "Adamant",
+        "moves": [
+          "Kowtow Cleave",
+          "Sucker Punch",
+          "Iron Head",
+          "Protect"
+        ],
+        "statValues": {
+          "hp": 207,
+          "atk": 205,
+          "def": 140,
+          "spa": 72,
+          "spd": 105,
+          "spe": 72
+        },
+        "statPoints": {
+          "hp": 32,
+          "atk": 32,
+          "def": 0,
+          "spa": 0,
+          "spd": 0,
+          "spe": 2
+        },
+        "unsure": []
+      },
+      {
+        "species": "Garchomp",
+        "ability": "Rough Skin",
+        "item": null,
+        "statAlignment": "Jolly",
+        "moves": [
+          "Earthquake",
+          "Rock Slide",
+          "Dragon Claw",
+          "Protect"
+        ],
+        "statValues": {
+          "hp": 183,
+          "atk": 182,
+          "def": 117,
+          "spa": 90,
+          "spd": 105,
+          "spe": 169
+        },
+        "statPoints": {
+          "hp": 0,
+          "atk": 32,
+          "def": 2,
+          "spa": 0,
+          "spd": 0,
+          "spe": 32
+        },
+        "unsure": []
+      },
+      {
+        "species": "Basculegion",
+        "ability": "Adaptability",
+        "item": null,
+        "statAlignment": "Adamant",
+        "moves": [
+          "Wave Crash",
+          "Aqua Jet",
+          "Flip Turn",
+          "Last Respects"
+        ],
+        "statValues": {
+          "hp": 195,
+          "atk": 180,
+          "def": 87,
+          "spa": 90,
+          "spd": 95,
+          "spe": 130
+        },
+        "statPoints": {
+          "hp": 0,
+          "atk": 32,
+          "def": 2,
+          "spa": 0,
+          "spd": 0,
+          "spe": 32
+        },
+        "unsure": []
+      }
+    ]
+  },
+  "draft": {
+    "name": "",
+    "pokemon": [
+      {
+        "species": "charizard",
+        "moves": [
+          "heatwave",
+          "weatherball",
+          "solarbeam",
+          "protect"
+        ],
+        "statPoints": {
+          "hp": 2,
+          "atk": 0,
+          "def": 0,
+          "spa": 32,
+          "spd": 0,
+          "spe": 32
+        },
+        "nature": "timid",
+        "ability": "solarpower"
+      },
+      {
+        "species": "venusaur",
+        "moves": [
+          "gigadrain",
+          "sludgebomb",
+          "sleeppowder",
+          "protect"
+        ],
+        "statPoints": {
+          "hp": 32,
+          "atk": 0,
+          "def": 2,
+          "spa": 16,
+          "spd": 16,
+          "spe": 0
+        },
+        "nature": "calm",
+        "ability": "overgrow"
+      },
+      {
+        "species": "whimsicott",
+        "moves": [
+          "moonblast",
+          "encore",
+          "tailwind",
+          "protect"
+        ],
+        "statPoints": {
+          "hp": 4,
+          "atk": 0,
+          "def": 0,
+          "spa": 30,
+          "spd": 0,
+          "spe": 32
+        },
+        "nature": "timid",
+        "ability": "prankster"
+      },
+      {
+        "species": "kingambit",
+        "moves": [
+          "kowtowcleave",
+          "suckerpunch",
+          "ironhead",
+          "protect"
+        ],
+        "statPoints": {
+          "hp": 32,
+          "atk": 32,
+          "def": 0,
+          "spa": 0,
+          "spd": 0,
+          "spe": 2
+        },
+        "nature": "adamant",
+        "ability": "defiant"
+      },
+      {
+        "species": "garchomp",
+        "moves": [
+          "earthquake",
+          "rockslide",
+          "dragonclaw",
+          "protect"
+        ],
+        "statPoints": {
+          "hp": 0,
+          "atk": 32,
+          "def": 2,
+          "spa": 0,
+          "spd": 0,
+          "spe": 32
+        },
+        "nature": "jolly",
+        "ability": "roughskin"
+      },
+      {
+        "species": "basculegion",
+        "moves": [
+          "wavecrash",
+          "aquajet",
+          "flipturn",
+          "lastrespects"
+        ],
+        "statPoints": {
+          "hp": 0,
+          "atk": 32,
+          "def": 2,
+          "spa": 0,
+          "spd": 0,
+          "spe": 32
+        },
+        "nature": "adamant",
+        "ability": "adaptability"
+      }
+    ],
+    "flags": []
+  },
+  "usage": {
+    "input_tokens": 25400,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+    },
+    "iterations": [
+      {
+        "input_tokens": 25400,
+        "output_tokens": 970,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "type": "message",
+        "model": null
+      }
+    ],
+    "output_tokens": 970,
+    "output_tokens_details": {
+      "thinking_tokens": 0
+    },
+    "service_tier": "standard",
+    "inference_geo": "global",
+    "speed": "standard"
+  },
+  "servedModel": "claude-sonnet-5-5"
+}
