@@ -2,6 +2,7 @@
 import {
   DEFAULT_REGULATION,
   MAX_PASTE_LENGTH,
+  MAX_REPLICA_TEAM_ID_LENGTH,
   REGULATIONS,
   type Regulation,
 } from '@myvgc/core/schema'
@@ -15,6 +16,7 @@ const name = ref('')
 const regulation = ref<Regulation>(DEFAULT_REGULATION)
 const paste = ref('')
 const notes = ref('')
+const replicaTeamId = ref('')
 
 // The paste as it was sent, so line errors still point at the right text after edits.
 const sentLines = ref<string[]>([])
@@ -31,6 +33,7 @@ const save = useMutation({
         regulation: regulation.value,
         paste: paste.value,
         notes: notes.value,
+        replicaTeamId: replicaTeamId.value,
       },
     })
   },
@@ -96,6 +99,34 @@ function showLine(line: number) {
             Reg {{ reg }}
           </NativeSelectOption>
         </NativeSelect>
+      </div>
+
+      <div class="flex flex-col gap-2">
+        <Label for="replica-team-id"
+          >Replica Team ID <span class="text-muted-foreground font-normal">(optional)</span></Label
+        >
+        <Input
+          id="replica-team-id"
+          v-model="replicaTeamId"
+          autocomplete="off"
+          autocapitalize="characters"
+          spellcheck="false"
+          class="w-60 font-mono uppercase"
+          placeholder="9TCG84KWXK"
+          :maxlength="MAX_REPLICA_TEAM_ID_LENGTH"
+          :aria-invalid="fieldError('replicaTeamId') ? true : undefined"
+          aria-describedby="replica-team-id-hint replica-team-id-error"
+        />
+        <p id="replica-team-id-hint" class="text-muted-foreground text-sm">
+          The code Champions gives this Battle Team as a Replica Team, for when a judge asks.
+        </p>
+        <p
+          v-if="fieldError('replicaTeamId')"
+          id="replica-team-id-error"
+          class="text-destructive text-sm"
+        >
+          {{ fieldError('replicaTeamId') }}
+        </p>
       </div>
 
       <div class="flex flex-col gap-2">
