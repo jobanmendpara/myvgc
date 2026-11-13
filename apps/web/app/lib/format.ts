@@ -18,27 +18,36 @@ export const roundOutcome = (r: Pick<RoundView, 'result' | 'gameScore'>) =>
     : ROUND_RESULT_LABELS[r.result]
 
 /** A Round or Game behind a Statistics row, ready to list. */
-export interface CountedItem extends Omit<Counted, 'round'> {
+export interface CountedItem extends Pick<Counted, 'game'> {
   key: string
   round: CountedRound
   result: string
+  /** On a bring-rate row: "Brought" or "Not brought". */
+  brought?: string
 }
 
 /**
  * The Rounds or Games behind a Statistics row, as listed: each with its Round, its Game number
- * when it is a Game, and its result, such as "Win 2-1" for a Round or "Loss" for a Game.
+ * when it is a Game, its result, such as "Win 2-1" for a Round or "Loss" for a Game, and on a
+ * bring-rate row whether the species was Brought.
  */
 export function countedListing(
   counted: Counted[],
   rounds: Record<string, CountedRound>,
 ): CountedItem[] {
-  return counted.flatMap(({ round: id, game }): CountedItem[] => {
+  return counted.flatMap(({ round: id, game, brought }): CountedItem[] => {
     const round = rounds[id]
     if (!round) return []
     if (game === undefined) return [{ key: id, round, game, result: roundOutcome(round) }]
     const result = round.games.find((g) => g.number === game)?.result
     return [
-      { key: `${id}-${game}`, round, game, result: result ? ROUND_RESULT_LABELS[result] : '' },
+      {
+        key: `${id}-${game}`,
+        round,
+        game,
+        result: result ? ROUND_RESULT_LABELS[result] : '',
+        ...(brought === undefined ? {} : { brought: brought ? 'Brought' : 'Not brought' }),
+      },
     ]
   })
 }

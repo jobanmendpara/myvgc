@@ -3,7 +3,8 @@ import type { Counted, CountedRound } from '@myvgc/core/schema'
 import { countedListing, roundLabel } from '@/lib/format'
 
 // The Rounds or Games behind a Statistics row, each linking to its Round. A Round shows its
-// Opponent and Round result; a Game shows its number and Game result.
+// Opponent and Round result; a Game shows its number and Game result, and on a bring-rate row
+// whether the species was Brought.
 const props = defineProps<{
   counted: Counted[]
   /** The Rounds the Statistics endpoint answered with, by id. */
@@ -29,7 +30,10 @@ const items = computed(() => countedListing(props.counted, props.rounds))
             >vs {{ item.round.opponent?.displayName ?? 'Unknown' }}</span
           >
         </span>
-        <span class="shrink-0 font-semibold">{{ item.result }}</span>
+        <span class="flex shrink-0 flex-col items-end">
+          <span class="font-semibold">{{ item.result }}</span>
+          <span v-if="item.brought" class="text-muted-foreground text-xs">{{ item.brought }}</span>
+        </span>
       </NuxtLink>
     </li>
   </ol>
