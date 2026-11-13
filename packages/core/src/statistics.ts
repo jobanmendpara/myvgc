@@ -144,7 +144,7 @@ abstract class Covered<Reason extends LeftOutReason> {
     this.coverage[reason]++
   }
 
-  protected counts() {
+  protected countOne() {
     this.coverage.of++
     this.coverage.counted++
   }
@@ -156,7 +156,7 @@ class Table<S, Reason extends LeftOutReason> extends Covered<Reason> {
 
   /** Counts one Round or Game with this result in the row of each of its species or pairs. */
   count(subjects: S[], result: RoundResult, counted: Counted) {
-    this.counts()
+    this.countOne()
     for (const species of subjects) {
       const key = String(species)
       const entry = this.byKey.get(key) ?? { species, tally: tally(), counted: [] }
@@ -179,7 +179,10 @@ class Table<S, Reason extends LeftOutReason> extends Covered<Reason> {
   }
 }
 
-/** The bring-rate table being counted: per species on an Opponent's Team, Games and picks. */
+/**
+ * The bring-rate table being counted: per species on an Opponent's Team, the Games played
+ * against that Team and the Games it was Brought in.
+ */
 class BringRates extends Covered<BringRateReason> {
   private readonly bySpecies = new Map<
     string,
@@ -188,7 +191,7 @@ class BringRates extends Covered<BringRateReason> {
 
   /** Counts one Game against a Team holding these species, in which these were Brought. */
   count(team: string[], brought: string[], counted: Counted) {
-    this.counts()
+    this.countOne()
     for (const species of new Set(team)) {
       const entry = this.bySpecies.get(species) ?? { played: 0, brought: 0, counted: [] }
       const wasBrought = brought.includes(species)

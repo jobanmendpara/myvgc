@@ -234,7 +234,7 @@ describe('statistics: the Opponent’s side of Games', () => {
     ])
   })
 
-  it('leaves out Byes, Games with no Game result and Games without the Opponent’s picks', () => {
+  it('leaves out Byes, Games with no Game result and Games with no Brought Pokémon or Leads for the Opponent', () => {
     const stats = statistics([
       tournament([
         round('win', {
