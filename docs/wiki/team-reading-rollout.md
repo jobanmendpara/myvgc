@@ -33,6 +33,7 @@ DEV-38, "Read uploaded PDFs and replica-team screenshots into Teams". The sub-is
   - DEV-60 and DEV-61 (Statistics follow-ups), now related to DEV-56.
   - DEV-67 (Replica Team ID), related to DEV-38.
   - DEV-71 (S3 storage), related to DEV-38 and DEV-37.
+- All four were built later on 2026-11-12: DEV-67 in PR #147 (`jobanmendpara/myvgc@95a6d7e`), DEV-71 in PR #148 (`jobanmendpara/myvgc@9169d19`), and DEV-60 and DEV-61 as in [statistics rollout](statistics-rollout.md). See the [2026-11-12 Todo round](todo-round-2026-11-12.md).
 - On 2026-11-11 the implementers for DEV-64, 65 and 66 ran at once and hit the session limit. See [parallel agents](parallel-agents.md).
 
 ## Gotchas
