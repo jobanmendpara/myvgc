@@ -27,8 +27,8 @@ const props = defineProps<{
 }>()
 
 // The row whose Rounds or Games are listed, by key.
-const open = ref<string>()
-const toggle = (key: string) => (open.value = open.value === key ? undefined : key)
+const expanded = ref<string>()
+const toggle = (key: string) => (expanded.value = expanded.value === key ? undefined : key)
 
 const SMALL_SAMPLE = 3
 type Column = 'name' | 'played' | 'record' | 'winRate'
@@ -110,11 +110,11 @@ const columns: { column: Column; label: () => string; align: string }[] = [
                 <button
                   type="button"
                   class="focus-visible:ring-ring/50 inline-flex items-center gap-1 rounded text-left outline-none focus-visible:ring-3"
-                  :aria-expanded="open === row.key"
+                  :aria-expanded="expanded === row.key"
                   :aria-controls="panelId(row.key)"
                 >
                   <span aria-hidden="true" class="text-muted-foreground w-3 text-xs">{{
-                    open === row.key ? '▾' : '▸'
+                    expanded === row.key ? '▾' : '▸'
                   }}</span>
                   {{ row.name }}
                 </button>
@@ -131,7 +131,7 @@ const columns: { column: Column; label: () => string; align: string }[] = [
                 {{ percent(row.winRate) }}
               </td>
             </tr>
-            <tr v-if="open === row.key" :id="panelId(row.key)">
+            <tr v-if="expanded === row.key" :id="panelId(row.key)">
               <td colspan="4" class="pb-2">
                 <StatisticsCounted :counted="row.counted" :rounds="rounds" />
               </td>

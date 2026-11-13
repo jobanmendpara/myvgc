@@ -28,7 +28,8 @@ export function statisticsRoutes(db: Database) {
           filters.team ? eq(tournament.teamId, filters.team) : undefined,
         ),
       )
-      // Most recent first, so a row lists the Rounds and Games behind it in that order.
+      // A row lists the Rounds and Games behind it by Tournament, most recent first, and then
+      // as played within each Tournament.
       .orderBy(desc(tournament.startDate), desc(tournament.createdAt), desc(tournament.id))
     const ids = rows.map((row) => row.id)
     const [rounds, opponentTeams] = await Promise.all([

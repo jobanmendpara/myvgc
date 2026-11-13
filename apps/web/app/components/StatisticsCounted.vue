@@ -1,11 +1,6 @@
 <script setup lang="ts">
-import {
-  type Counted,
-  type CountedRound,
-  ROUND_RESULT_LABELS,
-  type RoundResult,
-} from '@myvgc/core/schema'
-import { roundLabel, roundOutcome } from '@/lib/format'
+import type { Counted, CountedRound } from '@myvgc/core/schema'
+import { countedListing, roundLabel } from '@/lib/format'
 
 // The Rounds or Games behind a Statistics row, each linking to its Round. A Round shows its
 // Opponent and Round result; a Game shows its number and Game result.
@@ -15,18 +10,7 @@ const props = defineProps<{
   rounds: Record<string, CountedRound>
 }>()
 
-const labelOf = (result: RoundResult | null) => (result ? ROUND_RESULT_LABELS[result] : null)
-const items = computed(() =>
-  props.counted.flatMap(({ round: id, game }) => {
-    const round = props.rounds[id]
-    if (!round) return []
-    const result =
-      game === undefined
-        ? roundOutcome(round)
-        : labelOf(round.games.find((g) => g.number === game)?.result ?? null)
-    return [{ key: game === undefined ? id : `${id}-${game}`, round, game, result }]
-  }),
-)
+const items = computed(() => countedListing(props.counted, props.rounds))
 </script>
 
 <template>
