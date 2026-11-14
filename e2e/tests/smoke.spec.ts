@@ -323,6 +323,96 @@ test('log a Tournament and a Round against a new Opponent', async ({ page }) => 
   if (wide) await expect(page.getByText('Select an Opponent')).toBeVisible()
 })
 
+test('see a Statistic, and the Rounds and Games behind it', async ({ page }) => {
+  await page.goto('/signup')
+  await expect(page.getByRole('heading', { name: 'Create an account' })).toBeVisible()
+  await page.getByLabel('Email').fill(email('smoke-statistics'))
+  await page.getByLabel('Password').fill('smoke-test-password')
+  await page.getByRole('button', { name: 'Create account' }).click()
+  await expect(page).toHaveURL(/\/dashboard$/)
+
+  await page.goto('/tournaments/new')
+  await expect(page.getByRole('heading', { name: 'New Tournament' })).toBeVisible()
+  await page.getByLabel('Name', { exact: true }).fill('Statistics Regional')
+  await page.getByLabel('Start date').fill('2026-09-19')
+  await page.getByRole('button', { name: 'Save Tournament' }).click()
+  await expect(page.getByTestId('tournament-name')).toHaveText('Statistics Regional')
+
+  // A best-of-3 Round won 2-1. The Opponent Brings Incineroar every Game, and Garchomp only in
+  // Game 1; species picked for their side join their Team (ADR 22).
+  await page.getByRole('link', { name: 'Log Round' }).click()
+  await expect(page.getByRole('heading', { name: 'Log a Round' })).toBeVisible()
+  await page.getByRole('combobox', { name: 'Opponent' }).fill('Statistics Opponent')
+  await page.getByRole('option', { name: /Add “Statistics Opponent”/ }).click()
+  await page.getByRole('group', { name: 'Best of' }).getByText('Best of 3').click()
+  await page
+    .getByRole('group', { name: 'Game score (yours first)' })
+    .getByText('2-1', { exact: true })
+    .click()
+  await page.getByTestId('games').locator('summary').click()
+  const theirSide = (game: number) =>
+    page.getByTestId(`game-${game}`).getByRole('group', { name: /^Opponent/ })
+  const pickTheirs = async (game: number, species: string) => {
+    await theirSide(game).getByRole('combobox', { name: 'Other species…' }).fill(species)
+    await theirSide(game).getByRole('option', { name: species, exact: true }).click()
+  }
+  await pickTheirs(1, 'Incineroar')
+  await pickTheirs(1, 'Garchomp')
+  for (const [game, result] of [
+    [1, 'Win'],
+    [2, 'Loss'],
+    [3, 'Win'],
+  ] as const) {
+    if (game > 1)
+      await theirSide(game)
+        .getByRole('button', { name: /^Incineroar/ })
+        .click()
+    await page.getByTestId(`game-${game}`).getByText(result, { exact: true }).click()
+  }
+  await page.getByRole('button', { name: 'Log Round' }).click()
+  await expect(page.getByTestId('round')).toContainText('Statistics Opponent')
+
+  // The Tournament is in M-B or M-C depending on today's date, so show every Regulation.
+  await page.goto('/statistics?regulation=all')
+  await expect(page.getByRole('heading', { name: 'Statistics', exact: true })).toBeVisible()
+
+  // Species faced counts Rounds: Incineroar was on their Team in one Round, won 2-1.
+  const faced = page.getByRole('region', { name: 'Species faced' })
+  await expect(faced).toContainText('Based on 1 Round')
+  const facedRow = faced.getByRole('row').filter({ hasText: 'Incineroar' })
+  await expect(facedRow.getByRole('cell')).toHaveText([/Incineroar/, '1', '1-0-0', '100%'])
+  await facedRow.getByRole('button', { name: 'Incineroar' }).click()
+  await expect(faced.getByRole('link')).toHaveCount(1)
+  await expect(faced.getByRole('link')).toContainText('Statistics Regional, Round 1')
+  await expect(faced.getByRole('link')).toContainText('vs Statistics Opponent')
+  await expect(faced.getByRole('link')).toContainText('Win 2-1')
+
+  // Garchomp was on their Team for all three Games and Brought in one.
+  const bringRates = page.getByRole('region', { name: 'Brought from Opponent’s Teams' })
+  await expect(
+    bringRates.getByRole('row').filter({ hasText: 'Garchomp' }).getByRole('cell'),
+  ).toHaveText([/Garchomp/, '3', '1', '33%'])
+
+  // Their Brought Pokémon count Games: Incineroar in all three, won two.
+  const brought = page.getByRole('region', { name: 'Opponent’s Brought Pokémon' })
+  await expect(brought).toContainText('Based on all 3 Games')
+  const broughtRow = brought.getByRole('row').filter({ hasText: 'Incineroar' })
+  await expect(broughtRow.getByRole('cell')).toHaveText([/Incineroar/, '3', '2-1-0', '67%'])
+  await broughtRow.getByRole('button', { name: 'Incineroar' }).click()
+  const games = brought.getByRole('link')
+  await expect(games).toHaveCount(3)
+  for (const [index, result] of ['Win', 'Loss', 'Win'].entries()) {
+    await expect(games.nth(index)).toContainText(`Statistics Regional, Round 1, Game ${index + 1}`)
+    await expect(games.nth(index)).toContainText(result)
+  }
+
+  // Each one links to its Round.
+  await games.nth(1).click()
+  await expect(page).toHaveURL(/\/tournaments\/[0-9a-f-]{36}\/rounds\/[0-9a-f-]{36}$/)
+  await expect(page.getByRole('heading', { name: 'Edit Round' })).toBeVisible()
+  await expect(page.getByTestId('game-2').getByRole('radio', { name: 'Loss' })).toBeChecked()
+})
+
 test('upload a Teamsheet PDF to a Tournament, then read it into a Team', async ({ page }) => {
   await page.goto('/signup')
   await expect(page.getByRole('heading', { name: 'Create an account' })).toBeVisible()
