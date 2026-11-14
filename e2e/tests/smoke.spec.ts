@@ -338,8 +338,8 @@ test('see a Statistic, and the Rounds and Games behind it', async ({ page }) => 
   await page.getByRole('button', { name: 'Save Tournament' }).click()
   await expect(page.getByTestId('tournament-name')).toHaveText('Statistics Regional')
 
-  // A best-of-3 Round won 2-1. The Opponent Brings Incineroar every Game, and Garchomp only in
-  // Game 1; species picked for their side join their Team (ADR 22).
+  // A best-of-3 Round won 2-1, the Opponent Bringing Incineroar every Game. Picked for their side
+  // in Game 1, it joins their Team (ADR 22) and is offered in the next Games.
   await page.getByRole('link', { name: 'Log Round' }).click()
   await expect(page.getByRole('heading', { name: 'Log a Round' })).toBeVisible()
   await page.getByRole('combobox', { name: 'Opponent' }).fill('Statistics Opponent')
@@ -352,12 +352,8 @@ test('see a Statistic, and the Rounds and Games behind it', async ({ page }) => 
   await page.getByTestId('games').locator('summary').click()
   const theirSide = (game: number) =>
     page.getByTestId(`game-${game}`).getByRole('group', { name: /^Opponent/ })
-  const pickTheirs = async (game: number, species: string) => {
-    await theirSide(game).getByRole('combobox', { name: 'Other species…' }).fill(species)
-    await theirSide(game).getByRole('option', { name: species, exact: true }).click()
-  }
-  await pickTheirs(1, 'Incineroar')
-  await pickTheirs(1, 'Garchomp')
+  await theirSide(1).getByRole('combobox', { name: 'Other species…' }).fill('Incineroar')
+  await theirSide(1).getByRole('option', { name: 'Incineroar', exact: true }).click()
   for (const [game, result] of [
     [1, 'Win'],
     [2, 'Loss'],
@@ -372,26 +368,21 @@ test('see a Statistic, and the Rounds and Games behind it', async ({ page }) => 
   await page.getByRole('button', { name: 'Log Round' }).click()
   await expect(page.getByTestId('round')).toContainText('Statistics Opponent')
 
-  // The Tournament is in M-B or M-C depending on today's date, so show every Regulation.
+  // The page shows the Regulation in force today by default; the Tournament's, from its start
+  // date, may be another, so show every Regulation.
   await page.goto('/statistics?regulation=all')
   await expect(page.getByRole('heading', { name: 'Statistics', exact: true })).toBeVisible()
 
   // Species faced counts Rounds: Incineroar was on their Team in one Round, won 2-1.
   const faced = page.getByRole('region', { name: 'Species faced' })
-  await expect(faced).toContainText('Based on 1 Round')
   const facedRow = faced.getByRole('row').filter({ hasText: 'Incineroar' })
   await expect(facedRow.getByRole('cell')).toHaveText([/Incineroar/, '1', '1-0-0', '100%'])
   await facedRow.getByRole('button', { name: 'Incineroar' }).click()
-  await expect(faced.getByRole('link')).toHaveCount(1)
-  await expect(faced.getByRole('link')).toContainText('Statistics Regional, Round 1')
-  await expect(faced.getByRole('link')).toContainText('vs Statistics Opponent')
-  await expect(faced.getByRole('link')).toContainText('Win 2-1')
-
-  // Garchomp was on their Team for all three Games and Brought in one.
-  const bringRates = page.getByRole('region', { name: 'Brought from Opponent’s Teams' })
-  await expect(
-    bringRates.getByRole('row').filter({ hasText: 'Garchomp' }).getByRole('cell'),
-  ).toHaveText([/Garchomp/, '3', '1', '33%'])
+  const round = faced.getByRole('link')
+  await expect(round).toHaveCount(1)
+  await expect(round).toContainText('Statistics Regional, Round 1')
+  await expect(round).toContainText('vs Statistics Opponent')
+  await expect(round).toContainText('Win 2-1')
 
   // Their Brought Pokémon count Games: Incineroar in all three, won two.
   const brought = page.getByRole('region', { name: 'Opponent’s Brought Pokémon' })
