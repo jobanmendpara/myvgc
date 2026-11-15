@@ -3,7 +3,7 @@
 How we run several implementation agents at once. First used on 2026-11-11 for DEV-85 and DEV-86.
 
 - Each agent works in its own git worktree, on its own branch off `origin/main`.
-- Shared files are likely to conflict. For the list and detail work these are `ListDetail.vue`, `layouts/default.vue` and `e2e/tests/smoke.spec.ts`. Agents keep shared changes small and backward-compatible. Whichever PR merges second rebases onto main and resolves the conflicts.
+- Shared files are likely to conflict. For the list and detail work these are `ListDetail.vue`, `layouts/default.vue` and `e2e/tests/smoke.spec.ts`. Agents keep shared changes small and backward-compatible. Whichever PR merges second rebases onto main and resolves the conflicts. (Superseded 2026-11-15: a PR now rebases only when `main` has changed its files, see the 2026-11-15 section below.)
 - `pnpm dev` and `pnpm up:local` both bind ports 3000 and 3001, and both use the same dev Postgres (see [up:local shares the dev DB](up-local-shares-dev-db.md)). Parallel agents keep off the default ports and rely on CI for the smoke test.
 
 ## Outcomes
@@ -57,7 +57,9 @@ See the [2026-11-15 Refactor round](refactor-round-2026-11-15.md) for how the ro
 
 - On 2026-11-15 five Opus implementers ran at once, one per worktree, and none hit the session limit (HTTP 429). This is the most run at once so far; the 2026-11-11 stop above came with three.
 - On 2026-11-15 every implementer merged its own PR with `gh pr merge`, and none was refused. The same day auto mode refused the chief-of-staff's own merge of wiki PR #177, so merge rights can differ between the chief-of-staff and its agents on the same day.
-- On 2026-11-15 the DEV-110 agent's full `pnpm test` run went past the 180-second foreground limit, and the harness moved it to the background, while five agents loaded the machine. Filed as DEV-144 that day: a bounded way to run the full suite, like `scripts/wait-for-checks.sh` (see [shipping flow](shipping-flow.md)).
+- On 2026-11-15 the DEV-110 agent's full `pnpm test` run went past the 180-second foreground limit, and the harness moved it to the background, while five agents loaded the machine. Filed as DEV-144 that day: a bounded way to run tests locally, like `scripts/wait-for-checks.sh` (see [shipping flow](shipping-flow.md)).
+- On 2026-11-15 the chief-of-staff's retro on DEV-113 (subagent report) found that it rebased 4 times and ran CI 5 times on PR #190, all 4 rebases clean, because the brief and the "whichever PR merges second rebases" line above told it to rebase whenever `main` moved. `main` has no branch protection, so GitHub never required it. See the [2026-11-15 Refactor round](refactor-round-2026-11-15.md).
+- On 2026-11-15 the chief-of-staff decided a new rule, which supersedes that line. Once a PR's checks pass, run `git fetch` and compare `git diff --name-only <merge-base>..origin/main` with the PR's files. If nothing overlaps, merge without rebasing. If something overlaps, rebase, run that package's checks locally, re-run CI, then merge. `main`'s own CI after each merge is the backstop. The rule is also in [shipping flow](shipping-flow.md).
 - On 2026-11-15 the worktree guard refused the DEV-116 agent's compound command that fed a `python3` heredoc. This adds to the heredoc and compound-command refusals of 2026-11-11 and 2026-11-12 above.
 - On 2026-11-15 each `worktree-agent-*` placeholder branch needed `git branch -D` to delete, because local `main` lagged `origin/main` and `git branch -d` judged them unmerged. The chief-of-staff first checked that each was an ancestor of `origin/main`. This adds to the `gh pr merge --delete-branch` line above: before force-deleting a leftover branch, check it against `origin/main`, not local `main`.
 

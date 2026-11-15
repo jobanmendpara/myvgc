@@ -23,7 +23,17 @@ In order of merge:
 ## How it ran
 
 - DEV-127 merged first, so it didn't rebase. It ran the smoke stack off the default ports as Compose project `myvgc-dev127` on port 3427, and reported no environment trouble.
-- DEV-116 rebased once, DEV-109 and DEV-110 twice each, all cleanly. DEV-113 merged last and rebased and force-pushed three times; each CI round took about 5 to 6 minutes.
+- DEV-116 rebased once, DEV-109 and DEV-110 twice each, all cleanly. The DEV-113 agent reported that it merged last after three rebases and force-pushes, each CI round taking about 5 to 6 minutes. (Superseded 2026-11-15 by the DEV-113 retro, see below.)
+
+## DEV-113 retro (2026-11-15)
+
+From the chief-of-staff's retro on the DEV-113 implementer's transcript (subagent report, 2026-11-15):
+
+- DEV-113 rebased 4 times, not 3, and PR #190 had 5 CI runs. It opened first and merged last; each of the other four merges moved `main` under it. All 4 rebases were clean.
+- The run took about 40 minutes, about 32 of them shipping. Its first green came at about 14 minutes in, and merging then would have ended the run there.
+- The trigger was the brief's "if main moves under you, rebase and re-run CI", backed by the "whichever PR merges second rebases onto main" line in [parallel agents](parallel-agents.md). `main` has no branch protection, so GitHub never required those rebases.
+- On 2026-11-15 the chief-of-staff decided a new rule for when a PR rebases before merging, recorded in [shipping flow](shipping-flow.md) and [parallel agents](parallel-agents.md). The branch protection and auto-merge settings are left for the user to decide.
+- `pnpm test` is CI's critical path at 5m18s, `apps/api` taking 310 s of it (run 43730954370). Filed as [DEV-146](https://linear.app/mendpara/issue/DEV-146).
 - Five Opus implementers ran at once without hitting the session limit (compare 2026-11-11 in [parallel agents](parallel-agents.md)).
 - Every agent merged its own PR; none was refused `gh pr merge`. The same day auto mode refused the chief-of-staff's merge of wiki PR #177, which was still open when this page was written.
 - The environment facts the agents reported (the worktree guard, `pnpm test` past 180 s, branch cleanup) are in [parallel agents](parallel-agents.md). DEV-113's 4 API test failures that passed on a rerun are in [flaky tests](flaky-tests.md).
@@ -38,7 +48,8 @@ Filed in Linear on 2026-11-15, all in Backlog that day:
 - [DEV-141](https://linear.app/mendpara/issue/DEV-141) (Improvement, from DEV-116): check Statistics responses against a shared Zod schema.
 - [DEV-142](https://linear.app/mendpara/issue/DEV-142) (Refactor, from DEV-110): the type-only import loop between `config.ts` and `storage.ts`, the access key and secret pairing rule checked in three places, and refusing `S3_REGION` without a bucket.
 - [DEV-143](https://linear.app/mendpara/issue/DEV-143) (Decision, from DEV-116): a glossary term for the Statistics tables' third column, the field now called `outcome`.
-- [DEV-144](https://linear.app/mendpara/issue/DEV-144) (Chore): a bounded way for agents to run the full test suite, like `scripts/wait-for-checks.sh`.
+- [DEV-144](https://linear.app/mendpara/issue/DEV-144) (Chore): a bounded way for agents to run tests locally, like `scripts/wait-for-checks.sh`. Widened the same day after the DEV-113 retro: write the full output to a scratchpad log before filtering it, and run locally only the affected packages, leaving the full suite to CI.
+- [DEV-146](https://linear.app/mendpara/issue/DEV-146) (Chore, from the DEV-113 retro): cut CI time for the API tests, by sharding them behind an aggregate job still named `check`, and by profiling the 49 `createTestApp` PGlite boots, each applying 17 migrations.
 
 Not filed: the DEV-127 agent also suggested a start-date parameter for its smoke-test helpers.
 
