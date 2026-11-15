@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import type { S3Options } from './storage'
 
 // The secret shipped in .env.example. Refusing it stops an install from running with a
 // session-signing secret that anyone can read.
@@ -42,7 +43,8 @@ const schema = z
     ),
     S3_ACCESS_KEY_ID: unsetIfBlank(z.string().trim().optional()),
     S3_SECRET_ACCESS_KEY: unsetIfBlank(z.string().trim().optional()),
-    S3_FORCE_PATH_STYLE: unsetIfBlank(booleanFlag.default(false)),
+    // No default here, so a value set without a bucket can be refused below.
+    S3_FORCE_PATH_STYLE: unsetIfBlank(booleanFlag.optional()),
     // Reading Teams from images (ADR 24) is off unless a key is set. A blank value counts as unset,
     // so `.env.example`'s empty line keeps it off.
     ANTHROPIC_API_KEY: unsetIfBlank(z.string().trim().optional()),
@@ -63,13 +65,43 @@ const schema = z
         message: 'set S3_ACCESS_KEY_ID and S3_SECRET_ACCESS_KEY together, or neither',
       })
     // Settings that do nothing without a bucket are more likely a mistake than a choice.
-    if (!config.S3_BUCKET && (config.S3_ENDPOINT || config.S3_ACCESS_KEY_ID))
+    if (
+      !config.S3_BUCKET &&
+      (config.S3_ENDPOINT || config.S3_ACCESS_KEY_ID || config.S3_FORCE_PATH_STYLE !== undefined)
+    )
       ctx.addIssue({
         code: 'custom',
         path: ['S3_BUCKET'],
         message: 'set S3_BUCKET to keep uploads in S3, or remove the other S3_ settings',
       })
   })
+  .transform(
+    ({
+      S3_BUCKET,
+      S3_REGION,
+      S3_ENDPOINT,
+      S3_ACCESS_KEY_ID,
+      S3_SECRET_ACCESS_KEY,
+      S3_FORCE_PATH_STYLE,
+      ...config
+    }) => {
+      // One group for the S3 settings, present only when a bucket is set.
+      const s3: S3Options | undefined = S3_BUCKET
+        ? {
+            bucket: S3_BUCKET,
+            region: S3_REGION,
+            forcePathStyle: S3_FORCE_PATH_STYLE ?? false,
+            ...(S3_ENDPOINT && { endpoint: S3_ENDPOINT }),
+            ...(S3_ACCESS_KEY_ID &&
+              S3_SECRET_ACCESS_KEY && {
+                accessKeyId: S3_ACCESS_KEY_ID,
+                secretAccessKey: S3_SECRET_ACCESS_KEY,
+              }),
+          }
+        : undefined
+      return { ...config, s3 }
+    },
+  )
 
 export type Config = z.infer<typeof schema>
 
