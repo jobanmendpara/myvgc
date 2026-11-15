@@ -9,10 +9,10 @@ import {
   compareRounds,
   importIssueText,
   importedPlayerDetails,
+  pickTeamFields,
   readDataExport,
   recordLabel,
   settleImportedRound,
-  teamFields,
   today,
 } from '@myvgc/core'
 import { asc, eq, inArray, sql } from 'drizzle-orm'
@@ -102,7 +102,7 @@ export async function exportData(db: Database, ownerId: string): Promise<DataExp
     playerDetails: details,
     teams: teams.map((row) => ({
       id: row.id,
-      ...teamFields(row),
+      ...pickTeamFields(row),
       pokemon: row.pokemon,
       ...times(row),
     })),
@@ -409,7 +409,7 @@ async function importData(tx: Tx, ownerId: string, file: ReadDataExport): Promis
       chunk.map((t) => ({
         id: t.id,
         ownerId,
-        ...teamFields(t),
+        ...pickTeamFields(t),
         pokemon: t.pokemon,
         ...times(t),
       })),

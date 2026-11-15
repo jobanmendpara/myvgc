@@ -4,7 +4,7 @@ import {
   MAX_REPLICA_TEAM_ID_LENGTH,
   nameBuild,
   newTeamSchema,
-  teamFields,
+  pickTeamFields,
   teamSchema,
 } from '../src'
 
@@ -93,12 +93,12 @@ describe('teamSchema', () => {
   })
 })
 
-describe('teamFields', () => {
+describe('pickTeamFields', () => {
   const team = teamSchema.parse(whole)
 
   it("copies a Team's own fields from a record and leaves the rest, Pokémon builds included", () => {
     const record = { ...team, id: 'team-1', ownerId: 'user-1', createdAt: new Date() }
-    expect(teamFields(record)).toEqual({
+    expect(pickTeamFields(record)).toEqual({
       name: 'Sun',
       regulation: 'M-B',
       notes: '',
@@ -108,7 +108,7 @@ describe('teamFields', () => {
 
   it('covers every field of the whole Team but its Pokémon builds', () => {
     const fields = Object.keys(teamSchema.shape).filter((field) => field !== 'pokemon')
-    expect(Object.keys(teamFields(team)).sort()).toEqual(fields.sort())
+    expect(Object.keys(pickTeamFields(team)).sort()).toEqual(fields.sort())
     expect(Object.keys(BLANK_TEAM_FIELDS).sort()).toEqual(fields.sort())
   })
 })

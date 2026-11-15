@@ -8,7 +8,7 @@ import {
   type TeamBody,
   type TeamFields,
   type TeamView,
-  teamFields,
+  pickTeamFields,
   teamSchema,
 } from '@myvgc/core/schema'
 
@@ -66,7 +66,7 @@ function buildToDraft(build: NamedPokemonBuild): BuildDraft {
 /** The form for an existing Team, or a blank one. */
 export function teamToDraft(team?: TeamView): TeamDraft {
   return {
-    ...(team ? teamFields(team) : BLANK_TEAM_FIELDS),
+    ...(team ? pickTeamFields(team) : BLANK_TEAM_FIELDS),
     pokemon: team?.pokemon.map(buildToDraft) ?? [],
   }
 }
@@ -90,7 +90,7 @@ export function readTeamToDraft(read: ReadTeamView): TeamDraft {
 /** What to send for the form as it stands. A missing species stays empty for the schema to report. */
 export function draftToBody(draft: TeamDraft): TeamBody {
   return {
-    ...teamFields(draft),
+    ...pickTeamFields(draft),
     pokemon: draft.pokemon.map((build) => ({
       species: build.species ?? '',
       nickname: build.nickname.trim() || undefined,
