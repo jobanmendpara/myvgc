@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { MAX_REPLICA_TEAM_ID_LENGTH, nameBuild, newTeamSchema, teamSchema } from '../src'
+import {
+  BLANK_TEAM_FIELDS,
+  MAX_REPLICA_TEAM_ID_LENGTH,
+  nameBuild,
+  newTeamSchema,
+  teamFields,
+  teamSchema,
+} from '../src'
 
 describe('newTeamSchema', () => {
   it('defaults the Regulation to M-C, and the notes and Replica Team ID to empty', () => {
@@ -83,6 +90,26 @@ describe('teamSchema', () => {
   it.each(['name', 'regulation', 'notes', 'replicaTeamId', 'pokemon'])('needs %s', (field) => {
     const input = Object.fromEntries(Object.entries(whole).filter(([key]) => key !== field))
     expect(teamSchema.safeParse(input).error?.issues[0]?.path).toEqual([field])
+  })
+})
+
+describe('teamFields', () => {
+  const team = teamSchema.parse(whole)
+
+  it("copies a Team's own fields from a record and leaves the rest, Pokémon builds included", () => {
+    const record = { ...team, id: 'team-1', ownerId: 'user-1', createdAt: new Date() }
+    expect(teamFields(record)).toEqual({
+      name: 'Sun',
+      regulation: 'M-B',
+      notes: '',
+      replicaTeamId: '',
+    })
+  })
+
+  it('covers every field of the whole Team but its Pokémon builds', () => {
+    const fields = Object.keys(teamSchema.shape).filter((field) => field !== 'pokemon')
+    expect(Object.keys(teamFields(team)).sort()).toEqual(fields.sort())
+    expect(Object.keys(BLANK_TEAM_FIELDS).sort()).toEqual(fields.sort())
   })
 })
 

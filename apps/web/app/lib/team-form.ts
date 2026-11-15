@@ -1,13 +1,14 @@
 import {
-  DEFAULT_REGULATION,
+  BLANK_TEAM_FIELDS,
   type LegalityCheck,
   MAX_MOVES,
   type NamedPokemonBuild,
   type ReadTeamView,
-  type Regulation,
   type StatPoints,
   type TeamBody,
+  type TeamFields,
   type TeamView,
+  teamFields,
   teamSchema,
 } from '@myvgc/core/schema'
 
@@ -27,11 +28,7 @@ export interface BuildDraft {
   readFlags: string[]
 }
 
-export interface TeamDraft {
-  name: string
-  regulation: Regulation
-  notes: string
-  replicaTeamId: string
+export interface TeamDraft extends TeamFields {
   pokemon: BuildDraft[]
 }
 
@@ -69,10 +66,7 @@ function buildToDraft(build: NamedPokemonBuild): BuildDraft {
 /** The form for an existing Team, or a blank one. */
 export function teamToDraft(team?: TeamView): TeamDraft {
   return {
-    name: team?.name ?? '',
-    regulation: team?.regulation ?? DEFAULT_REGULATION,
-    notes: team?.notes ?? '',
-    replicaTeamId: team?.replicaTeamId ?? '',
+    ...(team ? teamFields(team) : BLANK_TEAM_FIELDS),
     pokemon: team?.pokemon.map(buildToDraft) ?? [],
   }
 }
@@ -96,10 +90,7 @@ export function readTeamToDraft(read: ReadTeamView): TeamDraft {
 /** What to send for the form as it stands. A missing species stays empty for the schema to report. */
 export function draftToBody(draft: TeamDraft): TeamBody {
   return {
-    name: draft.name,
-    regulation: draft.regulation,
-    notes: draft.notes,
-    replicaTeamId: draft.replicaTeamId,
+    ...teamFields(draft),
     pokemon: draft.pokemon.map((build) => ({
       species: build.species ?? '',
       nickname: build.nickname.trim() || undefined,

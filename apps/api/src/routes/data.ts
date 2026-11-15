@@ -12,6 +12,7 @@ import {
   readDataExport,
   recordLabel,
   settleImportedRound,
+  teamFields,
   today,
 } from '@myvgc/core'
 import { asc, eq, inArray, sql } from 'drizzle-orm'
@@ -101,10 +102,7 @@ export async function exportData(db: Database, ownerId: string): Promise<DataExp
     playerDetails: details,
     teams: teams.map((row) => ({
       id: row.id,
-      name: row.name,
-      regulation: row.regulation,
-      notes: row.notes,
-      replicaTeamId: row.replicaTeamId,
+      ...teamFields(row),
       pokemon: row.pokemon,
       ...times(row),
     })),
@@ -411,10 +409,7 @@ async function importData(tx: Tx, ownerId: string, file: ReadDataExport): Promis
       chunk.map((t) => ({
         id: t.id,
         ownerId,
-        name: t.name,
-        regulation: t.regulation,
-        notes: t.notes,
-        replicaTeamId: t.replicaTeamId,
+        ...teamFields(t),
         pokemon: t.pokemon,
         ...times(t),
       })),

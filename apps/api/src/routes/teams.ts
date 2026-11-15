@@ -10,6 +10,7 @@ import {
   newTeamSchema,
   readPaste,
   readTeamsheet,
+  teamFields,
   teamPokemonSchema,
   teamSchema,
   today,
@@ -29,10 +30,7 @@ type TeamRow = typeof team.$inferSelect
 function toView(row: TeamRow): TeamView {
   return {
     id: row.id,
-    name: row.name,
-    regulation: row.regulation,
-    notes: row.notes,
-    replicaTeamId: row.replicaTeamId,
+    ...teamFields(row),
     pokemon: row.pokemon.map(nameBuild),
     legality: judgeTeam(row.pokemon, row.regulation),
     createdAt: row.createdAt.toISOString(),
@@ -60,8 +58,8 @@ export function teamRoutes(db: Database) {
         const input = await readBody(c, newTeamSchema)
         if (!input.ok) return input.response
 
-        const { name, regulation, notes, replicaTeamId, paste, pokemon } = input.data
-        const owned = { ownerId: c.get('user').id, name, regulation, notes, replicaTeamId }
+        const { paste, pokemon } = input.data
+        const owned = { ownerId: c.get('user').id, ...teamFields(input.data) }
 
         if (pokemon) {
           const issues = checkPokemon(pokemon)

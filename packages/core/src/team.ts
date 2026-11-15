@@ -59,14 +59,37 @@ export const newTeamSchema = z
     path: ['paste'],
   })
 
-/** The whole Team, which replaces what is saved. Nothing is left to a default. */
-export const teamSchema = z.object({
+/**
+ * A Team's own fields: everything a User sets on it but its Pokémon builds. Each mapping (the
+ * API's view, the Data export and import, the Team builder's form) copies them with `teamFields`,
+ * so a new field is added here, to `newTeamSchema` and to `BLANK_TEAM_FIELDS`, and nowhere else.
+ */
+const teamFieldsSchema = z.object({
   name: teamName,
   regulation: z.enum(REGULATIONS),
   notes: teamNotes,
   replicaTeamId: replicaTeamIdSchema,
-  pokemon: teamPokemonSchema,
 })
+
+export type TeamFields = z.infer<typeof teamFieldsSchema>
+
+const TEAM_FIELDS = teamFieldsSchema.keyof().options
+
+/** A Team's own fields, copied from any record that has them, such as a database row or a form. */
+export function teamFields(source: TeamFields): TeamFields {
+  return Object.fromEntries(TEAM_FIELDS.map((field) => [field, source[field]])) as TeamFields
+}
+
+/** A new Team's fields before the User fills them in. */
+export const BLANK_TEAM_FIELDS: Readonly<TeamFields> = {
+  name: '',
+  regulation: DEFAULT_REGULATION,
+  notes: '',
+  replicaTeamId: '',
+}
+
+/** The whole Team, which replaces what is saved. Nothing is left to a default. */
+export const teamSchema = teamFieldsSchema.extend({ pokemon: teamPokemonSchema })
 
 export type TeamBody = z.infer<typeof teamSchema>
 export type NewTeam = z.input<typeof newTeamSchema>
