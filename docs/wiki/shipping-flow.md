@@ -24,7 +24,34 @@ On 2026-11-11 the user corrected how many agents to run: one per issue, not extr
 
 - On 2026-11-15 the chief-of-staff's retro on DEV-113 (subagent report) found that the DEV-113 implementer spent about 32 of its 40 minutes shipping PR #190: 4 clean rebases and 5 CI runs, because its brief said "if main moves under you, rebase and re-run CI". Merging at its first green would have ended the run at about 14 minutes. `main` has no branch protection, so GitHub never required the rebases. See the [2026-11-15 Refactor round](refactor-round-2026-11-15.md).
 - On 2026-11-15 the chief-of-staff decided the rule for briefs from then on. Once checks pass, run `git fetch` and compare `git diff --name-only <merge-base>..origin/main` with the PR's files. If nothing overlaps, merge without rebasing. If something overlaps, rebase, run that package's checks locally, re-run CI, then merge. `main`'s own CI after each merge is the backstop. This supersedes the "whichever PR merges second rebases onto main" line in [parallel agents](parallel-agents.md).
-- Branch protection and auto-merge on `main` were left for the user to decide (2026-11-15).
+- Branch protection and auto-merge on `main` were left for the user to decide (2026-11-15). (Superseded 2026-11-15: the user approved both, see below.)
 - The CI time behind each extra round is filed as DEV-146 (2026-11-15).
+
+## Branch protection and auto-merge (2026-11-15)
+
+- On 2026-11-15 the user approved branch protection with auto-merge on `main`, and a chief-of-staff subagent applied it with `gh api`. Settings before and after:
+
+  | Setting                     | Before                             | After                                                       |
+  | --------------------------- | ---------------------------------- | ----------------------------------------------------------- |
+  | Repo `allow_auto_merge`     | `false`                            | `true`                                                      |
+  | `main` protection           | none (404, "Branch not protected") | on                                                          |
+  | Required status checks      | none                               | `check` and `smoke / smoke`, both from GitHub Actions (app 15368) |
+  | `strict` (must be up to date) | n/a                              | `false`                                                     |
+  | `enforce_admins`            | n/a                                | `false`                                                     |
+  | Required reviews            | n/a                                | none                                                        |
+  | Push restrictions           | n/a                                | none                                                        |
+  | Force pushes, deletions     | allowed                            | blocked (GitHub's default for a protected branch)           |
+
+  The other repo settings were left as they were: merge, squash and rebase merges all allowed, `delete_branch_on_merge` off. No rulesets exist.
+- The check names come from the check runs on PR #202's head commit (`f6d4773`): `check` and `smoke / smoke`. On a push to `main` the smoke job reports as `smoke` and is skipped, because `ci.yml` runs it only on pull requests into `main`. That doesn't matter, since required checks only gate PRs.
+- From 2026-11-15 an agent ships a PR this way:
+  1. Open the PR (`gh pr create`).
+  2. Straight away, queue the merge: `gh pr merge <n> --auto --merge --delete-branch`. GitHub merges it with a merge commit as soon as both checks pass.
+  3. Never run a plain `gh pr merge <n>`. The user's token is an admin and `enforce_admins` is off, so a plain merge goes through at once and skips the checks. The admin bypass is the owner's escape hatch, not an agent's.
+  4. Run `scripts/wait-for-checks.sh <n>` in the foreground, again and again, until it exits 0 or 1.
+- This supersedes the 2026-11-12 brief "run `scripts/wait-for-checks.sh <n>` until it exits 0, then merge" above: the agent no longer merges.
+- Agents still wait. On 2026-11-15 the user's view was that they should wait until the PR shows `MERGED` or a check fails, so they can fix red CI and report the merge commit. Waiting is cheap now that `strict` is off and no rebase is forced. On 2026-11-15 the same PR changed `scripts/wait-for-checks.sh` to wait for that: once both checks pass and auto-merge is queued, it polls `gh pr view` every 5 seconds until the PR is `MERGED` and prints the merge commit; if the merge is still pending when its 150 seconds run out, it exits 2 like a pending check.
+- With `strict` off, GitHub never asks for a rebase, so the 2026-11-15 rebase rule above still stands, with one change of timing: auto-merge lands the PR as soon as the checks pass, so the agent compares its files with `origin/main` when it opens the PR, not after the checks. If files overlap, it rebases, runs that package's checks locally and pushes; a queued auto-merge then waits for the new head's checks. `main`'s own CI after each merge stays the backstop.
+- On 2026-11-15 this flow was first used on its own wiki PR, #PR_NUMBER.
 
 Related: [parallel agents](parallel-agents.md), [2026-11-12 Todo round](todo-round-2026-11-12.md), [2026-11-15 Refactor round](refactor-round-2026-11-15.md).
