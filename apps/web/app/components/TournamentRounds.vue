@@ -7,7 +7,7 @@ import {
   formatRecord,
   opponentTeamOf,
 } from '@myvgc/core/schema'
-import { roundLabel } from '@/lib/format'
+import { roundLabel, roundPath } from '@/lib/format'
 
 const props = defineProps<{ tournament: TournamentView }>()
 
@@ -64,7 +64,7 @@ const hasTopCut = computed(() => props.tournament.rounds.some((r) => r.phase ===
     <ol v-else class="flex flex-col divide-y rounded-lg border" data-testid="rounds">
       <li v-for="r in tournament.rounds" :key="r.id">
         <NuxtLink
-          :to="`/tournaments/${tournament.id}/rounds/${r.id}`"
+          :to="roundPath(tournament.id, r.id)"
           class="hover:bg-muted/50 focus-visible:ring-ring/50 flex items-start gap-3 p-3 outline-none focus-visible:ring-3"
           data-testid="round"
         >

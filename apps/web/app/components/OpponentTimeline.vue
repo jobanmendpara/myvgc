@@ -9,7 +9,7 @@ import {
 import { useMutation, useQueryClient } from '@tanstack/vue-query'
 import { createReusableTemplate } from '@vueuse/core'
 import { fieldErrorsOf, saveFailureMessage } from '@/lib/api'
-import { formatDates, roundLabel, roundOutcome } from '@/lib/format'
+import { formatDates, roundLabel, roundOutcome, roundPath } from '@/lib/format'
 
 // Everything known about an Opponent, newest first: their Note entries, and the notes from
 // every Round against them, dated by the Tournament's start date.
@@ -172,7 +172,7 @@ function confirmDelete(entry: NoteEntryView) {
             <p class="text-muted-foreground min-w-0 text-xs">
               {{ formatDates(item.date) }} ·
               <NuxtLink
-                :to="`/tournaments/${item.round.tournament.id}/rounds/${item.round.id}`"
+                :to="roundPath(item.round.tournament.id, item.round.id)"
                 class="break-words hover:underline"
                 >{{ item.round.tournament.name }}, {{ roundLabel(item.round) }}</NuxtLink
               >

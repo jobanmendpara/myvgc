@@ -7,6 +7,7 @@ import {
   percent,
   roundLabel,
   roundOutcome,
+  roundPath,
 } from '../app/lib/format'
 
 /** A Swiss Round won 1-0, with these fields changed. */
@@ -39,6 +40,10 @@ describe("A Round's place and result", () => {
   it('gives the result, with the Game score when there is one', () => {
     expect(roundOutcome(round({ result: 'loss' }))).toBe('Loss')
     expect(roundOutcome(round({ bestOf: 3, gameScore: { won: 2, lost: 1 } }))).toBe('Win 2-1')
+  })
+
+  it("links to the Round's page in its Tournament", () => {
+    expect(roundPath('tournament', 'round')).toBe('/tournaments/tournament/rounds/round')
   })
 })
 
