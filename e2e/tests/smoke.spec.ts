@@ -18,8 +18,8 @@ const SPECIES = ['Floette-Eternal', 'Basculegion', 'Kingambit', 'Dragonite', 'Ga
 // A fresh email per test and project, since the phone and desktop projects run side by side.
 const email = (prefix: string) => `${prefix}-${test.info().project.name}-${Date.now()}@example.com`
 
-// Creates an account from the sign-up page already on screen, and waits for the Dashboard.
-async function createAccount(page: Page, prefix: string) {
+// Fills in the sign-up form already on screen, and waits for the Dashboard.
+async function submitSignUp(page: Page, prefix: string) {
   await page.getByLabel('Email').fill(email(prefix))
   await page.getByLabel('Password').fill('smoke-test-password')
   await page.getByRole('button', { name: 'Create account' }).click()
@@ -27,21 +27,24 @@ async function createAccount(page: Page, prefix: string) {
   await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible()
 }
 
-// Signs up as a new user. The prefix keeps each test's email apart.
 async function signUp(page: Page, prefix: string) {
   await page.goto('/signup')
   await expect(page.getByRole('heading', { name: 'Create an account' })).toBeVisible()
-  await createAccount(page, prefix)
+  await submitSignUp(page, prefix)
 }
 
-// Creates a Tournament starting 2026-09-19 and waits for it to open.
-async function createTournament(page: Page, name: string) {
-  await page.goto('/tournaments/new')
+// Fills in the New Tournament form already on screen, and waits for the Tournament to open.
+async function submitNewTournament(page: Page, name: string) {
   await expect(page.getByRole('heading', { name: 'New Tournament' })).toBeVisible()
   await page.getByLabel('Name', { exact: true }).fill(name)
   await page.getByLabel('Start date').fill('2026-09-19')
   await page.getByRole('button', { name: 'Save Tournament' }).click()
   await expect(page.getByTestId('tournament-name')).toHaveText(name)
+}
+
+async function createTournament(page: Page, name: string) {
+  await page.goto('/tournaments/new')
+  await submitNewTournament(page, name)
 }
 
 test('sign up, import a Team and see its six Pokémon', async ({ page }) => {
@@ -54,7 +57,7 @@ test('sign up, import a Team and see its six Pokémon', async ({ page }) => {
   await page.getByRole('link', { name: 'Create an account' }).click()
   await expect(page).toHaveURL(/\/signup$/)
   await expect(page.getByRole('heading', { name: 'Create an account' })).toBeVisible()
-  await createAccount(page, 'smoke')
+  await submitSignUp(page, 'smoke')
 
   // With no ANTHROPIC_API_KEY, reading images is off and its upload is hidden (ADR 24).
   const reading = page.waitForResponse((res) => res.url().endsWith('/api/teams/read'))
@@ -199,11 +202,7 @@ test('log a Tournament and a Round against a new Opponent', async ({ page }) => 
   await page.getByRole('link', { name: 'Tournaments' }).click()
   await expect(page.getByRole('heading', { name: 'Your Tournaments' })).toBeVisible()
   await page.getByRole('link', { name: 'Log your first Tournament' }).click()
-  await expect(page.getByRole('heading', { name: 'New Tournament' })).toBeVisible()
-  await page.getByLabel('Name', { exact: true }).fill('Smoke test Regional')
-  await page.getByLabel('Start date').fill('2026-09-19')
-  await page.getByRole('button', { name: 'Save Tournament' }).click()
-  await expect(page.getByTestId('tournament-name')).toHaveText('Smoke test Regional')
+  await submitNewTournament(page, 'Smoke test Regional')
 
   // On wide screens the list stays beside the open Tournament, with its row selected.
   const wide = test.info().project.name === 'desktop'
