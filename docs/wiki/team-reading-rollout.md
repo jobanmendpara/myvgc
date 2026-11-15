@@ -36,6 +36,15 @@ DEV-38, "Read uploaded PDFs and replica-team screenshots into Teams". The sub-is
 - All four were built later on 2026-11-12: DEV-67 in PR #147 (`jobanmendpara/myvgc@95a6d7e`), DEV-71 in PR #148 (`jobanmendpara/myvgc@9169d19`), and DEV-60 and DEV-61 as in [statistics rollout](statistics-rollout.md). See the [2026-11-12 Todo round](todo-round-2026-11-12.md).
 - On 2026-11-11 the implementers for DEV-64, 65 and 66 ran at once and hit the session limit. See [parallel agents](parallel-agents.md).
 
+## Map for real screenshots (DEV-118)
+
+- On 2026-11-13 DEV-118 was charted as a map: build issues plus ADR 24 amendments so image reading works on real Pokémon Champions screenshots. DEV-102's baseline (resolution comment on DEV-102) found the reader read every field it was asked for correctly but lost Stat Alignments, held items and the Replica Team ID without a flag. On 2026-11-13 DEV-125 made Haiku 5.5 the default model.
+- On 2026-11-14 and 2026-11-15 the user and the chief-of-staff grilled the map's six questions in this session: DEV-120 (what the reader returns), DEV-121 (Stat Alignment from arrows), DEV-124 (nicknames and species), DEV-122 (image count and shrinking), DEV-123 (the accuracy check) and DEV-126 (flags). Each one's decisions are in its "Resolution" comment, and the map's "Decisions so far" summarises them. The user accepted every recommended answer. On 2026-11-15 DEV-126 changed one of the map's standing notes: the Team's name is left blank with no flag, since no supported screen shows a Battle Team name.
+- On 2026-11-15 two issues were filed from the grillings: DEV-128 (the user captures a second fixture Team covering a Rotom form, a neutral Stat Alignment and a female gender form) and the sample requests on DEV-123.
+- On 2026-11-15 the ADR 24 amendment for DEV-118 was drafted, before any of it was built. Still open on the map that day: the phone flow, and splitting the build into issues.
+- Facts found during the grillings, from the samples in `~/Downloads/temp-vgc-screenshots`: the Replica Team's Stats tab shows stat values and Stat Points with tiny ▲/▼ icons, and has no Battle Team name. A detail screen shows the nickname by the Poké Ball and the species after "No.". The Champions data has three gender forms (Meowstic, Indeedee and Basculegion).
+- As of `jobanmendpara/myvgc@e289510`, the web app's `readTeamToDraft` drops any flag whose path isn't a Pokémon. DEV-126 decided Team-level flags get shown.
+
 ## Gotchas
 
 - Found 2026-11-11 during the DEV-38 work: a comment placed between chained Hono calls makes Prettier re-indent the whole chain, so `pnpm format:check` fails. Put the comment above the chain.
