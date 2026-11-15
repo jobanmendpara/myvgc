@@ -8,6 +8,7 @@ The chief-of-staff's record of decisions, recurring problems and preferences. It
 - [Team reading rollout](team-reading-rollout.md): DEV-38 (closed 2026-11-12) and DEV-62 to DEV-66, reading Teamsheets and images into Teams; DEV-102 checks image reading against the real model; the DEV-118 map for real screenshots (grilled 2026-11-14 to 15).
 - [Statistics rollout](statistics-rollout.md): DEV-56, DEV-60 and DEV-61, the Statistics page and its Opponent's side, and the follow-ups DEV-113 to DEV-116.
 - [Todo round, 2026-11-12](todo-round-2026-11-12.md): DEV-67, DEV-71, DEV-60 and DEV-61, how they ran, and the follow-ups DEV-105 to DEV-116.
+- [Refactor round, 2026-11-15](refactor-round-2026-11-15.md): DEV-127, DEV-116, DEV-109, DEV-110 and DEV-113, five implementers at once, and the follow-ups DEV-139 to DEV-144.
 
 ## Preferences
 

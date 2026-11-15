@@ -51,4 +51,14 @@ See the [2026-11-12 Todo round](todo-round-2026-11-12.md) for how the round ran.
 - On 2026-11-12 the briefs reminded implementers that seed data must use species that are in Pokémon Champions. Amoonguss isn't.
 - On 2026-11-12 the chief-of-staff set up a daily scheduled check, a cron that lasts only as long as its session. It removes the worktrees of finished agents and lints the wiki.
 
+## Environment on 2026-11-15 (DEV-127, DEV-116, DEV-109, DEV-110, DEV-113)
+
+See the [2026-11-15 Refactor round](refactor-round-2026-11-15.md) for how the round ran.
+
+- On 2026-11-15 five Opus implementers ran at once, one per worktree, and none hit the session limit (HTTP 429). This is the most run at once so far; the 2026-11-11 stop above came with three.
+- On 2026-11-15 every implementer merged its own PR with `gh pr merge`, and none was refused. The same day auto mode refused the chief-of-staff's own merge of wiki PR #177, so merge rights can differ between the chief-of-staff and its agents on the same day.
+- On 2026-11-15 the DEV-110 agent's full `pnpm test` run went past the 180-second foreground limit, and the harness moved it to the background, while five agents loaded the machine. Filed as DEV-144 that day: a bounded way to run the full suite, like `scripts/wait-for-checks.sh` (see [shipping flow](shipping-flow.md)).
+- On 2026-11-15 the worktree guard refused the DEV-116 agent's compound command that fed a `python3` heredoc. This adds to the heredoc and compound-command refusals of 2026-11-11 and 2026-11-12 above.
+- On 2026-11-15 each `worktree-agent-*` placeholder branch needed `git branch -D` to delete, because local `main` lagged `origin/main` and `git branch -d` judged them unmerged. The chief-of-staff first checked that each was an ancestor of `origin/main`. This adds to the `gh pr merge --delete-branch` line above: before force-deleting a leftover branch, check it against `origin/main`, not local `main`.
+
 Related: [shipping flow](shipping-flow.md), [list and detail rollout](list-detail-rollout.md), [team reading rollout](team-reading-rollout.md).
