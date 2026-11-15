@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
+import type { Page } from '@playwright/test'
 import { expect, test } from './client'
 
 // The 2026 World Championships winner's open team list, a real paste also used by the
@@ -17,6 +18,35 @@ const SPECIES = ['Floette-Eternal', 'Basculegion', 'Kingambit', 'Dragonite', 'Ga
 // A fresh email per test and project, since the phone and desktop projects run side by side.
 const email = (prefix: string) => `${prefix}-${test.info().project.name}-${Date.now()}@example.com`
 
+// Fills in the sign-up form already on screen, and waits for the Dashboard.
+async function submitSignUp(page: Page, prefix: string) {
+  await page.getByLabel('Email').fill(email(prefix))
+  await page.getByLabel('Password').fill('smoke-test-password')
+  await page.getByRole('button', { name: 'Create account' }).click()
+  await expect(page).toHaveURL(/\/dashboard$/)
+  await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible()
+}
+
+async function signUp(page: Page, prefix: string) {
+  await page.goto('/signup')
+  await expect(page.getByRole('heading', { name: 'Create an account' })).toBeVisible()
+  await submitSignUp(page, prefix)
+}
+
+// Fills in the New Tournament form already on screen, and waits for the Tournament to open.
+async function submitNewTournament(page: Page, name: string) {
+  await expect(page.getByRole('heading', { name: 'New Tournament' })).toBeVisible()
+  await page.getByLabel('Name', { exact: true }).fill(name)
+  await page.getByLabel('Start date').fill('2026-09-19')
+  await page.getByRole('button', { name: 'Save Tournament' }).click()
+  await expect(page.getByTestId('tournament-name')).toHaveText(name)
+}
+
+async function createTournament(page: Page, name: string) {
+  await page.goto('/tournaments/new')
+  await submitNewTournament(page, name)
+}
+
 test('sign up, import a Team and see its six Pokémon', async ({ page }) => {
   // Each step waits for its page's heading before using the form: the route guard checks the
   // session before every page change, so the previous page can still be on screen.
@@ -27,11 +57,7 @@ test('sign up, import a Team and see its six Pokémon', async ({ page }) => {
   await page.getByRole('link', { name: 'Create an account' }).click()
   await expect(page).toHaveURL(/\/signup$/)
   await expect(page.getByRole('heading', { name: 'Create an account' })).toBeVisible()
-  await page.getByLabel('Email').fill(email('smoke'))
-  await page.getByLabel('Password').fill('smoke-test-password')
-  await page.getByRole('button', { name: 'Create account' }).click()
-  await expect(page).toHaveURL(/\/dashboard$/)
-  await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible()
+  await submitSignUp(page, 'smoke')
 
   // With no ANTHROPIC_API_KEY, reading images is off and its upload is hidden (ADR 24).
   const reading = page.waitForResponse((res) => res.url().endsWith('/api/teams/read'))
@@ -82,12 +108,7 @@ test('sign up, import a Team and see its six Pokémon', async ({ page }) => {
 })
 
 test('build a one-Pokémon Team, then edit a move', async ({ page }) => {
-  await page.goto('/signup')
-  await expect(page.getByRole('heading', { name: 'Create an account' })).toBeVisible()
-  await page.getByLabel('Email').fill(email('smoke-build'))
-  await page.getByLabel('Password').fill('smoke-test-password')
-  await page.getByRole('button', { name: 'Create account' }).click()
-  await expect(page).toHaveURL(/\/dashboard$/)
+  await signUp(page, 'smoke-build')
 
   // Cancel goes back to the New Team chooser, or on wide screens to the empty pane.
   const wide = test.info().project.name === 'desktop'
@@ -176,21 +197,12 @@ test('build a one-Pokémon Team, then edit a move', async ({ page }) => {
 })
 
 test('log a Tournament and a Round against a new Opponent', async ({ page }) => {
-  await page.goto('/signup')
-  await expect(page.getByRole('heading', { name: 'Create an account' })).toBeVisible()
-  await page.getByLabel('Email').fill(email('smoke-round'))
-  await page.getByLabel('Password').fill('smoke-test-password')
-  await page.getByRole('button', { name: 'Create account' }).click()
-  await expect(page).toHaveURL(/\/dashboard$/)
+  await signUp(page, 'smoke-round')
 
   await page.getByRole('link', { name: 'Tournaments' }).click()
   await expect(page.getByRole('heading', { name: 'Your Tournaments' })).toBeVisible()
   await page.getByRole('link', { name: 'Log your first Tournament' }).click()
-  await expect(page.getByRole('heading', { name: 'New Tournament' })).toBeVisible()
-  await page.getByLabel('Name', { exact: true }).fill('Smoke test Regional')
-  await page.getByLabel('Start date').fill('2026-09-19')
-  await page.getByRole('button', { name: 'Save Tournament' }).click()
-  await expect(page.getByTestId('tournament-name')).toHaveText('Smoke test Regional')
+  await submitNewTournament(page, 'Smoke test Regional')
 
   // On wide screens the list stays beside the open Tournament, with its row selected.
   const wide = test.info().project.name === 'desktop'
@@ -324,19 +336,8 @@ test('log a Tournament and a Round against a new Opponent', async ({ page }) => 
 })
 
 test('see a Statistic, and the Rounds and Games behind it', async ({ page }) => {
-  await page.goto('/signup')
-  await expect(page.getByRole('heading', { name: 'Create an account' })).toBeVisible()
-  await page.getByLabel('Email').fill(email('smoke-statistics'))
-  await page.getByLabel('Password').fill('smoke-test-password')
-  await page.getByRole('button', { name: 'Create account' }).click()
-  await expect(page).toHaveURL(/\/dashboard$/)
-
-  await page.goto('/tournaments/new')
-  await expect(page.getByRole('heading', { name: 'New Tournament' })).toBeVisible()
-  await page.getByLabel('Name', { exact: true }).fill('Statistics Regional')
-  await page.getByLabel('Start date').fill('2026-09-19')
-  await page.getByRole('button', { name: 'Save Tournament' }).click()
-  await expect(page.getByTestId('tournament-name')).toHaveText('Statistics Regional')
+  await signUp(page, 'smoke-statistics')
+  await createTournament(page, 'Statistics Regional')
 
   // A best-of-3 Round won 2-1, the Opponent Bringing Incineroar every Game. Picked for their side
   // in Game 1, it joins their Team (ADR 22) and is offered in the next Games.
@@ -405,19 +406,8 @@ test('see a Statistic, and the Rounds and Games behind it', async ({ page }) => 
 })
 
 test('upload a Teamsheet PDF to a Tournament, then read it into a Team', async ({ page }) => {
-  await page.goto('/signup')
-  await expect(page.getByRole('heading', { name: 'Create an account' })).toBeVisible()
-  await page.getByLabel('Email').fill(email('smoke-teamsheet'))
-  await page.getByLabel('Password').fill('smoke-test-password')
-  await page.getByRole('button', { name: 'Create account' }).click()
-  await expect(page).toHaveURL(/\/dashboard$/)
-
-  await page.goto('/tournaments/new')
-  await expect(page.getByRole('heading', { name: 'New Tournament' })).toBeVisible()
-  await page.getByLabel('Name', { exact: true }).fill('Teamsheet Regional')
-  await page.getByLabel('Start date').fill('2026-09-19')
-  await page.getByRole('button', { name: 'Save Tournament' }).click()
-  await expect(page.getByTestId('tournament-name')).toHaveText('Teamsheet Regional')
+  await signUp(page, 'smoke-teamsheet')
+  await createTournament(page, 'Teamsheet Regional')
 
   // The attachment is stored on the server (ADR 27); reading it doesn't send the file again.
   await page
@@ -444,12 +434,7 @@ test('upload a Teamsheet PDF to a Tournament, then read it into a Team', async (
 test('the chosen List style survives a reload, and needs a connection to change', async ({
   page,
 }) => {
-  await page.goto('/signup')
-  await expect(page.getByRole('heading', { name: 'Create an account' })).toBeVisible()
-  await page.getByLabel('Email').fill(email('smoke-list-style'))
-  await page.getByLabel('Password').fill('smoke-test-password')
-  await page.getByRole('button', { name: 'Create account' }).click()
-  await expect(page).toHaveURL(/\/dashboard$/)
+  await signUp(page, 'smoke-list-style')
 
   await page.goto('/opponents')
   await page.getByRole('button', { name: 'Add Opponent' }).click()
