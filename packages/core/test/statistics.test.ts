@@ -88,7 +88,7 @@ describe('statistics: Brought Pokémon', () => {
         }),
       ]),
     ])
-    expect(stats.brought.rows).toMatchObject([
+    expect(stats.user.brought.rows).toMatchObject([
       { species: 'incineroar', played: 3, wins: 2, losses: 1, ties: 0, winRate: 2 / 3 },
       { species: 'rillaboom', played: 3, wins: 2, losses: 1, ties: 0, winRate: 2 / 3 },
       { species: 'amoonguss', played: 2, wins: 1, losses: 1, ties: 0, winRate: 0.5 },
@@ -111,10 +111,10 @@ describe('statistics: Brought Pokémon', () => {
         bye(),
       ]),
     ])
-    expect(stats.brought.rows).toMatchObject([
+    expect(stats.user.brought.rows).toMatchObject([
       { species: 'incineroar', played: 1, wins: 1, losses: 0, ties: 0, winRate: 1 },
     ])
-    expect(stats.brought.coverage).toEqual({ counted: 1, of: 4, noResult: 1, noBrought: 2 })
+    expect(stats.user.brought.coverage).toEqual({ counted: 1, of: 4, noResult: 1, noBrought: 2 })
   })
 })
 
@@ -133,7 +133,7 @@ describe('statistics: Leads', () => {
         }),
       ]),
     ])
-    expect(stats.leadPairs.rows).toMatchObject([
+    expect(stats.user.leadPairs.rows).toMatchObject([
       {
         species: ['amoonguss', 'incineroar'],
         played: 2,
@@ -159,13 +159,13 @@ describe('statistics: Leads', () => {
         round('loss', { games: [game(1, null, bring, ['incineroar', 'amoonguss'])] }),
       ]),
     ])
-    expect(stats.leads.rows).toMatchObject([
+    expect(stats.user.leads.rows).toMatchObject([
       { species: 'incineroar', played: 2, wins: 1, losses: 0, ties: 1, winRate: 0.5 },
       { species: 'amoonguss', played: 1, wins: 1, losses: 0, ties: 0, winRate: 1 },
     ])
-    expect(stats.leads.coverage).toEqual({ counted: 2, of: 4, noResult: 1, noLeads: 1 })
-    expect(stats.leadPairs.rows.map((row) => row.played)).toEqual([1])
-    expect(stats.leadPairs.coverage).toEqual({
+    expect(stats.user.leads.coverage).toEqual({ counted: 2, of: 4, noResult: 1, noLeads: 1 })
+    expect(stats.user.leadPairs.rows.map((row) => row.played)).toEqual([1])
+    expect(stats.user.leadPairs.coverage).toEqual({
       counted: 1,
       of: 4,
       noResult: 1,
@@ -196,12 +196,12 @@ describe('statistics: the Opponent’s side of Games', () => {
         }),
       ]),
     ])
-    expect(stats.opponentBrought.rows.slice(0, 2)).toMatchObject([
+    expect(stats.opponent.brought.rows.slice(0, 2)).toMatchObject([
       { species: 'garchomp', played: 3, wins: 1, losses: 1, ties: 1, winRate: 1 / 3 },
       { species: 'kingambit', played: 2, wins: 0, losses: 1, ties: 1, winRate: 0 },
     ])
     // The User's side is counted on its own.
-    expect(stats.brought.rows.map((row) => row.played)).toEqual([3, 3, 3, 3])
+    expect(stats.user.brought.rows.map((row) => row.played)).toEqual([3, 3, 3, 3])
   })
 
   it('counts the Opponent’s Lead pairs in either order, and their single Leads', () => {
@@ -217,17 +217,17 @@ describe('statistics: the Opponent’s side of Games', () => {
         }),
       ]),
     ])
-    expect(stats.opponentLeadPairs.rows).toMatchObject([
+    expect(stats.opponent.leadPairs.rows).toMatchObject([
       { species: ['garchomp', 'sneasler'], played: 2, wins: 1, losses: 1, winRate: 0.5 },
     ])
-    expect(stats.opponentLeadPairs.coverage).toEqual({
+    expect(stats.opponent.leadPairs.coverage).toEqual({
       counted: 2,
       of: 3,
       noResult: 0,
       noLeads: 0,
       oneLead: 1,
     })
-    expect(stats.opponentLeads.rows).toMatchObject([
+    expect(stats.opponent.leads.rows).toMatchObject([
       { species: 'garchomp', played: 2, wins: 1, losses: 1 },
       { species: 'sneasler', played: 2, wins: 1, losses: 1 },
       { species: 'kingambit', played: 1, wins: 1, losses: 0 },
@@ -247,13 +247,13 @@ describe('statistics: the Opponent’s side of Games', () => {
         bye(),
       ]),
     ])
-    expect(stats.opponentBrought.coverage).toEqual({
+    expect(stats.opponent.brought.coverage).toEqual({
       counted: 1,
       of: 3,
       noResult: 1,
       noBrought: 1,
     })
-    expect(stats.opponentLeads.coverage).toEqual({ counted: 1, of: 3, noResult: 1, noLeads: 1 })
+    expect(stats.opponent.leads.coverage).toEqual({ counted: 1, of: 3, noResult: 1, noLeads: 1 })
   })
 })
 
@@ -397,12 +397,12 @@ describe('statistics: the Rounds and Games behind a row', () => {
       { round: 'r1', game: 1 },
       { round: 'r1', game: 2 },
     ]
-    expect(stats.leadPairs.rows[0]?.counted).toEqual(games)
-    expect(stats.leads.rows.find((r) => r.species === 'incineroar')?.counted).toEqual([
+    expect(stats.user.leadPairs.rows[0]?.counted).toEqual(games)
+    expect(stats.user.leads.rows.find((r) => r.species === 'incineroar')?.counted).toEqual([
       ...games,
       { round: 'r2', game: 1 },
     ])
-    expect(stats.brought.rows.find((r) => r.species === 'kingambit')?.counted).toEqual(games)
+    expect(stats.user.brought.rows.find((r) => r.species === 'kingambit')?.counted).toEqual(games)
     expect(Object.keys(stats.rounds)).toEqual(['r1', 'r2'])
   })
 })
