@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
-# Waits up to 150 seconds for a PR's `check` and `smoke / smoke` to finish.
+# Waits up to 150 seconds for a PR's `check` and `smoke / smoke` to finish and, when auto-merge is
+# queued (`gh pr merge <n> --auto --merge --delete-branch`), for GitHub to merge it.
 #
 #   scripts/wait-for-checks.sh <pr number>
 #
-# Exits 0 when both pass, 1 when one fails (or is cancelled or skipped), and 2 when one is still
-# pending after the wait: call it again. Any other exit code is an error, such as a bad PR number.
+# Exits 0 when both pass and the PR is merged (it prints the merge commit), or when both pass and
+# no auto-merge is queued; 1 when one fails (or is cancelled or skipped); and 2 when a check or the
+# queued merge is still pending after the wait: call it again. Any other exit code is an error,
+# such as a bad PR number.
 #
 # Agents run it in the foreground, again and again, until it exits 0 or 1. A Monitor or a
 # background `gh pr checks --watch` lets the agent's turn end, which the harness takes as its
@@ -69,11 +72,33 @@ while true; do
   fi
   if ! grep -q '^pending' <<<"$states"; then
     echo "Both checks passed on PR #$pr."
-    exit 0
+    break
   fi
   if ((SECONDS - start + interval > timeout)); then
     echo "Still pending on PR #$pr after $((SECONDS - start))s. Run this script again."
     exit 2
   fi
   sleep "$interval"
+done
+
+# With branch protection on main (2026-11-15), a queued auto-merge lands a few seconds after the
+# checks pass. Poll for it more often than for the checks.
+merge_interval=5
+while true; do
+  view=$(gh pr view "$pr" --json state,autoMergeRequest,mergeCommit \
+    --jq '[.state, (.autoMergeRequest != null), (.mergeCommit.oid // "")] | @tsv')
+  IFS=$'\t' read -r state queued commit <<<"$view"
+  if [[ $state == MERGED ]]; then
+    echo "PR #$pr merged as $commit."
+    exit 0
+  fi
+  if [[ $state != OPEN || $queued != true ]]; then
+    echo "PR #$pr is $state with no auto-merge queued."
+    exit 0
+  fi
+  if ((SECONDS - start + merge_interval > timeout)); then
+    echo "Auto-merge still pending on PR #$pr after $((SECONDS - start))s. Run this script again."
+    exit 2
+  fi
+  sleep "$merge_interval"
 done

@@ -12,7 +12,7 @@ The chief-of-staff's record of decisions, recurring problems and preferences. It
 
 ## Preferences
 
-- [Shipping flow](shipping-flow.md): how the user wants agent work committed, reviewed and merged.
+- [Shipping flow](shipping-flow.md): how the user wants agent work committed, reviewed and merged, and from 2026-11-15 branch protection with auto-merge on `main`.
 
 ## Recurring problems
 
