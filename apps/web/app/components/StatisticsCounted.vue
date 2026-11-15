@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { Counted, CountedRound } from '@myvgc/core/schema'
-import { countedListing, roundLabel } from '@/lib/format'
+import { countedListing, roundLabel, roundPath } from '@/lib/format'
 
 // The Rounds or Games behind a Statistics row, each linking to its Round. A Round shows its
 // Opponent and Round result; a Game shows its number and Game result, and on a bring-rate row
@@ -18,7 +18,7 @@ const items = computed(() => countedListing(props.counted, props.rounds))
   <ol class="flex flex-col divide-y">
     <li v-for="item in items" :key="item.key">
       <NuxtLink
-        :to="`/tournaments/${item.round.tournament.id}/rounds/${item.round.id}`"
+        :to="roundPath(item.round.tournament.id, item.round.id)"
         class="hover:bg-muted/50 focus-visible:ring-ring/50 flex items-start justify-between gap-3 rounded px-2 py-1.5 outline-none focus-visible:ring-3"
       >
         <span class="flex min-w-0 flex-col">
