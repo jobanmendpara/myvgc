@@ -41,18 +41,51 @@ const replicaTeamIdSchema = z
       .regex(/^[A-Z0-9]*$/, 'A Replica Team ID has only letters and digits, such as 9TCG84KWXK.'),
   )
 
+/**
+ * A Team's own fields: everything a User sets on it but its Pokémon builds. The API's view, Team
+ * creation, the Data export and import, and the Team builder's form copy them with
+ * `pickTeamFields`, so none of those list them. A new field still needs its blank value in
+ * `BLANK_TEAM_FIELDS` (and a default in `newTeamSchema` if it can be left out), a database column,
+ * a new Data export version with an upgrade step (ADR 23), and its inputs in the web app.
+ */
+const teamFieldsSchema = z.object({
+  name: teamName,
+  regulation: z.enum(REGULATIONS),
+  notes: teamNotes,
+  replicaTeamId: replicaTeamIdSchema,
+})
+
+export type TeamFields = z.infer<typeof teamFieldsSchema>
+
+const TEAM_FIELDS = teamFieldsSchema.keyof().options
+
+/** Copies a Team's own fields from any record that has them, such as a database row or a form. */
+export function pickTeamFields(source: TeamFields): TeamFields {
+  return Object.fromEntries(TEAM_FIELDS.map((field) => [field, source[field]])) as TeamFields
+}
+
+/** A new Team's fields before the User fills them in. */
+export const BLANK_TEAM_FIELDS: Readonly<TeamFields> = {
+  name: '',
+  regulation: DEFAULT_REGULATION,
+  notes: '',
+  replicaTeamId: '',
+}
+
+const { shape } = teamFieldsSchema
+
 /** What a User sends to create a Team: from a paste, or from the Team builder's Pokémon builds. */
-export const newTeamSchema = z
-  .object({
-    name: teamName,
-    regulation: z.enum(REGULATIONS).default(DEFAULT_REGULATION),
+export const newTeamSchema = teamFieldsSchema
+  .extend({
+    // Every field but the name can be left out, and starts blank.
+    regulation: shape.regulation.default(BLANK_TEAM_FIELDS.regulation),
+    notes: shape.notes.default(BLANK_TEAM_FIELDS.notes),
+    replicaTeamId: shape.replicaTeamId.default(BLANK_TEAM_FIELDS.replicaTeamId),
     paste: z
       .string()
       .max(MAX_PASTE_LENGTH, `Pastes can be at most ${MAX_PASTE_LENGTH} characters.`)
       .optional(),
     pokemon: teamPokemonSchema.optional(),
-    notes: teamNotes.default(''),
-    replicaTeamId: replicaTeamIdSchema.default(''),
   })
   .refine((team) => (team.paste === undefined) !== (team.pokemon === undefined), {
     message: 'Send either a paste or Pokémon builds.',
@@ -60,13 +93,7 @@ export const newTeamSchema = z
   })
 
 /** The whole Team, which replaces what is saved. Nothing is left to a default. */
-export const teamSchema = z.object({
-  name: teamName,
-  regulation: z.enum(REGULATIONS),
-  notes: teamNotes,
-  replicaTeamId: replicaTeamIdSchema,
-  pokemon: teamPokemonSchema,
-})
+export const teamSchema = teamFieldsSchema.extend({ pokemon: teamPokemonSchema })
 
 export type TeamBody = z.infer<typeof teamSchema>
 export type NewTeam = z.input<typeof newTeamSchema>
@@ -137,13 +164,8 @@ export interface PokemonBuildNames {
 export type NamedPokemonBuild = PokemonBuild & { names: PokemonBuildNames }
 
 /** A Team as the API returns it. */
-export interface TeamView {
+export interface TeamView extends TeamFields {
   id: string
-  name: string
-  regulation: Regulation
-  notes: string
-  /** Empty when the Team has none. */
-  replicaTeamId: string
   pokemon: NamedPokemonBuild[]
   /** Judged against its own Regulation. */
   legality: Legality
