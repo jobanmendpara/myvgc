@@ -94,23 +94,25 @@ type LeadReason = 'noResult' | 'noLeads'
 type BroughtReason = 'noResult' | 'noBrought'
 type BringRateReason = 'noResult' | 'noOpponentTeam' | 'noBrought'
 
+/** The tables counted once for each side of the Games: the User's and the Opponent's. */
+export interface SideStatistics {
+  /** Per Lead pair, counting Games. Each pair is in alphabetical order. */
+  leadPairs: StatisticsTable<[string, string], LeadPairReason>
+  /** Per species that was one of the side's Leads, counting Games. */
+  leads: StatisticsTable<string, LeadReason>
+  /** Per species the side Brought, counting Games. */
+  brought: StatisticsTable<string, BroughtReason>
+}
+
 export interface Statistics {
   /** Per species on an Opponent's Team, counting Rounds. */
   speciesFaced: StatisticsTable<string, FacedReason>
-  /** Per Lead pair of the User's, counting Games. Each pair is in alphabetical order. */
-  leadPairs: StatisticsTable<[string, string], LeadPairReason>
-  /** Per species that was one of the User's Leads, counting Games. */
-  leads: StatisticsTable<string, LeadReason>
-  /** Per species the User Brought, counting Games. */
-  brought: StatisticsTable<string, BroughtReason>
-  /** Per Lead pair of the Opponent's, counting Games. Each pair is in alphabetical order. */
-  opponentLeadPairs: StatisticsTable<[string, string], LeadPairReason>
-  /** Per species that was one of the Opponent's Leads, counting Games. */
-  opponentLeads: StatisticsTable<string, LeadReason>
-  /** Per species the Opponent Brought, counting Games. */
-  opponentBrought: StatisticsTable<string, BroughtReason>
   /** Per species on an Opponent's Team, how often it was Brought, counting Games. */
   bringRates: { rows: BringRateRow[]; coverage: Coverage<BringRateReason> }
+  /** The User's side of the Games. */
+  user: SideStatistics
+  /** The Opponent's side of the Games, counted the same way. */
+  opponent: SideStatistics
   /** Every Round the tables could count (all but Byes), by id, to list what a row counts. */
   rounds: Record<string, CountedRound>
 }
@@ -235,6 +237,14 @@ class Side {
     if (brought.length) this.brought.count(brought, result, counted)
     else this.brought.leaveOut('noBrought')
   }
+
+  read(): SideStatistics {
+    return {
+      leadPairs: this.leadPairs.read(),
+      leads: this.leads.read(),
+      brought: this.brought.read(),
+    }
+  }
 }
 
 /**
@@ -292,13 +302,9 @@ export function statistics(tournaments: StatisticsTournament[]): Statistics {
 
   return {
     speciesFaced: faced.read(),
-    leadPairs: mine.leadPairs.read(),
-    leads: mine.leads.read(),
-    brought: mine.brought.read(),
-    opponentLeadPairs: theirs.leadPairs.read(),
-    opponentLeads: theirs.leads.read(),
-    opponentBrought: theirs.brought.read(),
     bringRates: bringRates.read(),
+    user: mine.read(),
+    opponent: theirs.read(),
     rounds,
   }
 }

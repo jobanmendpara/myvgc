@@ -59,10 +59,10 @@ describe('GET /api/statistics', () => {
       ],
       coverage: { counted: 1, of: 2, noOpponentTeam: 1 },
     })
-    expect(body.statistics.leads.rows).toMatchObject([
+    expect(body.statistics.user.leads.rows).toMatchObject([
       { species: 'incineroar', played: 1, wins: 1, losses: 0, ties: 0, winRate: 1 },
     ])
-    expect(body.statistics.brought.coverage).toEqual({
+    expect(body.statistics.user.brought.coverage).toEqual({
       counted: 1,
       of: 1,
       noResult: 0,
@@ -97,14 +97,14 @@ describe('GET /api/statistics', () => {
     )
 
     const { statistics: stats } = await statistics('?regulation=M-C')
-    expect(stats.opponentBrought.rows).toMatchObject([
+    expect(stats.opponent.brought.rows).toMatchObject([
       { species: 'rillaboom', played: 2, wins: 1, losses: 1, ties: 0, winRate: 0.5 },
       { species: 'kingambit', played: 1, wins: 1, losses: 0, ties: 0, winRate: 1 },
     ])
-    expect(stats.opponentLeadPairs.rows).toMatchObject([
+    expect(stats.opponent.leadPairs.rows).toMatchObject([
       { species: ['kingambit', 'rillaboom'], played: 1, wins: 1 },
     ])
-    expect(stats.opponentLeads.coverage).toEqual({ counted: 2, of: 2, noResult: 0, noLeads: 0 })
+    expect(stats.opponent.leads.coverage).toEqual({ counted: 2, of: 2, noResult: 0, noLeads: 0 })
     expect(stats.bringRates).toEqual({
       rows: [
         {
@@ -159,7 +159,7 @@ describe('GET /api/statistics', () => {
       { round: aaron.round.id },
       { round: wolfe.round.id },
     ])
-    expect(stats.brought.rows[0].counted).toEqual([{ round: aaron.round.id, game: 1 }])
+    expect(stats.user.brought.rows[0].counted).toEqual([{ round: aaron.round.id, game: 1 }])
     expect(Object.keys(stats.rounds)).toHaveLength(2)
     expect(stats.rounds[wolfe.round.id]).toEqual({
       id: wolfe.round.id,
