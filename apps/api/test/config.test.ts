@@ -30,16 +30,10 @@ describe('loadConfig', () => {
       S3_SECRET_ACCESS_KEY: '',
       S3_FORCE_PATH_STYLE: '',
     }
-    for (const env of [valid, blank]) {
-      const config = loadConfig(env)
-      expect(config.S3_BUCKET).toBeUndefined()
-      expect(config.S3_ENDPOINT).toBeUndefined()
-      expect(config.S3_REGION).toBe('us-east-1')
-      expect(config.S3_FORCE_PATH_STYLE).toBe(false)
-    }
+    for (const env of [valid, blank]) expect(loadConfig(env).s3).toBeUndefined()
   })
 
-  it('reads the S3 settings', () => {
+  it('gathers the S3 settings into one group', () => {
     expect(
       loadConfig({
         ...valid,
@@ -49,14 +43,22 @@ describe('loadConfig', () => {
         S3_ACCESS_KEY_ID: 'key',
         S3_SECRET_ACCESS_KEY: 'secret',
         S3_FORCE_PATH_STYLE: 'true',
-      }),
-    ).toMatchObject({
-      S3_BUCKET: 'myvgc-uploads',
-      S3_REGION: 'auto',
-      S3_ENDPOINT: 'https://example.r2.cloudflarestorage.com',
-      S3_ACCESS_KEY_ID: 'key',
-      S3_SECRET_ACCESS_KEY: 'secret',
-      S3_FORCE_PATH_STYLE: true,
+      }).s3,
+    ).toEqual({
+      bucket: 'myvgc-uploads',
+      region: 'auto',
+      endpoint: 'https://example.r2.cloudflarestorage.com',
+      accessKeyId: 'key',
+      secretAccessKey: 'secret',
+      forcePathStyle: true,
+    })
+  })
+
+  it('fills in S3 defaults when only a bucket is set', () => {
+    expect(loadConfig({ ...valid, S3_BUCKET: 'myvgc-uploads' }).s3).toEqual({
+      bucket: 'myvgc-uploads',
+      region: 'us-east-1',
+      forcePathStyle: false,
     })
   })
 
@@ -66,8 +68,14 @@ describe('loadConfig', () => {
     )
   })
 
-  it('rejects S3 settings without a bucket', () => {
-    expect(() => loadConfig({ ...valid, S3_ENDPOINT: 'https://s3.example.com' })).toThrow(
+  it.each([
+    ['S3_ENDPOINT', 'https://s3.example.com'],
+    ['S3_ACCESS_KEY_ID', 'key'],
+    ['S3_FORCE_PATH_STYLE', 'true'],
+    ['S3_FORCE_PATH_STYLE', 'false'],
+  ])('rejects %s=%s without a bucket', (name, value) => {
+    const keys = name === 'S3_ACCESS_KEY_ID' ? { S3_SECRET_ACCESS_KEY: 'secret' } : {}
+    expect(() => loadConfig({ ...valid, ...keys, [name]: value })).toThrow(
       /S3_BUCKET: set S3_BUCKET/,
     )
   })

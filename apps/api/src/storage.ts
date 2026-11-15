@@ -170,27 +170,8 @@ export async function openS3Storage(options: S3Options): Promise<FileStorage> {
 }
 
 /** S3 when a bucket is configured, otherwise a disk folder, so self-hosting needs no setup. */
-export function openStorage(
-  config: Pick<
-    Config,
-    | 'UPLOADS_DIR'
-    | 'S3_BUCKET'
-    | 'S3_REGION'
-    | 'S3_ENDPOINT'
-    | 'S3_ACCESS_KEY_ID'
-    | 'S3_SECRET_ACCESS_KEY'
-    | 'S3_FORCE_PATH_STYLE'
-  >,
-): Promise<FileStorage> {
-  if (!config.S3_BUCKET) return openDiskStorage(config.UPLOADS_DIR)
-  return openS3Storage({
-    bucket: config.S3_BUCKET,
-    region: config.S3_REGION,
-    endpoint: config.S3_ENDPOINT,
-    accessKeyId: config.S3_ACCESS_KEY_ID,
-    secretAccessKey: config.S3_SECRET_ACCESS_KEY,
-    forcePathStyle: config.S3_FORCE_PATH_STYLE,
-  })
+export function openStorage(config: Pick<Config, 'UPLOADS_DIR' | 's3'>): Promise<FileStorage> {
+  return config.s3 ? openS3Storage(config.s3) : openDiskStorage(config.UPLOADS_DIR)
 }
 
 /** Files kept in memory, for tests. */
