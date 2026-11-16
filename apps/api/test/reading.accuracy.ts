@@ -1,7 +1,7 @@
 import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { type PokemonBuild, readSeenTeam } from '@myvgc/core'
+import { type PokemonBuild, type TeamImageType, readSeenTeam } from '@myvgc/core'
 import { afterAll, describe, expect, test } from 'vitest'
 import { type TeamImage, anthropicTeamReader } from '../src/team-reader'
 
@@ -13,10 +13,13 @@ import { type TeamImage, anthropicTeamReader } from '../src/team-reader'
 
 const FIXTURES = fileURLToPath(new URL('reading-fixtures', import.meta.url))
 const REPORTS = fileURLToPath(new URL('../.accuracy', import.meta.url))
-// The accuracy check defaults to Haiku 5.5 (DEV-125), whatever the app's default is.
+// DEV-123: the check defaults to Haiku 5.5 (DEV-125's choice), even before DEV-131 makes it the app's default.
 const MODEL = process.env.TEAM_READER_MODEL?.trim() || 'claude-haiku-5-5'
 const REPEAT = Number(process.env.ACCURACY_REPEAT ?? 1)
-const FORMATS = { png: 'image/png', jpg: 'image/jpeg' } as const
+const FORMATS = { png: 'image/png', jpg: 'image/jpeg' } as const satisfies Record<
+  string,
+  TeamImageType
+>
 
 /** US dollars per million input and output tokens, for prompts under 100K tokens. */
 const PRICES: Record<string, { input: number; output: number }> = {
@@ -28,11 +31,8 @@ const PRICES: Record<string, { input: number; output: number }> = {
 /** The fields a case's images can't show, so its expected draft leaves them out. */
 type NotShown = 'replicaTeamId' | 'name' | Exclude<keyof PokemonBuild, 'species'>
 
-interface Draft {
-  name: string
-  replicaTeamId?: string
-  pokemon: PokemonBuild[]
-}
+/** A draft Team as `readSeenTeam` returns it, less its flags. `replicaTeamId` arrives with DEV-106. */
+type Draft = Omit<ReturnType<typeof readSeenTeam>, 'flags'> & { replicaTeamId?: string }
 
 /** A Team's expected.json, which the maintainer confirms against the game. */
 interface Expected {
@@ -147,13 +147,17 @@ async function readCase(
 
   const started = performance.now()
   const base = { team, case: name, format, run }
-  let found: string[]
+  let problems: string[]
   let error: string | undefined
   try {
-    const { flags, ...draft } = readSeenTeam(await reader.read(images))
+    const { flags, ...read }: Draft & { flags: { path: unknown[] }[] } = readSeenTeam(
+      await reader.read(images),
+    )
+    // A blank Replica Team ID and none at all are the same draft.
+    const draft = { ...read, replicaTeamId: read.replicaTeamId ?? '' }
     const gotFlags = new Set(flags.map((flag) => flag.path.join('.')))
     const wantFlags = new Set(spec.flags)
-    found = [
+    problems = [
       ...differences(draft, expectedDraft(expected.team, spec.notShown)),
       ...[...gotFlags]
         .filter((path) => !wantFlags.has(path))
@@ -164,14 +168,14 @@ async function readCase(
     ]
   } catch (failure) {
     error = failure instanceof Error ? failure.message : String(failure)
-    found = [`read failed: ${error}`]
+    problems = [`read failed: ${error}`]
   }
   const seconds = Math.round((performance.now() - started) / 100) / 10
   const price = PRICES[servedModel ?? MODEL]
   return {
     ...base,
-    passed: found.length === 0,
-    differences: found,
+    passed: problems.length === 0,
+    differences: problems,
     model: servedModel,
     inputTokens: usage?.input_tokens,
     outputTokens: usage?.output_tokens,
