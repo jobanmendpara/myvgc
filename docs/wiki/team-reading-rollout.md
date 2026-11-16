@@ -44,6 +44,7 @@ DEV-38, "Read uploaded PDFs and replica-team screenshots into Teams". The sub-is
 - On 2026-11-15 the ADR 24 amendment for DEV-118 was drafted, before any of it was built. Still open on the map that day: the phone flow, and splitting the build into issues.
 - Facts found during the grillings, from the samples in `~/Downloads/temp-vgc-screenshots`: the Replica Team's Stats tab shows stat values and Stat Points with tiny ▲/▼ icons, and has no Battle Team name. A detail screen shows the nickname by the Poké Ball and the species after "No.". The Champions data has three gender forms (Meowstic, Indeedee and Basculegion).
 - As of `jobanmendpara/myvgc@e289510`, the web app's `readTeamToDraft` drops any flag whose path isn't a Pokémon. DEV-126 decided Team-level flags get shown.
+- On 2026-11-16 the lint found that, as of `jobanmendpara/myvgc@138630b`, `readTeamToDraft` in `apps/web/app/lib/team-form.ts` still keeps only flags whose path starts at a Pokémon, so DEV-126's decision to show Team-level flags isn't built yet in the code. DEV-118's build issues are not in git history up to that commit.
 
 ## Gotchas
 
