@@ -31,11 +31,12 @@ From the chief-of-staff's retro on the DEV-113 implementer's transcript (subagen
 
 - DEV-113 rebased 4 times, not 3, and PR #190 had 5 CI runs. It opened first and merged last; each of the other four merges moved `main` under it. All 4 rebases were clean.
 - The run took about 40 minutes, about 32 of them shipping. Its first green came at about 14 minutes in, and merging then would have ended the run there.
-- The trigger was the brief's "if main moves under you, rebase and re-run CI", backed by the "whichever PR merges second rebases onto main" line in [parallel agents](parallel-agents.md). `main` has no branch protection, so GitHub never required those rebases.
-- On 2026-11-15 the chief-of-staff decided a new rule for when a PR rebases before merging, recorded in [shipping flow](shipping-flow.md) and [parallel agents](parallel-agents.md). The branch protection and auto-merge settings are left for the user to decide.
+- The trigger was the brief's "if main moves under you, rebase and re-run CI", backed by the "whichever PR merges second rebases onto main" line in [parallel agents](parallel-agents.md). `main` has no branch protection, so GitHub never required those rebases. (Superseded 2026-11-15: branch protection and auto-merge were applied later that day, see [shipping flow](shipping-flow.md).)
+- On 2026-11-15 the chief-of-staff decided a new rule for when a PR rebases before merging, recorded in [shipping flow](shipping-flow.md) and [parallel agents](parallel-agents.md). The branch protection and auto-merge settings are left for the user to decide. (Superseded 2026-11-15: the user approved both, see [shipping flow](shipping-flow.md).)
 - `pnpm test` is CI's critical path at 5m18s, `apps/api` taking 310 s of it (run 43730954370). Filed as [DEV-146](https://linear.app/mendpara/issue/DEV-146).
 - Five Opus implementers ran at once without hitting the session limit (compare 2026-11-11 in [parallel agents](parallel-agents.md)).
-- Every agent merged its own PR; none was refused `gh pr merge`. The same day auto mode refused the chief-of-staff's merge of wiki PR #177, which was still open when this page was written.
+- Every agent merged its own PR; none was refused `gh pr merge`. The same day auto mode refused the chief-of-staff's merge of wiki PR #177, which was still open when this page was written. (Superseded 2026-11-16: PR #177 merged on 2026-11-15 as `jobanmendpara/myvgc@c6158e3`, see below.)
+- On 2026-11-16 the lint found wiki PR #177 merged on 2026-11-15 (`jobanmendpara/myvgc@c6158e3`), so the refusal above held only for the chief-of-staff's own merge attempt.
 - The environment facts the agents reported (the worktree guard, `pnpm test` past 180 s, branch cleanup) are in [parallel agents](parallel-agents.md). DEV-113's 4 API test failures that passed on a rerun are in [flaky tests](flaky-tests.md).
 - Linear had moved DEV-127 to In Progress only because wiki PR #177 mentioned it. At 15:46 UTC on 2026-11-15, after PR #191 merged, DEV-127 still read In Progress.
 
