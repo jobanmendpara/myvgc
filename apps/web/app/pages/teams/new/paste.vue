@@ -5,6 +5,7 @@ import {
   MAX_REPLICA_TEAM_ID_LENGTH,
   REGULATIONS,
   type Regulation,
+  randomTeamName,
 } from '@myvgc/core/schema'
 import { useMutation, useQueryClient } from '@tanstack/vue-query'
 import { type CreatedTeam, type CreateTeamError, toCreateTeamError } from '@/lib/api'
@@ -12,7 +13,7 @@ import { type CreatedTeam, type CreateTeamError, toCreateTeamError } from '@/lib
 useHead({ title: 'Import a Team · MyVGC' })
 const cancelTo = useNewTeamCancelTo()
 
-const name = ref('')
+const name = ref(randomTeamName())
 const regulation = ref<Regulation>(DEFAULT_REGULATION)
 const paste = ref('')
 const notes = ref('')
@@ -77,20 +78,7 @@ function showLine(line: number) {
     </div>
 
     <form class="flex flex-col gap-5" novalidate @submit.prevent="save.mutate()">
-      <div class="flex flex-col gap-2">
-        <Label for="name">Name</Label>
-        <Input
-          id="name"
-          v-model="name"
-          autocomplete="off"
-          required
-          :aria-invalid="fieldError('name') ? true : undefined"
-          aria-describedby="name-error"
-        />
-        <p v-if="fieldError('name')" id="name-error" class="text-destructive text-sm">
-          {{ fieldError('name') }}
-        </p>
-      </div>
+      <TeamNameField v-model="name" :error="fieldError('name')" />
 
       <div class="flex flex-col gap-2">
         <Label for="regulation">Regulation</Label>
