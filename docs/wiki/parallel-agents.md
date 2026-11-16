@@ -63,4 +63,11 @@ See the [2026-11-15 Refactor round](refactor-round-2026-11-15.md) for how the ro
 - On 2026-11-15 the worktree guard refused the DEV-116 agent's compound command that fed a `python3` heredoc. This adds to the heredoc and compound-command refusals of 2026-11-11 and 2026-11-12 above.
 - On 2026-11-15 each `worktree-agent-*` placeholder branch needed `git branch -D` to delete, because local `main` lagged `origin/main` and `git branch -d` judged them unmerged. The chief-of-staff first checked that each was an ancestor of `origin/main`. This adds to the `gh pr merge --delete-branch` line above: before force-deleting a leftover branch, check it against `origin/main`, not local `main`.
 
+## Daily upkeep on 2026-11-16
+
+From the chief-of-staff, 2026-11-16:
+
+- On 2026-11-16 SSH git from the chief-of-staff's session failed again with "agent refused operation", while `gh` API calls worked. This supersedes, for that day, the 2026-11-12 claim above that plain SSH worked. The 2026-11-11 HTTPS workaround above (`git -c "credential.helper=!gh auth git-credential" push https://jobanmendpara@github.com/...`) still worked for fetch and push.
+- The first version of the chief-of-staff's daily upkeep cron would have removed a locked worktree whose HEAD equalled `main`, belonging to another session (DEV-129). From 2026-11-16 the cron skips locked worktrees and removes a worktree only when it is clean, its branch has a merged PR, and its HEAD is in `main`. This narrows the 2026-11-11 "unlock then remove" step above: the cron no longer unlocks.
+
 Related: [shipping flow](shipping-flow.md), [list and detail rollout](list-detail-rollout.md), [team reading rollout](team-reading-rollout.md).

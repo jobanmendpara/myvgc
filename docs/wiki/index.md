@@ -16,7 +16,7 @@ The chief-of-staff's record of decisions, recurring problems and preferences. It
 
 ## Recurring problems
 
-- [Parallel agents](parallel-agents.md): running several implementers at once without them colliding, plus the session limit, SSH refusal and worktree locks.
+- [Parallel agents](parallel-agents.md): running several implementers at once without them colliding, plus the session limit, SSH refusal, worktree locks and, from 2026-11-16, the daily upkeep rules.
 - [up:local shares the dev DB](up-local-shares-dev-db.md): a stale container breaks dev migrations.
 - [Flaky tests](flaky-tests.md): tests that failed once and passed on a rerun.
 
