@@ -27,4 +27,6 @@ Filed in Linear on 2026-11-12, all in Backlog that day:
 - S3 storage: DEV-110 (gather the S3 settings into one group), DEV-111 (check the Teamsheet file name before opening the stored file), DEV-112 (move stored attachments between disk and S3).
 - Statistics: DEV-113 to DEV-116, listed in [statistics rollout](statistics-rollout.md).
 
+On 2026-11-16 the lint found that DEV-109, DEV-110, DEV-113 and DEV-116 merged on 2026-11-15 (PRs #193, #192, #190 and #194), which supersedes their "Backlog" status above. See the [2026-11-15 Refactor round](refactor-round-2026-11-15.md). In git history up to `jobanmendpara/myvgc@138630b`, DEV-105 to DEV-108, DEV-111, DEV-112 and DEV-115 have no merged commit.
+
 Related: [statistics rollout](statistics-rollout.md), [team reading rollout](team-reading-rollout.md), [parallel agents](parallel-agents.md), [shipping flow](shipping-flow.md).
