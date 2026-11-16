@@ -28,7 +28,7 @@ DEV-38, "Read uploaded PDFs and replica-team screenshots into Teams". The sub-is
   - It came with 8 API tests and one new smoke test.
 - As of `jobanmendpara/myvgc@45590f5` (DEV-63, PR #142, 2026-11-12):
   - The web app has `/teams/new/images`, and the API has an `image_reads` table (migration 0014). The PDF and image readers now share `readBuild`. See PR #142 for the file layout, tests and Merge Danger, and [ADR 24](../adr/0024-reading-teams-from-files.md) for the product choices.
-  - It was built against a stubbed model at the user's request. Nothing in tests or CI calls Anthropic. DEV-102 was filed to check image reading against the real Anthropic model, and is still open on 2026-11-12.
+  - It was built against a stubbed model at the user's request. Nothing in tests or CI calls Anthropic. DEV-102 was filed to check image reading against the real Anthropic model, and is still open on 2026-11-12. (Superseded 2026-11-16: Linear shows DEV-102 Done on 2026-11-13; its baseline is in the DEV-118 section below.)
 - DEV-38 was closed as Done on 2026-11-12. Four Todo issues had been found sitting under it (last updated 2026-11-12 09:46 UTC, by whom isn't known) and were moved out, not built:
   - DEV-60 and DEV-61 (Statistics follow-ups), now related to DEV-56.
   - DEV-67 (Replica Team ID), related to DEV-38.
@@ -38,10 +38,10 @@ DEV-38, "Read uploaded PDFs and replica-team screenshots into Teams". The sub-is
 
 ## Map for real screenshots (DEV-118)
 
-- On 2026-11-13 DEV-118 was charted as a map: build issues plus ADR 24 amendments so image reading works on real Pokémon Champions screenshots. DEV-102's baseline (resolution comment on DEV-102) found the reader read every field it was asked for correctly but lost Stat Alignments, held items and the Replica Team ID without a flag. On 2026-11-13 DEV-125 made Haiku 5.5 the default model.
+- On 2026-11-13 DEV-118 was charted as a map: build issues plus ADR 24 amendments so image reading works on real Pokémon Champions screenshots. DEV-102's baseline (resolution comment on DEV-102) found the reader read every field it was asked for correctly but lost Stat Alignments, held items and the Replica Team ID without a flag. On 2026-11-13 DEV-125 made Haiku 5.5 the default model. (Corrected 2026-11-16: DEV-125 was the decision, Done on 2026-11-13. Building it is DEV-131, still Todo in Linear on 2026-11-16.)
 - On 2026-11-14 and 2026-11-15 the user and the chief-of-staff grilled the map's six questions in this session: DEV-120 (what the reader returns), DEV-121 (Stat Alignment from arrows), DEV-124 (nicknames and species), DEV-122 (image count and shrinking), DEV-123 (the accuracy check) and DEV-126 (flags). Each one's decisions are in its "Resolution" comment, and the map's "Decisions so far" summarises them. The user accepted every recommended answer. On 2026-11-15 DEV-126 changed one of the map's standing notes: the Team's name is left blank with no flag, since no supported screen shows a Battle Team name.
 - On 2026-11-15 two issues were filed from the grillings: DEV-128 (the user captures a second fixture Team covering a Rotom form, a neutral Stat Alignment and a female gender form) and the sample requests on DEV-123.
-- On 2026-11-15 the ADR 24 amendment for DEV-118 was drafted, before any of it was built. Still open on the map that day: the phone flow, and splitting the build into issues.
+- On 2026-11-15 the ADR 24 amendment for DEV-118 was drafted, before any of it was built. Still open on the map that day: the phone flow, and splitting the build into issues. (Superseded 2026-11-16: the amendment merged on 2026-11-15 in PR #179, `jobanmendpara/myvgc@f12396a`. By 2026-11-16 Linear held the build as DEV-129 to DEV-137, plus DEV-106, which also carries DEV-126's Team-level flags. DEV-129 was In Progress with PR #206 open; the others were Todo.)
 - Facts found during the grillings, from the samples in `~/Downloads/temp-vgc-screenshots`: the Replica Team's Stats tab shows stat values and Stat Points with tiny ▲/▼ icons, and has no Battle Team name. A detail screen shows the nickname by the Poké Ball and the species after "No.". The Champions data has three gender forms (Meowstic, Indeedee and Basculegion).
 - As of `jobanmendpara/myvgc@e289510`, the web app's `readTeamToDraft` drops any flag whose path isn't a Pokémon. DEV-126 decided Team-level flags get shown.
 

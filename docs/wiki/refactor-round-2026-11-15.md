@@ -37,7 +37,7 @@ From the chief-of-staff's retro on the DEV-113 implementer's transcript (subagen
 - Five Opus implementers ran at once without hitting the session limit (compare 2026-11-11 in [parallel agents](parallel-agents.md)).
 - Every agent merged its own PR; none was refused `gh pr merge`. The same day auto mode refused the chief-of-staff's merge of wiki PR #177, which was still open when this page was written.
 - The environment facts the agents reported (the worktree guard, `pnpm test` past 180 s, branch cleanup) are in [parallel agents](parallel-agents.md). DEV-113's 4 API test failures that passed on a rerun are in [flaky tests](flaky-tests.md).
-- Linear had moved DEV-127 to In Progress only because wiki PR #177 mentioned it. At 15:46 UTC on 2026-11-15, after PR #191 merged, DEV-127 still read In Progress.
+- Linear had moved DEV-127 to In Progress only because wiki PR #177 mentioned it. At 15:46 UTC on 2026-11-15, after PR #191 merged, DEV-127 still read In Progress. (Superseded 2026-11-16: Linear shows DEV-127 moved to Done at 15:47 UTC on 2026-11-15, a minute later.)
 
 ## Follow-ups
 
