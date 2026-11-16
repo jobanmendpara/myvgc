@@ -12,6 +12,13 @@
 - **Link work to its issue.** Put the Linear identifier (such as `DEV-31`) in the branch name (Linear's suggested `gitBranchName` works) or the PR title, so the Linear–GitHub integration links them.
 - **Decisions**: the ADR in `docs/adr/` is the source of truth. When you add or change one, mirror it as a document in the MyVGC project titled "ADR N: <title>", starting with a line naming the repo file. A decision still to be made is an issue labelled Decision.
 
+## Shipping
+
+- **Branch off `origin/main`.** When you open the PR, compare your files with `origin/main`'s newer commits (`git diff --name-only <merge-base>..origin/main`); rebase only if they overlap.
+- **Queue the merge** straight after `gh pr create`: `gh pr merge <n> --auto --merge --delete-branch`. Never run a plain `gh pr merge`: the admin token merges at once and skips the required checks.
+- **Wait in the foreground.** Run `scripts/wait-for-checks.sh <n>` again and again until it exits 0 (merged; it prints the merge commit) or 1 (a check failed: fix it and push).
+- **History** of this flow is in `docs/wiki/shipping-flow.md`.
+
 ## Layout
 
 - `apps/api`: Hono API. `src/app.ts` builds the app (tests call it directly); `src/server.ts` runs migrations and starts the Node server. Migrations live in `apps/api/drizzle` (generate with `pnpm --filter @myvgc/api db:generate`) and run on start-up.
