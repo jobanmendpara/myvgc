@@ -5,6 +5,7 @@
 - **Domain logic lives in `packages/core`**: Pokémon builds, Teams, paste reading and writing, shared Zod schemas. It does no I/O, so it can be tested without HTTP, a browser or a database.
 - **Decisions are in `docs/adr/`.** Follow them; if a change goes against one, record a new ADR rather than drifting silently.
 - **Test behaviour through public interfaces** (ADR 13): Vitest unit tests in `packages/core`; API tests through `app.request()` against PGlite with migrations applied.
+- **Judge reading changes with `pnpm accuracy`** (ADR 24). A PR that changes the image reader's instructions, `seenTeamSchema`, the default model or the web app's image shrinking runs `pnpm accuracy` before and after the change and pastes both summaries. A change that makes any case worse needs the maintainer's sign-off.
 
 ## Tracking
 
@@ -25,5 +26,6 @@
 - `pnpm dev`: run the API (port 3001) and the web app (port 3000, proxying `/api`).
 - `pnpm typecheck`, `pnpm lint`, `pnpm format:check`, `pnpm test`: what CI runs.
 - `pnpm up:local`: build the image from this checkout and start it with Postgres (`compose.yaml` plus `compose.build.yaml`). Plain `compose.yaml` pulls the published GHCR image.
+- `pnpm accuracy`: the image reader against the real model on the fixtures in `apps/api/test/reading-fixtures` (costs money, needs `ANTHROPIC_API_KEY`; `--repeat n` runs each case n times). Never in CI. `pnpm --filter @myvgc/e2e reading-fixtures <folder> <team>` remakes a Team's fixtures from screenshots.
 - `pnpm smoke`: the Playwright smoke test against a running app (default `http://localhost:3000`).
 - Releases: pushing a tag such as `v0.1.0` runs the smoke test, then publishes `ghcr.io/jobanmendpara/myvgc:0.1.0` and `:latest`.

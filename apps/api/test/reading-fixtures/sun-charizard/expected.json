@@ -1,0 +1,121 @@
+{
+  "about": "The maintainer's own Replica Team, captured 2026-10-31 (DEV-118's samples). The Trainer Name in Game is painted over on both Replica Team tabs; the Replica Team ID is kept, so publishing it shares this Team.",
+  "team": {
+    "name": "",
+    "replicaTeamId": "9TCG84KWXK",
+    "pokemon": [
+      {
+        "species": "charizard",
+        "nickname": "Chorizo",
+        "gender": "M",
+        "ability": "solarpower",
+        "item": "charizarditey",
+        "nature": "timid",
+        "moves": ["heatwave", "weatherball", "solarbeam", "protect"],
+        "statPoints": { "hp": 2, "atk": 0, "def": 0, "spa": 32, "spd": 0, "spe": 32 }
+      },
+      {
+        "species": "venusaur",
+        "nickname": "V",
+        "gender": "M",
+        "ability": "overgrow",
+        "item": "sitrusberry",
+        "nature": "calm",
+        "moves": ["gigadrain", "sludgebomb", "sleeppowder", "protect"],
+        "statPoints": { "hp": 32, "atk": 0, "def": 2, "spa": 16, "spd": 16, "spe": 0 }
+      },
+      {
+        "species": "whimsicott",
+        "nickname": "MichaelScott",
+        "gender": "F",
+        "ability": "prankster",
+        "item": "focussash",
+        "nature": "timid",
+        "moves": ["moonblast", "encore", "tailwind", "protect"],
+        "statPoints": { "hp": 4, "atk": 0, "def": 0, "spa": 30, "spd": 0, "spe": 32 }
+      },
+      {
+        "species": "kingambit",
+        "nickname": "Queenambit",
+        "gender": "F",
+        "ability": "defiant",
+        "item": "chopleberry",
+        "nature": "adamant",
+        "moves": ["kowtowcleave", "suckerpunch", "ironhead", "protect"],
+        "statPoints": { "hp": 32, "atk": 32, "def": 0, "spa": 0, "spd": 0, "spe": 2 }
+      },
+      {
+        "species": "garchomp",
+        "nickname": "Garchoid",
+        "gender": "F",
+        "ability": "roughskin",
+        "item": "lifeorb",
+        "nature": "jolly",
+        "moves": ["earthquake", "rockslide", "dragonclaw", "protect"],
+        "statPoints": { "hp": 0, "atk": 32, "def": 2, "spa": 0, "spd": 0, "spe": 32 }
+      },
+      {
+        "species": "basculegion",
+        "nickname": "Bad Sushi",
+        "gender": "M",
+        "ability": "adaptability",
+        "item": "mysticwater",
+        "nature": "adamant",
+        "moves": ["wavecrash", "aquajet", "flipturn", "lastrespects"],
+        "statPoints": { "hp": 0, "atk": 32, "def": 2, "spa": 0, "spd": 0, "spe": 32 }
+      }
+    ]
+  },
+  "images": {
+    "replica-moves": { "source": "IMG_5085.PNG", "paintTrainerName": true },
+    "replica-stats": { "source": "IMG_5086.PNG", "paintTrainerName": true },
+    "detail-charizard": { "source": "IMG_5079.PNG" },
+    "detail-venusaur": { "source": "IMG_5080.PNG" },
+    "detail-whimsicott": { "source": "IMG_5081.PNG" },
+    "detail-kingambit": { "source": "IMG_5082.PNG" },
+    "detail-garchomp": { "source": "IMG_5083.PNG" },
+    "detail-basculegion": { "source": "IMG_5084.PNG" }
+  },
+  "cases": {
+    "pair": {
+      "images": ["replica-moves", "replica-stats"],
+      "notShown": ["nickname"],
+      "flags": []
+    },
+    "detail": {
+      "images": [
+        "detail-charizard",
+        "detail-venusaur",
+        "detail-whimsicott",
+        "detail-kingambit",
+        "detail-garchomp",
+        "detail-basculegion"
+      ],
+      "notShown": ["item", "replicaTeamId"],
+      "flags": [
+        "item",
+        "replicaTeamId",
+        "pokemon.0.item",
+        "pokemon.1.item",
+        "pokemon.2.item",
+        "pokemon.3.item",
+        "pokemon.4.item",
+        "pokemon.5.item"
+      ]
+    },
+    "all": {
+      "images": [
+        "replica-moves",
+        "replica-stats",
+        "detail-charizard",
+        "detail-venusaur",
+        "detail-whimsicott",
+        "detail-kingambit",
+        "detail-garchomp",
+        "detail-basculegion"
+      ],
+      "notShown": [],
+      "flags": []
+    }
+  }
+}

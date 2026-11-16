@@ -31,3 +31,6 @@ playwright-report/
 
 # Agents' git worktrees
 .claude/worktrees/
+
+# Reports from pnpm accuracy (DEV-123)
+/apps/api/.accuracy/

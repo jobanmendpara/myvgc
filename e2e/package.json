@@ -6,7 +6,8 @@
   "license": "AGPL-3.0-only",
   "scripts": {
     "smoke": "playwright test",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "reading-fixtures": "node scripts/make-reading-fixtures.ts"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0",
