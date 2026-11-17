@@ -70,4 +70,11 @@ From the chief-of-staff, 2026-11-16:
 - On 2026-11-16 SSH git from the chief-of-staff's session failed again with "agent refused operation", while `gh` API calls worked. This supersedes, for that day, the 2026-11-12 claim above that plain SSH worked. The 2026-11-11 HTTPS workaround above (`git -c "credential.helper=!gh auth git-credential" push https://jobanmendpara@github.com/...`) still worked for fetch and push.
 - The first version of the chief-of-staff's daily upkeep cron would have removed a locked worktree whose HEAD equalled `main`, belonging to another session (DEV-129). From 2026-11-16 the cron skips locked worktrees and removes a worktree only when it is clean, its branch has a merged PR, and its HEAD is in `main`. This narrows the 2026-11-11 "unlock then remove" step above: the cron no longer unlocks.
 
+## Daily upkeep on 2026-11-17
+
+From the chief-of-staff, 2026-11-17:
+
+- On 2026-11-17 SSH git failed a third time with "agent refused operation", while `gh` API calls worked, and the HTTPS workaround above worked for fetch and push. It had also failed on 2026-11-11 and 2026-11-16.
+- On 2026-11-17 the upkeep removed no worktree. The only other worktree under `.claude/worktrees/` (DEV-129, PR #206 open) was locked by another session, so it was left.
+
 Related: [shipping flow](shipping-flow.md), [list and detail rollout](list-detail-rollout.md), [team reading rollout](team-reading-rollout.md).
