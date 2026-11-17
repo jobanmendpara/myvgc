@@ -25,6 +25,7 @@ Filed in Linear on 2026-11-12, all in Backlog that day:
 - Replica Team ID: DEV-105 (default the Teamsheet's Battle Team box to it), DEV-106 (fill it when reading a Team), DEV-107 (Decision: does a Tournament's Team snapshot keep it?), DEV-108 (check its validation against real IDs).
 - Teams: DEV-109 (list a Team's fields in one place).
 - S3 storage: DEV-110 (gather the S3 settings into one group), DEV-111 (check the Teamsheet file name before opening the stored file), DEV-112 (move stored attachments between disk and S3).
+- On 2026-11-17 Linear showed DEV-105, DEV-107, DEV-108, DEV-111, DEV-112 and DEV-115 still in Backlog, and DEV-106 in Todo, widened by 2026-11-16 to carry DEV-126's Team-level flags (see [team reading rollout](team-reading-rollout.md)). It showed DEV-109, DEV-110, DEV-113 and DEV-116 Done on 2026-11-15.
 - Statistics: DEV-113 to DEV-116, listed in [statistics rollout](statistics-rollout.md).
 
 Related: [statistics rollout](statistics-rollout.md), [team reading rollout](team-reading-rollout.md), [parallel agents](parallel-agents.md), [shipping flow](shipping-flow.md).
