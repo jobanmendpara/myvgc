@@ -31,7 +31,7 @@
 
 - `pnpm db:up`: start Postgres for development (needs a `.env` copied from `.env.example`).
 - `pnpm dev`: run the API (port 3001) and the web app (port 3000, proxying `/api`).
-- `pnpm typecheck`, `pnpm lint`, `pnpm format:check`, `pnpm test`: what CI runs.
+- `pnpm typecheck`, `pnpm lint`, `pnpm format:check`, `pnpm test`: what CI runs. `pnpm test` ends with `pnpm test:scripts`, the tests for `scripts/`.
 - `pnpm up:local`: build the image from this checkout and start it with Postgres (`compose.yaml` plus `compose.build.yaml`). Plain `compose.yaml` pulls the published GHCR image.
 - `pnpm accuracy`: the image reader against the real model on the fixtures in `apps/api/test/reading-fixtures` (costs money, needs `ANTHROPIC_API_KEY`; `--repeat n` runs each case n times). Never in CI. `pnpm --filter @myvgc/e2e reading-fixtures <folder> <team>` remakes a Team's fixtures from screenshots.
 - `pnpm smoke`: the Playwright smoke test against a running app (default `http://localhost:3000`).
