@@ -43,8 +43,8 @@ DEV-38, "Read uploaded PDFs and replica-team screenshots into Teams". The sub-is
 - On 2026-11-15 two issues were filed from the grillings: DEV-128 (the user captures a second fixture Team covering a Rotom form, a neutral Stat Alignment and a female gender form) and the sample requests on DEV-123.
 - On 2026-11-15 the ADR 24 amendment for DEV-118 was drafted, before any of it was built. Still open on the map that day: the phone flow, and splitting the build into issues. (Superseded 2026-11-16: the amendment merged on 2026-11-15 in PR #179, `jobanmendpara/myvgc@f12396a`. By 2026-11-16 Linear held the build as DEV-129 to DEV-137, plus DEV-106, which also carries DEV-126's Team-level flags. DEV-129 was In Progress with PR #206 open; the others were Todo. Superseded 2026-11-18: DEV-129 and DEV-131 have merged, see "Build on 2026-11-17 and 2026-11-18" below.)
 - Facts found during the grillings, from the samples in `~/Downloads/temp-vgc-screenshots`: the Replica Team's Stats tab shows stat values and Stat Points with tiny ▲/▼ icons, and has no Battle Team name. A detail screen shows the nickname by the Poké Ball and the species after "No.". The Champions data has three gender forms (Meowstic, Indeedee and Basculegion).
-- As of `jobanmendpara/myvgc@e289510`, the web app's `readTeamToDraft` drops any flag whose path isn't a Pokémon. DEV-126 decided Team-level flags get shown.
-- On 2026-11-16 the lint found that, as of `jobanmendpara/myvgc@138630b`, `readTeamToDraft` in `apps/web/app/lib/team-form.ts` still keeps only flags whose path starts at a Pokémon, so DEV-126's decision to show Team-level flags isn't built yet in the code. DEV-118's build issues are not in git history up to that commit. (Superseded 2026-11-18 for DEV-129 and DEV-131, see below. The flag filter is unchanged as of `jobanmendpara/myvgc@3d0b382`.)
+- As of `jobanmendpara/myvgc@e289510`, the web app's `readTeamToDraft` drops any flag whose path isn't a Pokémon. DEV-126 decided Team-level flags get shown. (Superseded 2026-11-18: DEV-106 built it, `jobanmendpara/myvgc@4ca8aa3`, see "DEV-130 and DEV-106 on 2026-11-18" below.)
+- On 2026-11-16 the lint found that, as of `jobanmendpara/myvgc@138630b`, `readTeamToDraft` in `apps/web/app/lib/team-form.ts` still keeps only flags whose path starts at a Pokémon, so DEV-126's decision to show Team-level flags isn't built yet in the code. DEV-118's build issues are not in git history up to that commit. (Superseded 2026-11-18 for DEV-129 and DEV-131, see below. The flag filter is unchanged as of `jobanmendpara/myvgc@3d0b382`. Superseded later on 2026-11-18: as of `jobanmendpara/myvgc@4ca8aa3` (DEV-106) the draft keeps Team-level flags, see below.)
 
 ## Build on 2026-11-17 and 2026-11-18
 
@@ -53,7 +53,28 @@ From the 2026-11-18 lint, checked against `gh` and Linear:
 - DEV-129 (check reading accuracy against fixture screenshots) merged in PR #206 as `jobanmendpara/myvgc@8c4e603`, at 03:27 UTC on 2026-11-18 (the evening of 2026-11-17 in US Central). It added `pnpm accuracy` and the `sun-charizard` fixtures in `apps/api/test/reading-fixtures`. See PR #206 and [ADR 24](../adr/0024-reading-teams-from-files.md). Linear shows it Done.
 - DEV-131 (make Haiku 5.5 the default image reader) merged in PR #222 as `jobanmendpara/myvgc@3d0b382`, at 12:49 UTC on 2026-11-18. As of that commit, `DEFAULT_TEAM_READER_MODEL` in `apps/api/src/config.ts` is `claude-haiku-5-5`, and the accuracy check uses the same constant. PR #222 has the before and after `pnpm accuracy` summaries that CLAUDE.md asks for: no case read worse on Haiku, every case failed on both models for reasons DEV-131 doesn't touch, and Haiku cost about an eighteenth as much. Linear shows it Done.
 - Follow-ups filed in Linear on 2026-11-18, about 15 minutes after DEV-131 merged, both in Backlog that day: [DEV-152](https://linear.app/mendpara/issue/DEV-152) (Improvement: show the cost of an accuracy run for any model) and [DEV-153](https://linear.app/mendpara/issue/DEV-153) (Refactor: pick the accuracy check's model through `loadConfig`). (Superseded later on 2026-11-18 for DEV-153: it merged in PR #227 as `jobanmendpara/myvgc@7ea1221`, and Linear shows it Done. As of that commit, the check gets its model from `teamReaderModel(env)` in `apps/api/src/config.ts`, which `loadConfig` shares. See the [2026-11-18 Refactor round](refactor-round-2026-11-18.md). DEV-152 was still in Backlog that day.)
-- On 2026-11-18 Linear showed the rest of DEV-118's build still Todo: DEV-106, DEV-130 and DEV-132 to DEV-137.
+- On 2026-11-18 Linear showed the rest of DEV-118's build still Todo: DEV-106, DEV-130 and DEV-132 to DEV-137. (Superseded later on 2026-11-18: DEV-130 and DEV-106 merged, see the next section. DEV-132 to DEV-137 were still open.)
+
+## DEV-130 and DEV-106 on 2026-11-18
+
+Two implementers ran in parallel on 2026-11-18. Each PR merged on its first CI run, and neither needed a rebase.
+
+- DEV-130 (read up to 8 images and shrink them before upload) merged in PR #232 as `jobanmendpara/myvgc@dc7f147`, at 21:00 UTC. As of that commit, `MAX_TEAM_IMAGES` is 8 and `MAX_TEAM_IMAGE_MB` is 7 in `packages/core/src/team.ts`, and the web app runs each image through `imageToUpload` (`apps/web/app/lib/shrink-image.ts`), which uses DEV-129's `shrinkImage` and falls back to the original. The size check applies to the file sent. See PR #232 for the tests. Linear shows it Done.
+- DEV-106 (fill the Replica Team ID when reading a Team, and show Team-level flags) merged in PR #233 as `jobanmendpara/myvgc@4ca8aa3`, at 21:05 UTC. As of that commit, `seenTeamSchema` has `battleTeamName` and `replicaTeamId` in place of `name`, `readSeenTeam` normalises and flags the ID, `ReadTeamView` carries `replicaTeamId` (`''` from PDF reads), and the Team builder's alert lists Team-level flags from the draft's `readFlags`. See PR #233. Linear shows it Done.
+- Both PRs touched `apps/api/test/team-read-images.test.ts`, and were open at once, so neither PR's CI saw the other's change. `main`'s CI on `jobanmendpara/myvgc@4ca8aa3`, the first run on the combined code, passed `check`; `smoke` was skipped, the gap recorded on 2026-11-18 in [shipping flow](shipping-flow.md).
+- `pnpm accuracy`, Haiku 5.5, single runs, before and after summaries in each PR body. No case got worse in either, so no maintainer sign-off was needed:
+  - DEV-130: identical before and after, 0 of 6 passed, $0.0192 each time.
+  - DEV-106: 0 of 6 both times. Differences for `all` / `detail` / `pair` went from 14 / 20 / 14 to 12 / 20 / 12, at $0.0194 before and $0.0197 after. The Replica Team ID no longer lands in the Team's name. The remaining `detail` differences belong to DEV-134, DEV-135 and DEV-137 (PR #233).
+- DEV-145 ("Stop offering the Replica Team ID as a Team name in the reader prompt"): on 2026-11-18 the DEV-106 implementer judged it covered by PR #233, which says so but doesn't close it, and the session left it open for the maintainer to decide. Linear, checked by the wiki agent the same day, shows DEV-145 Done at 21:05 UTC, three seconds after DEV-106. Most likely the Linear–GitHub integration closed it because PR #233's body names it; whether the maintainer agrees is still open.
+- Open questions for the maintainer on 2026-11-18, not filed yet:
+  - Must a Replica Team ID be exactly 10 characters? The example `9TCG84KWX` (9 characters) is valid under the schema as of `jobanmendpara/myvgc@4ca8aa3`.
+  - Should Teamsheet PDF reads put an ID-looking "Battle Team Number / Name" value into `replicaTeamId`? As of `jobanmendpara/myvgc@4ca8aa3` PDF reads always give `''`.
+- Follow-ups found on 2026-11-18, not filed yet:
+  - The "paper Teamsheet" wording on `/teams/new/images` and in `ImageTeamReader`'s comment (fits DEV-133).
+  - No progress is shown while images shrink.
+  - ADR 24's status line.
+  - No real-browser test of `shrinkImage`.
+- `pnpm accuracy` needs `ANTHROPIC_API_KEY`. On 2026-11-18 each implementer symlinked the main checkout's `.env` into its worktree for the run only, and removed it afterwards. See [parallel agents](parallel-agents.md).
 
 ## Gotchas
 
