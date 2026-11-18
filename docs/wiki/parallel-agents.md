@@ -92,4 +92,11 @@ See the [2026-11-17 Refactor round](refactor-round-2026-11-17.md) for how the ro
 
 - On 2026-11-17 `ssh -T git@github.com` worked for the chief-of-staff, yet all three implementers' SSH pushes were refused that same day, and each pushed with the HTTPS workaround above. The DEV-139 agent's SSH fetch worked just before its push was refused. So SSH refusal is intermittent within a day: one working SSH call says nothing about the next. Agents should expect it and keep the HTTPS workaround to hand.
 
+## Environment on 2026-11-18 (DEV-153, DEV-148, DEV-149)
+
+See the [2026-11-18 Refactor round](refactor-round-2026-11-18.md) for how the round ran.
+
+- On 2026-11-18 SSH push worked for all three implementers. The same day the upkeep's SSH fetch failed (see "Daily upkeep on 2026-11-18" above), and so did the wiki agent's SSH fetch and push for this page ("agent refused operation"), which used the HTTPS workaround. This fits the 2026-11-17 finding that SSH refusal is intermittent within a day.
+- On 2026-11-18 the worktree guard again refused compound commands that included git, as on 2026-11-11 above. The wiki agent also had a `gh pr view ... --jq` loop refused, as "too complex to verify". Run each `git` and `gh` command on its own.
+
 Related: [shipping flow](shipping-flow.md), [list and detail rollout](list-detail-rollout.md), [team reading rollout](team-reading-rollout.md).
