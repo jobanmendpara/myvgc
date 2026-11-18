@@ -12,7 +12,6 @@ import {
   S3ServiceException,
   paginateListObjectsV2,
 } from '@aws-sdk/client-s3'
-import type { Config } from './config'
 
 /**
  * Where uploaded files live (ADR 27): a disk folder for self-hosting, or S3-compatible storage
@@ -87,9 +86,8 @@ export interface S3Options {
   region: string
   /** For a provider other than AWS, such as `https://<account>.r2.cloudflarestorage.com`. */
   endpoint?: string
-  /** Both or neither. Without them the AWS SDK looks for credentials itself (`AWS_*`, a role). */
-  accessKeyId?: string
-  secretAccessKey?: string
+  /** Without them the AWS SDK looks for credentials itself (`AWS_*`, a role). */
+  credentials?: { accessKeyId: string; secretAccessKey: string }
   /** `bucket` in the path rather than the host name, which MinIO and some others need. */
   forcePathStyle?: boolean
 }
@@ -112,10 +110,7 @@ export async function openS3Storage(options: S3Options): Promise<FileStorage> {
     region: options.region,
     endpoint: options.endpoint,
     forcePathStyle: options.forcePathStyle,
-    credentials:
-      options.accessKeyId && options.secretAccessKey
-        ? { accessKeyId: options.accessKeyId, secretAccessKey: options.secretAccessKey }
-        : undefined,
+    credentials: options.credentials,
     // Only the checksums S3 insists on. The newer defaults break several S3-compatible providers.
     requestChecksumCalculation: 'WHEN_REQUIRED',
     responseChecksumValidation: 'WHEN_REQUIRED',
@@ -170,7 +165,7 @@ export async function openS3Storage(options: S3Options): Promise<FileStorage> {
 }
 
 /** S3 when a bucket is configured, otherwise a disk folder, so self-hosting needs no setup. */
-export function openStorage(config: Pick<Config, 'UPLOADS_DIR' | 's3'>): Promise<FileStorage> {
+export function openStorage(config: { UPLOADS_DIR: string; s3?: S3Options }): Promise<FileStorage> {
   return config.s3 ? openS3Storage(config.s3) : openDiskStorage(config.UPLOADS_DIR)
 }
 
