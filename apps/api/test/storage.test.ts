@@ -29,8 +29,7 @@ const s3Options = (): S3Options => ({
   bucket: FAKE_S3_BUCKET,
   region: 'us-east-1',
   endpoint: s3.endpoint,
-  accessKeyId: FAKE_S3_ACCESS_KEY_ID,
-  secretAccessKey: 'test-secret',
+  credentials: { accessKeyId: FAKE_S3_ACCESS_KEY_ID, secretAccessKey: 'test-secret' },
   forcePathStyle: true,
 })
 
@@ -126,7 +125,8 @@ describe('openS3Storage', () => {
   })
 
   it('refuses credentials the bucket rejects', async () => {
-    await expect(openS3Storage({ ...s3Options(), accessKeyId: 'wrong' })).rejects.toThrow(
+    const credentials = { accessKeyId: 'wrong', secretAccessKey: 'test-secret' }
+    await expect(openS3Storage({ ...s3Options(), credentials })).rejects.toThrow(
       `S3_BUCKET: can't reach ${FAKE_S3_BUCKET}`,
     )
   })

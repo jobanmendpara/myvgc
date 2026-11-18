@@ -48,8 +48,7 @@ describe('loadConfig', () => {
       bucket: 'myvgc-uploads',
       region: 'auto',
       endpoint: 'https://example.r2.cloudflarestorage.com',
-      accessKeyId: 'key',
-      secretAccessKey: 'secret',
+      credentials: { accessKeyId: 'key', secretAccessKey: 'secret' },
       forcePathStyle: true,
     })
   })
@@ -68,7 +67,15 @@ describe('loadConfig', () => {
     )
   })
 
+  it('rejects an S3 secret without its access key', () => {
+    expect(() => loadConfig({ ...valid, S3_BUCKET: 'b', S3_SECRET_ACCESS_KEY: 'secret' })).toThrow(
+      /S3_ACCESS_KEY_ID: set S3_ACCESS_KEY_ID and S3_SECRET_ACCESS_KEY together/,
+    )
+  })
+
   it.each([
+    ['S3_REGION', 'us-east-1'],
+    ['S3_REGION', 'auto'],
     ['S3_ENDPOINT', 'https://s3.example.com'],
     ['S3_ACCESS_KEY_ID', 'key'],
     ['S3_FORCE_PATH_STYLE', 'true'],
@@ -77,6 +84,12 @@ describe('loadConfig', () => {
     const keys = name === 'S3_ACCESS_KEY_ID' ? { S3_SECRET_ACCESS_KEY: 'secret' } : {}
     expect(() => loadConfig({ ...valid, ...keys, [name]: value })).toThrow(
       /S3_BUCKET: set S3_BUCKET/,
+    )
+  })
+
+  it('reports a mismatched key pair and a missing bucket together', () => {
+    expect(() => loadConfig({ ...valid, S3_ACCESS_KEY_ID: 'key' })).toThrow(
+      /S3_SECRET_ACCESS_KEY: set S3_ACCESS_KEY_ID[\s\S]*S3_BUCKET: set S3_BUCKET/,
     )
   })
 

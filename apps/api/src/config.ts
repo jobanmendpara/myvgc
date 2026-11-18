@@ -37,7 +37,8 @@ const schema = z
     UPLOADS_DIR: z.string().trim().min(1).default('.data/uploads'),
     // An S3-compatible bucket for uploaded files instead of UPLOADS_DIR (DEV-71). Unset keeps disk.
     S3_BUCKET: unsetIfBlank(z.string().trim().optional()),
-    S3_REGION: unsetIfBlank(z.string().trim().default('us-east-1')),
+    // Defaults to us-east-1 below, so only a value actually set is refused without a bucket.
+    S3_REGION: unsetIfBlank(z.string().trim().optional()),
     S3_ENDPOINT: unsetIfBlank(
       z.url({ error: 'S3_ENDPOINT must be a URL, such as https://s3.example.com' }).optional(),
     ),
@@ -57,46 +58,53 @@ const schema = z
         .optional(),
     ),
   })
-  .superRefine((config, ctx) => {
-    if (!config.S3_ACCESS_KEY_ID !== !config.S3_SECRET_ACCESS_KEY)
-      ctx.addIssue({
-        code: 'custom',
-        path: [config.S3_ACCESS_KEY_ID ? 'S3_SECRET_ACCESS_KEY' : 'S3_ACCESS_KEY_ID'],
-        message: 'set S3_ACCESS_KEY_ID and S3_SECRET_ACCESS_KEY together, or neither',
-      })
-    // Settings that do nothing without a bucket are more likely a mistake than a choice.
-    if (
-      !config.S3_BUCKET &&
-      (config.S3_ENDPOINT || config.S3_ACCESS_KEY_ID || config.S3_FORCE_PATH_STYLE !== undefined)
-    )
-      ctx.addIssue({
-        code: 'custom',
-        path: ['S3_BUCKET'],
-        message: 'set S3_BUCKET to keep uploads in S3, or remove the other S3_ settings',
-      })
-  })
   .transform(
-    ({
-      S3_BUCKET,
-      S3_REGION,
-      S3_ENDPOINT,
-      S3_ACCESS_KEY_ID,
-      S3_SECRET_ACCESS_KEY,
-      S3_FORCE_PATH_STYLE,
-      ...config
-    }) => {
+    (
+      {
+        S3_BUCKET,
+        S3_REGION,
+        S3_ENDPOINT,
+        S3_ACCESS_KEY_ID,
+        S3_SECRET_ACCESS_KEY,
+        S3_FORCE_PATH_STYLE,
+        ...config
+      },
+      ctx,
+    ) => {
+      const refuse = (path: string, message: string) =>
+        ctx.addIssue({ code: 'custom', path: [path], message })
+
+      // The one place the access key and secret are paired; S3Options can't hold half a pair.
+      let credentials: S3Options['credentials']
+      if (S3_ACCESS_KEY_ID && S3_SECRET_ACCESS_KEY)
+        credentials = { accessKeyId: S3_ACCESS_KEY_ID, secretAccessKey: S3_SECRET_ACCESS_KEY }
+      else if (S3_ACCESS_KEY_ID || S3_SECRET_ACCESS_KEY)
+        refuse(
+          S3_ACCESS_KEY_ID ? 'S3_SECRET_ACCESS_KEY' : 'S3_ACCESS_KEY_ID',
+          'set S3_ACCESS_KEY_ID and S3_SECRET_ACCESS_KEY together, or neither',
+        )
+
+      // Settings that do nothing without a bucket are more likely a mistake than a choice.
+      const needsBucket = [
+        S3_REGION,
+        S3_ENDPOINT,
+        S3_ACCESS_KEY_ID,
+        S3_SECRET_ACCESS_KEY,
+        S3_FORCE_PATH_STYLE,
+      ]
+      if (!S3_BUCKET && needsBucket.some((value) => value !== undefined))
+        refuse('S3_BUCKET', 'set S3_BUCKET to keep uploads in S3, or remove the other S3_ settings')
+
+      if (ctx.issues.length) return z.NEVER
+
       // One group for the S3 settings, present only when a bucket is set.
       const s3: S3Options | undefined = S3_BUCKET
         ? {
             bucket: S3_BUCKET,
-            region: S3_REGION,
+            region: S3_REGION ?? 'us-east-1',
             forcePathStyle: S3_FORCE_PATH_STYLE ?? false,
             ...(S3_ENDPOINT && { endpoint: S3_ENDPOINT }),
-            ...(S3_ACCESS_KEY_ID &&
-              S3_SECRET_ACCESS_KEY && {
-                accessKeyId: S3_ACCESS_KEY_ID,
-                secretAccessKey: S3_SECRET_ACCESS_KEY,
-              }),
+            ...(credentials && { credentials }),
           }
         : undefined
       return { ...config, s3 }
