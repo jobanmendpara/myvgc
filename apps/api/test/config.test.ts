@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { loadConfig } from '../src/config'
+import { loadConfig, teamReaderModel } from '../src/config'
 
 const valid = {
   DATABASE_URL: 'postgres://myvgc:pw@db:5432/myvgc',
@@ -158,5 +158,22 @@ describe('loadConfig', () => {
 
   it('rejects an APP_URL that is not a URL', () => {
     expect(() => loadConfig({ ...valid, APP_URL: 'localhost' })).toThrow(/APP_URL/)
+  })
+})
+
+describe('teamReaderModel', () => {
+  it.each([
+    ['unset', undefined, 'claude-haiku-5-5'],
+    ['blank', '  ', 'claude-haiku-5-5'],
+    ['set', ' claude-opus-5-5 ', 'claude-opus-5-5'],
+  ])('picks the same model as loadConfig when TEAM_READER_MODEL is %s', (_, value, expected) => {
+    const env = { ...valid, TEAM_READER_MODEL: value }
+    expect(teamReaderModel(env)).toBe(expected)
+    expect(loadConfig(env).TEAM_READER_MODEL).toBe(expected)
+  })
+
+  it('needs only TEAM_READER_MODEL, not the rest of the configuration', () => {
+    expect(teamReaderModel({})).toBe('claude-haiku-5-5')
+    expect(teamReaderModel({ TEAM_READER_MODEL: 'claude-sonnet-5-5' })).toBe('claude-sonnet-5-5')
   })
 })
