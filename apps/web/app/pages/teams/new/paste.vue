@@ -1,23 +1,21 @@
 <script setup lang="ts">
 import {
-  DEFAULT_REGULATION,
   MAX_PASTE_LENGTH,
   MAX_REPLICA_TEAM_ID_LENGTH,
   REGULATIONS,
-  type Regulation,
-  randomTeamName,
+  type TeamFields,
+  pickTeamFields,
 } from '@myvgc/core/schema'
 import { useMutation, useQueryClient } from '@tanstack/vue-query'
 import { type CreatedTeam, type CreateTeamError, toCreateTeamError } from '@/lib/api'
+import { newTeamFields } from '@/lib/team-form'
 
 useHead({ title: 'Import a Team · MyVGC' })
 const cancelTo = useNewTeamCancelTo()
 
-const name = ref(randomTeamName())
-const regulation = ref<Regulation>(DEFAULT_REGULATION)
+const fields = reactive<TeamFields>(newTeamFields())
+// The paste isn't one of the Team's fields: it becomes its Pokémon builds.
 const paste = ref('')
-const notes = ref('')
-const replicaTeamId = ref('')
 
 // The paste as it was sent, so line errors still point at the right text after edits.
 const sentLines = ref<string[]>([])
@@ -29,13 +27,7 @@ const save = useMutation({
     sentLines.value = paste.value.split(/\r?\n/)
     return $fetch<CreatedTeam>('/api/teams', {
       method: 'POST',
-      body: {
-        name: name.value,
-        regulation: regulation.value,
-        paste: paste.value,
-        notes: notes.value,
-        replicaTeamId: replicaTeamId.value,
-      },
+      body: { ...pickTeamFields(fields), paste: paste.value },
     })
   },
   onMutate: () => {
@@ -78,11 +70,11 @@ function showLine(line: number) {
     </div>
 
     <form class="flex flex-col gap-5" novalidate @submit.prevent="save.mutate()">
-      <TeamNameField v-model="name" :error="fieldError('name')" />
+      <TeamNameField v-model="fields.name" :error="fieldError('name')" />
 
       <div class="flex flex-col gap-2">
         <Label for="regulation">Regulation</Label>
-        <NativeSelect id="regulation" v-model="regulation" class="w-40">
+        <NativeSelect id="regulation" v-model="fields.regulation" class="w-40">
           <NativeSelectOption v-for="reg in REGULATIONS" :key="reg" :value="reg">
             Reg {{ reg }}
           </NativeSelectOption>
@@ -95,7 +87,7 @@ function showLine(line: number) {
         >
         <Input
           id="replica-team-id"
-          v-model="replicaTeamId"
+          v-model="fields.replicaTeamId"
           autocomplete="off"
           autocapitalize="characters"
           spellcheck="false"
@@ -176,7 +168,7 @@ function showLine(line: number) {
         >
         <Textarea
           id="notes"
-          v-model="notes"
+          v-model="fields.notes"
           rows="4"
           placeholder="Leads, game plans, things to remember…"
         />
