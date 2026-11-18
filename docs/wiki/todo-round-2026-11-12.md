@@ -28,4 +28,6 @@ Filed in Linear on 2026-11-12, all in Backlog that day:
 - On 2026-11-17 Linear showed DEV-105, DEV-107, DEV-108, DEV-111, DEV-112 and DEV-115 still in Backlog, and DEV-106 in Todo, widened by 2026-11-16 to carry DEV-126's Team-level flags (see [team reading rollout](team-reading-rollout.md)). It showed DEV-109, DEV-110, DEV-113 and DEV-116 Done on 2026-11-15.
 - Statistics: DEV-113 to DEV-116, listed in [statistics rollout](statistics-rollout.md).
 
+On 2026-11-16 the lint found that DEV-109, DEV-110, DEV-113 and DEV-116 merged on 2026-11-15 (PRs #193, #192, #190 and #194), which supersedes their "Backlog" status above. See the [2026-11-15 Refactor round](refactor-round-2026-11-15.md). In git history up to `jobanmendpara/myvgc@138630b`, DEV-105 to DEV-108, DEV-111, DEV-112 and DEV-115 have no merged commit.
+
 Related: [statistics rollout](statistics-rollout.md), [team reading rollout](team-reading-rollout.md), [parallel agents](parallel-agents.md), [shipping flow](shipping-flow.md).
