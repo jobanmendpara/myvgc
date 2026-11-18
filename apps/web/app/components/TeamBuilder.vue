@@ -129,11 +129,16 @@ const { DiscardDialog } = useDiscardGuard(dirty, 'this Team')
     <TeamFieldsSection v-model:fields="draft" :errors="errors">
       <section class="flex flex-col gap-2" aria-labelledby="slots-title">
         <h2 id="slots-title" class="text-sm leading-none font-medium">Pokémon</h2>
-        <Alert v-if="flagged" data-testid="read-flags-note">
-          <AlertDescription
-            >MyVGC wasn't sure of everything on the file. Check the Pokémon marked below before
-            saving.</AlertDescription
-          >
+        <Alert v-if="flagged || draft.readFlags.length" data-testid="read-flags-note">
+          <AlertDescription>
+            <ul v-if="draft.readFlags.length" class="list-disc pl-5" data-testid="team-read-flags">
+              <li v-for="flag in draft.readFlags" :key="flag">{{ flag }}</li>
+            </ul>
+            <p v-if="flagged">
+              MyVGC wasn't sure of everything on the file. Check the Pokémon marked below before
+              saving.
+            </p>
+          </AlertDescription>
         </Alert>
         <ol class="flex flex-col gap-2" data-testid="build-slots">
           <BuildSlot

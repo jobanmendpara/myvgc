@@ -26,9 +26,9 @@ export const MAX_REPLICA_TEAM_ID_LENGTH = 20
 
 /**
  * A Replica Team ID (CONTEXT.md), stored without spaces or hyphens and in capitals, as the game
- * shows it. An empty string means the Team has none.
+ * shows it. An empty string means the Team has none. Reading a Team checks IDs with it too.
  */
-const replicaTeamIdSchema = z
+export const replicaTeamIdSchema = z
   .string()
   .transform((id) => id.replace(/[\s-]+/g, '').toUpperCase())
   .pipe(
@@ -224,6 +224,8 @@ export interface ReadFlag {
 /** A draft Team read from a file (ADR 24), as the API returns it. Nothing is saved yet. */
 export interface ReadTeamView {
   name: string
+  /** Empty when none was read. */
+  replicaTeamId: string
   pokemon: NamedPokemonBuild[]
   flags: ReadFlag[]
 }

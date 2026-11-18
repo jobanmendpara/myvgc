@@ -48,7 +48,7 @@ describe('POST /api/tournaments/:id/teamsheet/read', () => {
 
     expect(res.status).toBe(200)
     const body = await json(res)
-    expect(Object.keys(body).sort()).toEqual(['flags', 'name', 'pokemon'])
+    expect(Object.keys(body).sort()).toEqual(['flags', 'name', 'pokemon', 'replicaTeamId'])
     expect(body.name).toBe('9TCG84KWXK')
     expect(body.flags).toEqual([])
     expect(body.pokemon).toHaveLength(6)

@@ -7,7 +7,13 @@ export { checkGames, checkPokemon, type PokemonIssue } from './check-pokemon'
 export { judgeTeam } from './legality'
 export { nameBuild } from './names'
 export { readTeamsheet, type ReadTeamsheetResult } from './teamsheet'
-export { readSeenTeam, seenTeamSchema, UNSURE_FIELDS, type SeenTeam } from './seen-team'
+export {
+  readSeenTeam,
+  seenTeamSchema,
+  UNSURE_FIELDS,
+  UNSURE_TEAM_FIELDS,
+  type SeenTeam,
+} from './seen-team'
 export { readPaste, writePaste, type PasteIssue, type ReadPasteResult } from './paste'
 export {
   checkDataExport,

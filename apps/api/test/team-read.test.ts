@@ -55,8 +55,9 @@ describe('POST /api/teams/read', () => {
         moves: ['Heat Wave', 'Weather Ball', 'Solar Beam', 'Protect'],
       },
     })
-    // Nothing on the sheet's header but the Battle Team name comes back.
-    expect(Object.keys(body).sort()).toEqual(['flags', 'name', 'pokemon'])
+    // Nothing on the sheet's header but the Battle Team name comes back, and no Replica Team ID.
+    expect(body.replicaTeamId).toBe('')
+    expect(Object.keys(body).sort()).toEqual(['flags', 'name', 'pokemon', 'replicaTeamId'])
     expect(await t.db.select().from(team)).toEqual([])
   })
 

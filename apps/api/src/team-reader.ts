@@ -32,7 +32,9 @@ The images are screenshots of one Team (such as its Replica Team or status scree
 For each Pokémon, give exactly what the images show: species or form, ability, held item, Stat Alignment (nature), up to four moves, and its stats. Use the English names as the game writes them.
 Give stat values (the final numbers, such as 169 Speed) and Stat Points (0 to 32 per stat) only where the images show them; leave the rest null. Never work numbers out or guess them.
 A Pokémon that appears on more than one image is listed once, with what every image shows of it.
-List a field in "unsure" when it was hard to make out, such as a blurred word or a cut-off number.
+A Replica Team tab's banner shows the slot, the Replica Team ID after "Team ID:" (a code of letters and digits, such as 9TCG84KWXK) and the Trainer Name in Game. Give the Replica Team ID only as replicaTeamId, never as the Battle Team name. Champions shows no Battle Team name on these screens, so leave it null unless the images show the Team's own name.
+Ignore the Trainer Name in Game: never put it in any field.
+List a field in "unsure" when it was hard to make out, such as a blurred word, a cut-off number or a Replica Team ID character that could be 0 or O, or 1 or I.
 If the images show no Pokémon Team, return an empty list of Pokémon.`
 
 /** Reads images with an Anthropic model, using structured output for the answer. */
