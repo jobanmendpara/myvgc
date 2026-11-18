@@ -64,10 +64,15 @@ function buildToDraft(build: NamedPokemonBuild): BuildDraft {
   }
 }
 
+/** A new Team's fields on any form that makes one: blank, but for a random name. */
+export function newTeamFields(): TeamFields {
+  return { ...BLANK_TEAM_FIELDS, name: randomTeamName() }
+}
+
 /** The form for an existing Team, or a blank one with a random name. */
 export function teamToDraft(team?: TeamView): TeamDraft {
   return {
-    ...(team ? pickTeamFields(team) : { ...BLANK_TEAM_FIELDS, name: randomTeamName() }),
+    ...(team ? pickTeamFields(team) : newTeamFields()),
     pokemon: team?.pokemon.map(buildToDraft) ?? [],
   }
 }

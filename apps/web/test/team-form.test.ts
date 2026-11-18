@@ -1,6 +1,6 @@
-import type { ReadTeamView, TeamView } from '@myvgc/core/schema'
+import { BLANK_TEAM_FIELDS, type ReadTeamView, type TeamView } from '@myvgc/core/schema'
 import { describe, expect, it } from 'vitest'
-import { readTeamToDraft, teamToDraft } from '../app/lib/team-form'
+import { newTeamFields, readTeamToDraft, teamToDraft } from '../app/lib/team-form'
 
 const randomName = /^[A-Z][a-z]+ [A-Z][a-z]+ [A-Z][a-z]+$/
 
@@ -10,6 +10,13 @@ const read = (name: string): ReadTeamView => ({ name, pokemon: [], flags: [] })
 describe("A Team form's name", () => {
   it('starts with a random name for a new Team', () => {
     expect(teamToDraft().name).toMatch(randomName)
+  })
+
+  it("starts a new Team's fields blank but for a random name", () => {
+    expect(newTeamFields()).toEqual({
+      ...BLANK_TEAM_FIELDS,
+      name: expect.stringMatching(randomName),
+    })
   })
 
   it("keeps an existing Team's name", () => {
