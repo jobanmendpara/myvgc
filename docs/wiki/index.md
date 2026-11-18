@@ -5,7 +5,7 @@ The chief-of-staff's record of decisions, recurring problems and preferences. It
 ## Workstreams
 
 - [List and detail rollout](list-detail-rollout.md): DEV-84 to DEV-89, the split layout, List styles and fuzzy search, and the follow-ups DEV-94 to DEV-100.
-- [Team reading rollout](team-reading-rollout.md): DEV-38 (closed 2026-11-12) and DEV-62 to DEV-66, reading Teamsheets and images into Teams; DEV-102 checks image reading against the real model; the DEV-118 map for real screenshots (grilled 2026-11-14 to 15).
+- [Team reading rollout](team-reading-rollout.md): DEV-38 (closed 2026-11-12) and DEV-62 to DEV-66, reading Teamsheets and images into Teams; DEV-102 checks image reading against the real model; the DEV-118 map for real screenshots (grilled 2026-11-14 to 15), and its first build issues, DEV-129 and DEV-131, merged by 2026-11-18.
 - [Statistics rollout](statistics-rollout.md): DEV-56, DEV-60 and DEV-61, the Statistics page and its Opponent's side, and the follow-ups DEV-113 to DEV-116.
 - [Todo round, 2026-11-12](todo-round-2026-11-12.md): DEV-67, DEV-71, DEV-60 and DEV-61, how they ran, and the follow-ups DEV-105 to DEV-116.
 - [Refactor round, 2026-11-15](refactor-round-2026-11-15.md): DEV-127, DEV-116, DEV-109, DEV-110 and DEV-113, five implementers at once, the DEV-113 retro and the new rebase rule, and the follow-ups DEV-139 to DEV-144 and DEV-146.
@@ -17,7 +17,7 @@ The chief-of-staff's record of decisions, recurring problems and preferences. It
 
 ## Recurring problems
 
-- [Parallel agents](parallel-agents.md): running several implementers at once without them colliding, plus the session limit, SSH refusal, worktree locks and, from 2026-11-16, the daily upkeep rules (and from 2026-11-17, how the upkeep and the "Wiki lint" routine split the work).
+- [Parallel agents](parallel-agents.md): running several implementers at once without them colliding, plus the session limit, SSH refusal, worktree locks and, from 2026-11-16, the daily upkeep rules (and from 2026-11-17, how the upkeep and the "Wiki lint" routine split the work; the 2026-11-18 upkeep is there too).
 - [up:local shares the dev DB](up-local-shares-dev-db.md): a stale container breaks dev migrations.
 - [Flaky tests](flaky-tests.md): tests that failed once and passed on a rerun.
 

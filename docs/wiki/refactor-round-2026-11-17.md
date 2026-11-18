@@ -24,7 +24,7 @@ From the implementers' reports and the chief-of-staff, 2026-11-17:
 - The chief-of-staff held DEV-140 until the user's PR #210 (DEV-138, merged as `jobanmendpara/myvgc@676f6e4`) had merged, because both touched the same files. DEV-139 and DEV-142 started at once.
 - The briefs were shorter than on 2026-11-15, because CLAUDE.md now has a Shipping section. They also asked agents to test only the affected packages and to write test logs to the scratchpad before filtering them (as DEV-144 asks).
 - All three agents' SSH pushes were refused, and each used the HTTPS workaround in [parallel agents](parallel-agents.md). The DEV-139 agent's SSH fetch worked before its push was refused.
-- `scripts/wait-for-checks.sh` ran past the 180-second foreground limit for DEV-139, and one call for DEV-142 took about 11 minutes. A fix was in progress on 2026-11-17 as DEV-147; its history will be in [shipping flow](shipping-flow.md).
+- `scripts/wait-for-checks.sh` ran past the 180-second foreground limit for DEV-139, and one call for DEV-142 took about 11 minutes. A fix was in progress on 2026-11-17 as DEV-147; its history will be in [shipping flow](shipping-flow.md). (Superseded 2026-11-18: DEV-147 merged in PR #221, `jobanmendpara/myvgc@a7693f0`, and Linear shows it Done; its history is in [shipping flow](shipping-flow.md), "Waiting for CI".)
 - The DEV-142 agent's first local API test run had 7 tests time out at 30 s, all passing on a rerun. It kept the full log, so the cause is confirmed as timeouts on a busy machine. See [flaky tests](flaky-tests.md). Added to [DEV-146](https://linear.app/mendpara/issue/DEV-146) as evidence on 2026-11-17.
 
 ## Follow-ups
@@ -35,5 +35,6 @@ Filed in Linear on 2026-11-17, all in Backlog that day:
 - [DEV-149](https://linear.app/mendpara/issue/DEV-149) (Refactor, from DEV-140, PR #214): one Team fields form section shared by `paste.vue` and the Team builder, so a new Team field's input is added in one place.
 - [DEV-150](https://linear.app/mendpara/issue/DEV-150) (Improvement, from DEV-140, PR #214): the smoke test checks that notes and Replica Team ID entered on the paste page reach the saved Team.
 - [DEV-151](https://linear.app/mendpara/issue/DEV-151) (Chore, from DEV-142, PR #213): say in the next release's notes that `S3_REGION` set without `S3_BUCKET` now refuses to start.
+- On 2026-11-18 Linear showed DEV-148 to DEV-151 still in Backlog.
 
 Related: [2026-11-15 Refactor round](refactor-round-2026-11-15.md), [parallel agents](parallel-agents.md), [shipping flow](shipping-flow.md), [flaky tests](flaky-tests.md).
