@@ -32,7 +32,7 @@ How we run several implementation agents at once. First used on 2026-11-11 for D
 - Worktree isolation refuses compound shell commands such as `sed && cat > file`, or `git` chained with `&&`, loops or `perl`. Run git one command per call, and use Edit and Write for file changes. (A further refusal was found on 2026-11-12, see the section below.)
 - To run the smoke test off the default ports (DEV-85, 2026-11-11), use `docker compose -p <unique-name> -f compose.yaml -f compose.build.yaml up -d --build --wait` with a `.env` holding `PORT=3400` and `APP_URL=http://localhost:3400`, then `BASE_URL=http://localhost:3400 pnpm smoke`. `compose.yaml` doesn't publish the database port, so the stack doesn't clash with the dev database. Tear it down afterwards.
 - Parallel agents share the session's scratchpad. On 2026-11-11 the DEV-99 agent's `pr-body.md` overwrote the DEV-96 agent's. Since then agents are told to put the issue identifier in every scratchpad file name.
-- `gh pr merge --delete-branch` deletes the remote branch but not the local one while it's checked out in a worktree. The chief-of-staff cleans these up.
+- `gh pr merge --delete-branch` deletes the remote branch but not the local one while it's checked out in a worktree. The chief-of-staff cleans these up. (Narrowed 2026-11-15: with `--auto` it doesn't delete the remote branch either, as PR #204 showed, so remote branches were left to delete by hand. Superseded 2026-11-17 for remote branches: the repo setting `delete_branch_on_merge` is on, so GitHub deletes them on merge and nobody deletes them by hand, see [shipping flow](shipping-flow.md). The chief-of-staff still cleans up local branches.)
 
 ## Session limit, SSH and worktree locks (2026-11-11, DEV-64 to DEV-66)
 
@@ -49,7 +49,7 @@ See the [2026-11-12 Todo round](todo-round-2026-11-12.md) for how the round ran.
 - On 2026-11-12 the worktree guard refused shell commands in which a variable sits where an option could be, such as `sed -i '' $S` or `sed -n '1p' $F`, because it can't show the command isn't git. Write file paths out in full in shell commands.
 - On 2026-11-12 the chief-of-staff found that worktrees left by a session that has ended aren't locked, so `git worktree remove` works on them straight away. The 2026-11-11 lock claim above applies only to worktrees of the running session.
 - On 2026-11-12 the briefs reminded implementers that seed data must use species that are in Pokémon Champions. Amoonguss isn't.
-- On 2026-11-12 the chief-of-staff set up a daily scheduled check, a cron that lasts only as long as its session. It removes the worktrees of finished agents and lints the wiki. (Superseded 2026-11-16: the lint now runs as a scheduled routine, see [conventions](conventions.md).)
+- On 2026-11-12 the chief-of-staff set up a daily scheduled check, a cron that lasts only as long as its session. It removes the worktrees of finished agents and lints the wiki. (Superseded 2026-11-16: the lint now runs as a scheduled routine, see [conventions](conventions.md). Amended 2026-11-17: both lints stay, see "Daily upkeep on 2026-11-17" below.)
 
 ## Environment on 2026-11-15 (DEV-127, DEV-116, DEV-109, DEV-110, DEV-113)
 
@@ -76,5 +76,7 @@ From the chief-of-staff, 2026-11-17:
 
 - On 2026-11-17 SSH git failed a third time with "agent refused operation", while `gh` API calls worked, and the HTTPS workaround above worked for fetch and push. It had also failed on 2026-11-11 and 2026-11-16.
 - On 2026-11-17 the upkeep removed no worktree. The only other worktree under `.claude/worktrees/` (DEV-129, PR #206 open) was locked by another session, so it was left.
+- On 2026-11-17 the user decided to keep both wiki lints, which answers the question in PR #208 of which job runs what. The user's own scheduled "Wiki lint" routine starts its own session, lints the wiki and opens a `chore/wiki-lint-<date>` PR (PR #207 was the first). The chief-of-staff's daily upkeep cron removes finished worktrees and runs on `chore/wiki-upkeep-<date>`, adding only what that day's routine PR missed, such as Linear issue states. This amends the 2026-11-16 supersession of the 2026-11-12 line above: the cron still lints, as a second pass after the routine.
+- On 2026-11-17 the chief-of-staff turned on `delete_branch_on_merge`, with the user's approval, so GitHub deletes a PR's remote branch when it merges. See [shipping flow](shipping-flow.md), "Branch protection and auto-merge".
 
 Related: [shipping flow](shipping-flow.md), [list and detail rollout](list-detail-rollout.md), [team reading rollout](team-reading-rollout.md).

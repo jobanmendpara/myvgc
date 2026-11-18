@@ -42,7 +42,7 @@ On 2026-11-11 the user corrected how many agents to run: one per issue, not extr
   | Push restrictions           | n/a                                | none                                                        |
   | Force pushes, deletions     | allowed                            | blocked (GitHub's default for a protected branch)           |
 
-  The other repo settings were left as they were: merge, squash and rebase merges all allowed, `delete_branch_on_merge` off. No rulesets exist.
+  The other repo settings were left as they were: merge, squash and rebase merges all allowed, `delete_branch_on_merge` off. No rulesets exist. (Superseded 2026-11-17: `delete_branch_on_merge` is on, see below.)
 - The check names come from the check runs on PR #202's head commit (`f6d4773`): `check` and `smoke / smoke`. On a push to `main` the smoke job reports as `smoke` and is skipped, because `ci.yml` runs it only on pull requests into `main`. That doesn't matter, since required checks only gate PRs.
 - From 2026-11-15 an agent ships a PR this way:
   1. Open the PR (`gh pr create`).
@@ -54,5 +54,7 @@ On 2026-11-11 the user corrected how many agents to run: one per issue, not extr
 - With `strict` off, GitHub never asks for a rebase, so the 2026-11-15 rebase rule above still stands, with one change of timing: auto-merge lands the PR as soon as the checks pass, so the agent compares its files with `origin/main` when it opens the PR, not after the checks. If files overlap, it rebases, runs that package's checks locally and pushes; a queued auto-merge then waits for the new head's checks. `main`'s own CI after each merge stays the backstop.
 - On 2026-11-15 this flow was first used on its own wiki PR, #204. It was queued with `--auto` straight after `gh pr create` and read `BLOCKED` while `check` and `smoke / smoke` ran. A second commit pushed after queuing (this line) left the auto-merge queued for the new head's checks.
 - On 2026-11-16, with the user's approval, this flow and the rebase rule above went into CLAUDE.md as its "Shipping" section, so agents get them without a brief (PR #205, `jobanmendpara/myvgc@138630b`).
+- On 2026-11-15 PR #204 showed a gap in step 2: with `--auto`, `gh pr merge --delete-branch` doesn't delete the remote branch, because GitHub merges the PR later, after `gh` has returned. #204's branch stayed on GitHub after it merged, so remote branches had to be deleted by hand. (Superseded 2026-11-17, see the next line.)
+- On 2026-11-17, with the user's approval, the chief-of-staff turned on the repo setting `delete_branch_on_merge`. From then on GitHub deletes a PR's branch itself when the PR merges, auto-merge included, so neither agents nor the chief-of-staff delete remote branches by hand. `--delete-branch` in step 2 is now redundant for the remote branch but harmless. Local branches and worktrees still need cleaning up, see [parallel agents](parallel-agents.md).
 
 Related: [parallel agents](parallel-agents.md), [2026-11-12 Todo round](todo-round-2026-11-12.md), [2026-11-15 Refactor round](refactor-round-2026-11-15.md).
