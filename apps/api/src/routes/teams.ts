@@ -105,6 +105,7 @@ export function teamRoutes(db: Database) {
           if (!read.ok) return c.json({ error: read.error }, 422)
           const draft: ReadTeamView = {
             name: read.name,
+            replicaTeamId: '',
             pokemon: read.pokemon.map(nameBuild),
             flags: read.flags,
           }

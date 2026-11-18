@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { MAX_MOVES, MAX_TEAM_SIZE, type PokemonBuild, STAT_IDS, type StatId } from './build'
 import { readBuild } from './read-build'
-import { MAX_TEAM_NAME_LENGTH, type ReadFlag } from './team'
+import { MAX_TEAM_NAME_LENGTH, type ReadFlag, replicaTeamIdSchema } from './team'
 
 /** A number shown on the image, or null when it isn't shown or can't be made out. */
 const shown = z.number().nullable()
@@ -21,17 +21,30 @@ export const UNSURE_FIELDS = [
   'stats',
 ] as const
 
+/** The Team's own fields an image reader can say it wasn't sure of. */
+export const UNSURE_TEAM_FIELDS = ['battleTeamName', 'replicaTeamId'] as const
+
 /**
  * What an image reader saw on screenshots or photos of a Team (ADR 24): the words and numbers
  * shown, not yet matched to the Champions data. The image reader's model fills this in, so it
  * avoids rules a model can't be held to, such as lengths and ranges; `readSeenTeam` checks those.
  */
 export const seenTeamSchema = z.object({
-  name: z
+  battleTeamName: z
     .string()
+    .nullable()
     .describe(
-      'The Battle Team name or Replica Team ID shown on the images, or an empty string when none is shown.',
+      "The Battle Team's own name, only when the images show one. Never the Replica Team ID, the slot or a Trainer Name. Null when none is shown.",
     ),
+  replicaTeamId: z
+    .string()
+    .nullable()
+    .describe(
+      'The Replica Team ID: the code of letters and digits after "Team ID:" in a Replica Team tab\'s banner, such as 9TCG84KWXK. Null when not shown.',
+    ),
+  unsure: z
+    .array(z.enum(UNSURE_TEAM_FIELDS))
+    .describe("The Team's fields that were hard to make out, so the User should check them."),
   pokemon: z
     .array(
       z.object({
@@ -73,6 +86,16 @@ const UNSURE: Record<(typeof UNSURE_FIELDS)[number], { path: string; message: st
   stats: { path: 'statPoints', message: 'The stats were hard to make out, so check them.' },
 }
 
+/** Where each unsure Team field's flag goes, and what it says. */
+const UNSURE_TEAM: Record<(typeof UNSURE_TEAM_FIELDS)[number], { path: string; message: string }> =
+  {
+    battleTeamName: { path: 'name', message: 'The Team name was hard to make out, so check it.' },
+    replicaTeamId: {
+      path: 'replicaTeamId',
+      message: 'The Replica Team ID was hard to make out, so check it.',
+    },
+  }
+
 /** The stats that were shown, or nothing when none were. */
 function shownStats(seen: SeenStats): Partial<Record<StatId, number>> | undefined {
   const known = Object.fromEntries(
@@ -87,10 +110,23 @@ function shownStats(seen: SeenStats): Partial<Record<StatId, number>> | undefine
  */
 export function readSeenTeam(seen: SeenTeam): {
   name: string
+  replicaTeamId: string
   pokemon: PokemonBuild[]
   flags: ReadFlag[]
 } {
   const flags: ReadFlag[] = []
+  // The ID is stored as the Team schema stores it; one that still isn't valid is left blank.
+  const seenId = seen.replicaTeamId?.trim() ?? ''
+  const id = replicaTeamIdSchema.safeParse(seenId)
+  if (!id.success)
+    flags.push({
+      path: ['replicaTeamId'],
+      message: `"${seenId}" isn't a Replica Team ID, so it was left blank.`,
+    })
+  for (const field of new Set(seen.unsure))
+    // An ID left blank already has its flag.
+    if (field !== 'replicaTeamId' || (id.success && id.data))
+      flags.push({ path: [UNSURE_TEAM[field].path], message: UNSURE_TEAM[field].message })
   const found = seen.pokemon.filter((build) => build.species.trim())
   const pokemon = found.slice(0, MAX_TEAM_SIZE).map((build, index) => {
     const read = readBuild(
@@ -120,5 +156,12 @@ export function readSeenTeam(seen: SeenTeam): {
       path: ['pokemon', MAX_TEAM_SIZE - 1],
       message: `${found.length} Pokémon were seen, so only the first ${MAX_TEAM_SIZE} were read.`,
     })
-  return { name: seen.name.trim().slice(0, MAX_TEAM_NAME_LENGTH), pokemon, flags }
+  return {
+    // No supported screen shows a Battle Team name, so the name is usually blank, with no flag:
+    // the Team builder asks for one (DEV-126).
+    name: (seen.battleTeamName ?? '').trim().slice(0, MAX_TEAM_NAME_LENGTH),
+    replicaTeamId: id.success ? id.data : '',
+    pokemon,
+    flags,
+  }
 }

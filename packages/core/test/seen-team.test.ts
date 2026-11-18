@@ -23,15 +23,27 @@ const seen = (build: Partial<SeenBuild> = {}): SeenBuild => ({
   ...build,
 })
 
+/** What a reader saw of a Team: no Battle Team name or Replica Team ID unless given. */
+const team = (pokemon: SeenBuild[], fields: Partial<Omit<SeenTeam, 'pokemon'>> = {}): SeenTeam => ({
+  battleTeamName: null,
+  replicaTeamId: null,
+  unsure: [],
+  pokemon,
+  ...fields,
+})
+
 describe('readSeenTeam', () => {
-  it('matches the names seen to Showdown IDs and keeps the Battle Team name', () => {
-    const read = readSeenTeam({
-      name: ' 9TCG84KWXK ',
-      pokemon: [seen({ statPoints: { ...noStats, hp: 2, spa: 32, spe: 32 } })],
-    })
+  it('matches the names seen to Showdown IDs and keeps the Battle Team name and Replica Team ID', () => {
+    const read = readSeenTeam(
+      team([seen({ statPoints: { ...noStats, hp: 2, spa: 32, spe: 32 } })], {
+        battleTeamName: ' Sun Room ',
+        replicaTeamId: '9TCG84KWXK',
+      }),
+    )
 
     expect(read).toEqual({
-      name: '9TCG84KWXK',
+      name: 'Sun Room',
+      replicaTeamId: '9TCG84KWXK',
       pokemon: [
         {
           species: 'charizard',
@@ -50,7 +62,7 @@ describe('readSeenTeam', () => {
     const statPoints = { hp: 2, atk: 0, def: 0, spa: 32, spd: 0, spe: 32 }
     const values = statValues(championsNames().baseStats.charizard!, statPoints, 'timid')
 
-    const read = readSeenTeam({ name: '', pokemon: [seen({ statValues: values })] })
+    const read = readSeenTeam(team([seen({ statValues: values })]))
 
     expect(read.pokemon[0]!.statPoints).toEqual(statPoints)
     expect(read.flags).toEqual([])
@@ -60,26 +72,24 @@ describe('readSeenTeam', () => {
     const statPoints = { hp: 2, atk: 0, def: 0, spa: 32, spd: 0, spe: 32 }
     const values = statValues(championsNames().baseStats.charizard!, statPoints, 'timid')
 
-    const read = readSeenTeam({
-      name: '',
-      pokemon: [seen({ statValues: { ...values, spa: 1 }, statPoints: { ...noStats, spa: 32 } })],
-    })
+    const read = readSeenTeam(
+      team([seen({ statValues: { ...values, spa: 1 }, statPoints: { ...noStats, spa: 32 } })]),
+    )
 
     expect(read.pokemon[0]!.statPoints).toEqual(statPoints)
     expect(read.flags).toEqual([])
   })
 
   it('flags names it can not match, impossible Stat Points and what the reader was unsure of', () => {
-    const read = readSeenTeam({
-      name: '',
-      pokemon: [
+    const read = readSeenTeam(
+      team([
         seen({
           item: 'Charcoal Biscuit',
           statPoints: { ...noStats, spe: 40 },
           unsure: ['ability', 'ability', 'statAlignment'],
         }),
-      ],
-    })
+      ]),
+    )
 
     expect(read.pokemon[0]).not.toHaveProperty('item')
     expect(read.pokemon[0]!.statPoints.spe).toBe(0)
@@ -101,15 +111,14 @@ describe('readSeenTeam', () => {
   })
 
   it('reads at most six Pokémon and four moves, and skips ones with no species', () => {
-    const read = readSeenTeam({
-      name: '',
-      pokemon: [
+    const read = readSeenTeam(
+      team([
         seen({ species: ' ', moves: [] }),
         ...Array.from({ length: 7 }, () =>
           seen({ moves: ['Protect', 'Tailwind', 'Roost', 'Fly', 'Ember'] }),
         ),
-      ],
-    })
+      ]),
+    )
 
     expect(read.pokemon).toHaveLength(6)
     expect(read.pokemon[0]!.moves).toEqual(['protect', 'tailwind', 'roost', 'fly'])
@@ -123,11 +132,68 @@ describe('readSeenTeam', () => {
     })
   })
 
+  it('leaves the name blank, with no flag, when no Battle Team name is shown', () => {
+    const read = readSeenTeam(team([seen()], { replicaTeamId: '9TCG84KWXK' }))
+
+    expect(read.name).toBe('')
+    expect(read.replicaTeamId).toBe('9TCG84KWXK')
+    expect(read.flags).toEqual([])
+  })
+
+  it('stores the Replica Team ID as the Team schema does', () => {
+    expect(readSeenTeam(team([seen()], { replicaTeamId: ' 9tcg 84kwxk ' })).replicaTeamId).toBe(
+      '9TCG84KWXK',
+    )
+    expect(readSeenTeam(team([seen()], { replicaTeamId: '' })).replicaTeamId).toBe('')
+  })
+
+  it("leaves a Replica Team ID that isn't valid blank, with a flag giving what was read", () => {
+    const read = readSeenTeam(team([seen()], { replicaTeamId: '9TCG84KWX!' }))
+
+    expect(read.replicaTeamId).toBe('')
+    expect(read.flags).toEqual([
+      {
+        path: ['replicaTeamId'],
+        message: '"9TCG84KWX!" isn\'t a Replica Team ID, so it was left blank.',
+      },
+    ])
+  })
+
+  it('flags a Replica Team ID or Battle Team name that was hard to make out', () => {
+    const read = readSeenTeam(
+      team([seen()], {
+        battleTeamName: 'Sun Room',
+        replicaTeamId: '9TCG84KWXK',
+        unsure: ['replicaTeamId', 'battleTeamName', 'replicaTeamId'],
+      }),
+    )
+
+    expect(read.replicaTeamId).toBe('9TCG84KWXK')
+    expect(read.flags).toEqual([
+      {
+        path: ['replicaTeamId'],
+        message: 'The Replica Team ID was hard to make out, so check it.',
+      },
+      { path: ['name'], message: 'The Team name was hard to make out, so check it.' },
+    ])
+  })
+
+  it('gives an ID left blank one flag, even when the reader was unsure of it', () => {
+    const invalid = readSeenTeam(
+      team([seen()], { replicaTeamId: '9TCG_84KWXK', unsure: ['replicaTeamId'] }),
+    )
+    expect(invalid.flags.map(({ message }) => message)).toEqual([
+      '"9TCG_84KWXK" isn\'t a Replica Team ID, so it was left blank.',
+    ])
+    expect(readSeenTeam(team([seen()], { unsure: ['replicaTeamId'] })).flags).toEqual([])
+  })
+
   it('has a schema the reader output is checked against', () => {
-    expect(seenTeamSchema.safeParse({ name: '', pokemon: [seen()] }).success).toBe(true)
-    expect(
-      seenTeamSchema.safeParse({ name: '', pokemon: [{ species: 'Charizard' }] }).success,
-    ).toBe(false)
+    expect(seenTeamSchema.safeParse(team([seen()])).success).toBe(true)
+    expect(seenTeamSchema.safeParse(team([{ species: 'Charizard' } as SeenBuild])).success).toBe(
+      false,
+    )
+    expect(seenTeamSchema.safeParse({ name: '', pokemon: [seen()] }).success).toBe(false)
   })
 })
 

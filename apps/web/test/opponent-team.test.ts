@@ -15,6 +15,7 @@ describe('readToOpponentTeam', () => {
   it('gives each Pokémon read its own flags, and says what was left out', () => {
     const read = readToOpponentTeam({
       name: 'Their Team',
+      replicaTeamId: '',
       pokemon: [
         named(''),
         named('incineroar', { ability: 'intimidate', moves: ['fakeout'] }),
@@ -49,6 +50,7 @@ describe('readToOpponentTeam', () => {
   it('sends only what an open teamsheet shows, never the flags', () => {
     const { pokemon } = readToOpponentTeam({
       name: '',
+      replicaTeamId: '',
       pokemon: [named('incineroar', { moves: ['fakeout'] })],
       flags: [{ path: ['pokemon', 0, 'moves', 1], message: 'Couldn’t read "Knock Of".' }],
     })

@@ -124,6 +124,7 @@ export function teamReadingRoutes(db: Database, imageReading?: ImageReading) {
             return c.json({ error: "MyVGC couldn't find a Team's Pokémon on these images." }, 422)
           const draft: ReadTeamView = {
             name: read.name,
+            replicaTeamId: read.replicaTeamId,
             pokemon: read.pokemon.map(nameBuild),
             flags: read.flags,
           }

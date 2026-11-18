@@ -9,7 +9,9 @@ const noStats = { hp: null, atk: null, def: null, spa: null, spd: null, spe: nul
 
 /** What the stubbed model provider "sees": no request ever leaves the test. */
 const SEEN: SeenTeam = {
-  name: '9TCG84KWXK',
+  battleTeamName: null,
+  replicaTeamId: '9tcg84kwxk',
+  unsure: [],
   pokemon: [
     {
       species: 'Charizard',
@@ -94,7 +96,9 @@ describe('image reading', () => {
 
       expect(res.status).toBe(200)
       const body = await json(res)
-      expect(body.name).toBe('9TCG84KWXK')
+      // The Replica Team ID goes into its own field, never the name.
+      expect(body.name).toBe('')
+      expect(body.replicaTeamId).toBe('9TCG84KWXK')
       expect(body.pokemon).toHaveLength(2)
       expect(body.pokemon[0]).toMatchObject({
         species: 'charizard',
@@ -113,6 +117,24 @@ describe('image reading', () => {
       // The reader gets every image, typed by its bytes.
       const sent: TeamImage[] = reader.read.mock.calls[0]![0]
       expect(sent.map((one) => one.type)).toEqual(['image/png', 'image/jpeg'])
+    })
+
+    it("flags a Replica Team ID that isn't valid or was hard to make out", async () => {
+      await setUp({ reader: async () => ({ ...SEEN, replicaTeamId: '9TCG_84KWXK' }) })
+      const invalid = await json(await upload(image(PNG)))
+      expect(invalid.replicaTeamId).toBe('')
+      expect(invalid.flags).toContainEqual({
+        path: ['replicaTeamId'],
+        message: '"9TCG_84KWXK" isn\'t a Replica Team ID, so it was left blank.',
+      })
+
+      reader.read.mockResolvedValueOnce({ ...SEEN, unsure: ['replicaTeamId'] })
+      const unsure = await json(await upload(image(PNG)))
+      expect(unsure.replicaTeamId).toBe('9TCG84KWXK')
+      expect(unsure.flags).toContainEqual({
+        path: ['replicaTeamId'],
+        message: 'The Replica Team ID was hard to make out, so check it.',
+      })
     })
 
     it('types an image by its bytes, not what the browser said, and refuses other files', async () => {
@@ -145,7 +167,7 @@ describe('image reading', () => {
     })
 
     it("answers 422 when the reader finds no Team's Pokémon", async () => {
-      await setUp({ reader: async () => ({ name: '', pokemon: [] }) })
+      await setUp({ reader: async () => ({ ...SEEN, pokemon: [] }) })
       const res = await upload(image(PNG))
 
       expect(res.status).toBe(422)

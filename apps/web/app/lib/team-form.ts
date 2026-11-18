@@ -31,6 +31,11 @@ export interface BuildDraft {
 
 export interface TeamDraft extends TeamFields {
   pokemon: BuildDraft[]
+  /**
+   * What the reader wasn't sure of about the Team as a whole, such as its Replica Team ID, for a
+   * Team read from a file (ADR 24). Never sent.
+   */
+  readFlags: string[]
 }
 
 let nextKey = 0
@@ -74,16 +79,21 @@ export function teamToDraft(team?: TeamView): TeamDraft {
   return {
     ...(team ? pickTeamFields(team) : newTeamFields()),
     pokemon: team?.pokemon.map(buildToDraft) ?? [],
+    readFlags: [],
   }
 }
 
-/** The form for a Team read from a file, each slot carrying what the reader wasn't sure of. */
+/**
+ * The form for a Team read from a file, each slot carrying what the reader wasn't sure of about
+ * its Pokémon, and the Team carrying every other flag.
+ */
 export function readTeamToDraft(read: ReadTeamView): TeamDraft {
   const blank = teamToDraft()
   return {
     ...blank,
     // A Team read with no name keeps the blank one's random name.
     name: read.name.trim() ? read.name : blank.name,
+    replicaTeamId: read.replicaTeamId,
     pokemon: read.pokemon.map((build, index) => ({
       ...buildToDraft(build),
       // A species the reader couldn't match leaves the slot empty for the User to choose.
@@ -92,6 +102,7 @@ export function readTeamToDraft(read: ReadTeamView): TeamDraft {
         .filter(({ path }) => path[0] === 'pokemon' && path[1] === index)
         .map(({ message }) => message),
     })),
+    readFlags: read.flags.filter(({ path }) => path[0] !== 'pokemon').map(({ message }) => message),
   }
 }
 
