@@ -10,7 +10,8 @@
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "db:generate": "drizzle-kit generate"
+    "db:generate": "drizzle-kit generate",
+    "accuracy": "node scripts/accuracy.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.8.0",
