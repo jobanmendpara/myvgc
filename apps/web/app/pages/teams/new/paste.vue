@@ -1,11 +1,5 @@
 <script setup lang="ts">
-import {
-  MAX_PASTE_LENGTH,
-  MAX_REPLICA_TEAM_ID_LENGTH,
-  REGULATIONS,
-  type TeamFields,
-  pickTeamFields,
-} from '@myvgc/core/schema'
+import { MAX_PASTE_LENGTH, type TeamFields, pickTeamFields } from '@myvgc/core/schema'
 import { useMutation, useQueryClient } from '@tanstack/vue-query'
 import { type CreatedTeam, type CreateTeamError, toCreateTeamError } from '@/lib/api'
 import { newTeamFields } from '@/lib/team-form'
@@ -46,8 +40,7 @@ const save = useMutation({
   },
 })
 
-const fieldError = (field: string) =>
-  problem.value?.kind === 'fields' ? problem.value.fields[field] : undefined
+const fieldErrors = computed(() => (problem.value?.kind === 'fields' ? problem.value.fields : {}))
 
 /** Selects a line in the paste box, so the User can fix it there. */
 function showLine(line: number) {
@@ -70,109 +63,60 @@ function showLine(line: number) {
     </div>
 
     <form class="flex flex-col gap-5" novalidate @submit.prevent="save.mutate()">
-      <TeamNameField v-model="fields.name" :error="fieldError('name')" />
+      <TeamFieldsSection v-model:fields="fields" :errors="fieldErrors">
+        <div class="flex flex-col gap-2">
+          <Label for="paste">Paste</Label>
+          <Textarea
+            id="paste"
+            v-model="paste"
+            rows="14"
+            spellcheck="false"
+            autocapitalize="off"
+            autocomplete="off"
+            :maxlength="MAX_PASTE_LENGTH"
+            class="font-mono text-sm"
+            :placeholder="'Incineroar @ Sitrus Berry\nAbility: Intimidate\nEVs: 32 HP / 2 Atk / 32 SpD\nCareful Nature\n- Fake Out\n- Parting Shot'"
+            :aria-invalid="problem?.kind === 'paste' || fieldErrors.paste ? true : undefined"
+            aria-describedby="paste-problems paste-error"
+          />
+          <p v-if="fieldErrors.paste" id="paste-error" class="text-destructive text-sm">
+            {{ fieldErrors.paste }}
+          </p>
+        </div>
 
-      <div class="flex flex-col gap-2">
-        <Label for="regulation">Regulation</Label>
-        <NativeSelect id="regulation" v-model="fields.regulation" class="w-40">
-          <NativeSelectOption v-for="reg in REGULATIONS" :key="reg" :value="reg">
-            Reg {{ reg }}
-          </NativeSelectOption>
-        </NativeSelect>
-      </div>
-
-      <div class="flex flex-col gap-2">
-        <Label for="replica-team-id"
-          >Replica Team ID <span class="text-muted-foreground font-normal">(optional)</span></Label
+        <section
+          v-if="problem?.kind === 'paste'"
+          id="paste-problems"
+          tabindex="-1"
+          class="border-destructive/50 flex flex-col gap-3 rounded-lg border p-3 outline-none"
+          aria-labelledby="paste-problems-title"
         >
-        <Input
-          id="replica-team-id"
-          v-model="fields.replicaTeamId"
-          autocomplete="off"
-          autocapitalize="characters"
-          spellcheck="false"
-          class="w-60 font-mono uppercase"
-          placeholder="9TCG84KWXK"
-          :maxlength="MAX_REPLICA_TEAM_ID_LENGTH"
-          :aria-invalid="fieldError('replicaTeamId') ? true : undefined"
-          aria-describedby="replica-team-id-hint replica-team-id-error"
-        />
-        <p id="replica-team-id-hint" class="text-muted-foreground text-sm">
-          The code Champions gives this Battle Team as a Replica Team, for when a judge asks.
-        </p>
-        <p
-          v-if="fieldError('replicaTeamId')"
-          id="replica-team-id-error"
-          class="text-destructive text-sm"
-        >
-          {{ fieldError('replicaTeamId') }}
-        </p>
-      </div>
-
-      <div class="flex flex-col gap-2">
-        <Label for="paste">Paste</Label>
-        <Textarea
-          id="paste"
-          v-model="paste"
-          rows="14"
-          spellcheck="false"
-          autocapitalize="off"
-          autocomplete="off"
-          :maxlength="MAX_PASTE_LENGTH"
-          class="font-mono text-sm"
-          :placeholder="'Incineroar @ Sitrus Berry\nAbility: Intimidate\nEVs: 32 HP / 2 Atk / 32 SpD\nCareful Nature\n- Fake Out\n- Parting Shot'"
-          :aria-invalid="problem?.kind === 'paste' || fieldError('paste') ? true : undefined"
-          aria-describedby="paste-problems paste-error"
-        />
-        <p v-if="fieldError('paste')" id="paste-error" class="text-destructive text-sm">
-          {{ fieldError('paste') }}
-        </p>
-      </div>
-
-      <section
-        v-if="problem?.kind === 'paste'"
-        id="paste-problems"
-        tabindex="-1"
-        class="border-destructive/50 flex flex-col gap-3 rounded-lg border p-3 outline-none"
-        aria-labelledby="paste-problems-title"
-      >
-        <h2 id="paste-problems-title" class="text-destructive font-medium">
-          {{ problem.errors.length === 1 ? '1 problem' : `${problem.errors.length} problems` }} in
-          the paste. Nothing was saved.
-        </h2>
-        <ol class="flex flex-col gap-3" data-testid="paste-errors">
-          <li
-            v-for="error in problem.errors"
-            :key="`${error.line}:${error.message}`"
-            class="flex flex-col gap-1"
-          >
-            <div class="flex items-center justify-between gap-2">
-              <span class="text-sm font-medium">Line {{ error.line }}</span>
-              <Button type="button" variant="ghost" size="sm" @click="showLine(error.line)">
-                Show in paste
-              </Button>
-            </div>
-            <code
-              v-if="sentLines[error.line - 1]"
-              class="bg-muted overflow-x-auto rounded px-2 py-1 font-mono text-sm whitespace-pre"
-              >{{ sentLines[error.line - 1] }}</code
+          <h2 id="paste-problems-title" class="text-destructive font-medium">
+            {{ problem.errors.length === 1 ? '1 problem' : `${problem.errors.length} problems` }} in
+            the paste. Nothing was saved.
+          </h2>
+          <ol class="flex flex-col gap-3" data-testid="paste-errors">
+            <li
+              v-for="error in problem.errors"
+              :key="`${error.line}:${error.message}`"
+              class="flex flex-col gap-1"
             >
-            <p class="text-destructive text-sm">{{ error.message }}</p>
-          </li>
-        </ol>
-      </section>
-
-      <div class="flex flex-col gap-2">
-        <Label for="notes"
-          >Notes <span class="text-muted-foreground font-normal">(optional)</span></Label
-        >
-        <Textarea
-          id="notes"
-          v-model="fields.notes"
-          rows="4"
-          placeholder="Leads, game plans, things to remember…"
-        />
-      </div>
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-sm font-medium">Line {{ error.line }}</span>
+                <Button type="button" variant="ghost" size="sm" @click="showLine(error.line)">
+                  Show in paste
+                </Button>
+              </div>
+              <code
+                v-if="sentLines[error.line - 1]"
+                class="bg-muted overflow-x-auto rounded px-2 py-1 font-mono text-sm whitespace-pre"
+                >{{ sentLines[error.line - 1] }}</code
+              >
+              <p class="text-destructive text-sm">{{ error.message }}</p>
+            </li>
+          </ol>
+        </section>
+      </TeamFieldsSection>
 
       <Alert v-if="problem?.kind === 'other'" variant="destructive" role="alert">
         <AlertDescription>{{ problem.message }}</AlertDescription>

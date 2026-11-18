@@ -46,7 +46,8 @@ const replicaTeamIdSchema = z
  * creation, the Data export and import, and the Team builder's form copy them with
  * `pickTeamFields`, so none of those list them. A new field still needs its blank value in
  * `BLANK_TEAM_FIELDS` (and a default in `newTeamSchema` if it can be left out), a database column,
- * a new Data export version with an upgrade step (ADR 23), and its inputs in the web app.
+ * a new Data export version with an upgrade step (ADR 23), and its input in the web app's
+ * `TeamFieldsSection`.
  */
 const teamFieldsSchema = z.object({
   name: teamName,
