@@ -85,8 +85,14 @@ const schema = z
         )
 
       // Settings that do nothing without a bucket are more likely a mistake than a choice.
-      const withoutBucket = [S3_REGION, S3_ENDPOINT, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY]
-      if (!S3_BUCKET && (withoutBucket.some(Boolean) || S3_FORCE_PATH_STYLE !== undefined))
+      const needsBucket = [
+        S3_REGION,
+        S3_ENDPOINT,
+        S3_ACCESS_KEY_ID,
+        S3_SECRET_ACCESS_KEY,
+        S3_FORCE_PATH_STYLE,
+      ]
+      if (!S3_BUCKET && needsBucket.some((value) => value !== undefined))
         refuse('S3_BUCKET', 'set S3_BUCKET to keep uploads in S3, or remove the other S3_ settings')
 
       if (ctx.issues.length) return z.NEVER
