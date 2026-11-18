@@ -73,6 +73,7 @@ The map is DEV-77. The decisions are DEV-78 to DEV-83. The build issues are belo
   - `ListRows.vue` has `#compact`, `#detailed` and `#grouped` slots, works out the selected id itself, and takes `searching`.
   - `TournamentRows.vue`, `TeamRows.vue` and `OpponentRows.vue` replace the `*Summary` components.
   - `ListColumn.vue` takes `loadFailed`.
+  - (Added 2026-11-18: as of `jobanmendpara/myvgc@6e1334e` (DEV-148), `ListRows.vue` takes a `path` function in place of a `base`, and the Tournaments, Teams and Opponents lists pass `tournamentPath`, `teamPath` and `opponentPath` from `apps/web/app/lib/paths.ts`. See the [2026-11-18 Refactor round](refactor-round-2026-11-18.md).)
   - The DEV-95 agent found that generic slot inference had been broken locally before DEV-99, by the same stray `~/node_modules`.
 - On 2026-11-12 the lint found DEV-100 merged in PR #134, `jobanmendpara/myvgc@b017592`; its row above still said "Filed". As of `jobanmendpara/myvgc@56af0fe` (2026-11-12), `apps/web/app/lib/opponent-list.ts` and `list-style-look.ts` still exist as described above, and ADR 13 records the web unit tests (amended 2026-11-11).
 - As of `jobanmendpara/myvgc@aff4e71` (DEV-100, 2026-11-11), `apps/web` has a `test` script running plain Vitest, so `pnpm test` and CI run it. `apps/web/test/` covers `fetchEveryOpponent`, with Nuxt's global `$fetch` stubbed, and `app/lib/format.ts`. Nuxt's typecheck includes `test/` through `typescript.tsConfig` in `nuxt.config.ts`. ADR 13 now says web unit tests cover web-only logic, while domain logic stays in `packages/core`.
