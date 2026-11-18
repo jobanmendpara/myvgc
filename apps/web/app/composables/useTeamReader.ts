@@ -12,6 +12,7 @@ import {
 import { useMutation, useQuery } from '@tanstack/vue-query'
 import { useOnline } from '@vueuse/core'
 import { FetchError } from 'ofetch'
+import { imageToUpload } from '@/lib/shrink-image'
 
 /** The files the Teamsheet reader takes: Teamsheet PDFs. */
 export const TEAM_FILE_TYPES = 'application/pdf,.pdf'
@@ -38,7 +39,7 @@ export function useImageReading() {
  * saved and the files aren't kept. Reading needs the API, so it's online only (ADR 17).
  *
  * Bind `fileInput` to a hidden file input whose change calls `choose` (one Teamsheet PDF) or
- * `chooseImages` (1 to 6 screenshots or photos). With `tournamentId`, `readStored` reads that
+ * `chooseImages` (1 to 8 screenshots, each scaled down before upload). With `tournamentId`, `readStored` reads that
  * Tournament's Teamsheet attachment instead (ADR 27), which stays stored.
  */
 export function useTeamReader(
@@ -48,8 +49,12 @@ export function useTeamReader(
   const online = useOnline()
   const fileInput = ref<HTMLInputElement | null>(null)
 
-  function readImages(images: File[]) {
-    if (images.length > MAX_TEAM_IMAGES) throw new Error(TOO_MANY_TEAM_IMAGES)
+  async function readImages(chosen: File[]) {
+    if (chosen.length > MAX_TEAM_IMAGES) throw new Error(TOO_MANY_TEAM_IMAGES)
+    // One at a time, so a phone holds one decoded screenshot at once. The size limit applies to
+    // what's sent, so a large photo that shrinks under it is read.
+    const images: File[] = []
+    for (const image of chosen) images.push(await imageToUpload(image))
     if (images.some((image) => image.size > MAX_TEAM_IMAGE_BYTES))
       throw new Error(TEAM_IMAGE_TOO_LARGE)
     const body = new FormData()

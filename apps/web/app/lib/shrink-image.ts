@@ -39,3 +39,18 @@ export async function shrinkImage(
     ),
   )
 }
+
+/**
+ * The file to upload for an image the User chose: the shrunk one when shrinking worked and made it
+ * smaller, else the original (ADR 24, DEV-122). A browser that can't decode the image (such as
+ * HEIC outside Safari) makes `shrink` throw, so the original goes and the server checks it as it
+ * would any upload. The shrunk file keeps the original's name.
+ */
+export async function imageToUpload(
+  image: File,
+  shrink: (image: Blob) => Promise<Blob> = shrinkImage,
+): Promise<File> {
+  const shrunk = await shrink(image).catch(() => undefined)
+  if (!shrunk || shrunk.size >= image.size) return image
+  return new File([shrunk], image.name, { type: shrunk.type || image.type })
+}

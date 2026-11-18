@@ -182,10 +182,16 @@ export const TEAMSHEET_TOO_LARGE = `The file is larger than ${MAX_TEAMSHEET_MB} 
 /** Image types the image reader takes (ADR 24). No HEIC. */
 export const TEAM_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp'] as const
 export type TeamImageType = (typeof TEAM_IMAGE_TYPES)[number]
-/** Most images read together into one Team. */
-export const MAX_TEAM_IMAGES = 6
-/** The largest image MyVGC reads. */
-export const MAX_TEAM_IMAGE_MB = 10
+/**
+ * Most images read together into one Team: a Replica Team's two tabs plus a detail screen for each
+ * of its six Pokémon (ADR 24, DEV-122).
+ */
+export const MAX_TEAM_IMAGES = 8
+/**
+ * The largest image MyVGC reads, in MiB. Base64 makes 7 MiB about 9.8 MB, under the model API's
+ * 10 MB limit per image (ADR 24, DEV-122).
+ */
+export const MAX_TEAM_IMAGE_MB = 7
 export const MAX_TEAM_IMAGE_BYTES = MAX_TEAM_IMAGE_MB * 1024 * 1024
 export const TEAM_IMAGE_TOO_LARGE = `Each image can be at most ${MAX_TEAM_IMAGE_MB} MB.`
 export const TOO_MANY_TEAM_IMAGES = `Choose at most ${MAX_TEAM_IMAGES} images.`

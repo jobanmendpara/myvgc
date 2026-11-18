@@ -37,6 +37,7 @@ const SEEN: SeenTeam = {
 // The first bytes of each image type, which is all the API looks at before the reader.
 const PNG = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]
 const JPEG = [0xff, 0xd8, 0xff, 0xe0]
+const MiB = 1024 * 1024
 const image = (start: number[], type = 'image/png', size = 64) => {
   const bytes = new Uint8Array(size)
   bytes.set(start)
@@ -124,24 +125,42 @@ describe('image reading', () => {
       expect(reader.read).not.toHaveBeenCalled()
     })
 
-    it('answers 400 for no images or more than six', async () => {
+    it("reads a full set of 8 images of 7 MB each: a Replica Team's two tabs and six detail screens", async () => {
+      await setUp()
+      const res = await upload(...Array.from({ length: 8 }, () => image(PNG, 'image/png', 7 * MiB)))
+
+      expect(res.status).toBe(200)
+      expect(reader.read.mock.calls[0]![0]).toHaveLength(8)
+    })
+
+    it('answers 400 for no images or more than eight', async () => {
       await setUp()
       const none = await upload()
       expect(none.status).toBe(400)
       expect(await json(none)).toEqual({ error: 'Choose screenshots or photos of a Team to read.' })
 
-      const seven = await upload(...Array.from({ length: 7 }, () => image(PNG)))
-      expect(seven.status).toBe(400)
-      expect(await json(seven)).toEqual({ error: 'Choose at most 6 images.' })
+      const nine = await upload(...Array.from({ length: 9 }, () => image(PNG)))
+      expect(nine.status).toBe(400)
+      expect(await json(nine)).toEqual({ error: 'Choose at most 8 images.' })
       expect(reader.read).not.toHaveBeenCalled()
     })
 
-    it('answers 413 for an image over 10 MB', async () => {
+    it('answers 413 for an image over 7 MB', async () => {
       await setUp()
-      const res = await upload(image(PNG, 'image/png', 10 * 1024 * 1024 + 1))
+      const res = await upload(image(PNG, 'image/png', 7 * MiB + 1))
 
       expect(res.status).toBe(413)
-      expect(await json(res)).toEqual({ error: 'Each image can be at most 10 MB.' })
+      expect(await json(res)).toEqual({ error: 'Each image can be at most 7 MB.' })
+      expect(reader.read).not.toHaveBeenCalled()
+    })
+
+    it('answers 413 when the images add up to more than 8 of 7 MB', async () => {
+      await setUp()
+      const res = await upload(...Array.from({ length: 9 }, () => image(PNG, 'image/png', 7 * MiB)))
+
+      expect(res.status).toBe(413)
+      expect(await json(res)).toEqual({ error: 'The images add up to more than 56 MB.' })
+      expect(reader.read).not.toHaveBeenCalled()
     })
 
     it("answers 422 when the reader finds no Team's Pokémon", async () => {
