@@ -9,6 +9,7 @@ import {
   type TeamFields,
   type TeamView,
   pickTeamFields,
+  randomTeamName,
   teamSchema,
 } from '@myvgc/core/schema'
 
@@ -63,19 +64,21 @@ function buildToDraft(build: NamedPokemonBuild): BuildDraft {
   }
 }
 
-/** The form for an existing Team, or a blank one. */
+/** The form for an existing Team, or a blank one with a random name. */
 export function teamToDraft(team?: TeamView): TeamDraft {
   return {
-    ...(team ? pickTeamFields(team) : BLANK_TEAM_FIELDS),
+    ...(team ? pickTeamFields(team) : { ...BLANK_TEAM_FIELDS, name: randomTeamName() }),
     pokemon: team?.pokemon.map(buildToDraft) ?? [],
   }
 }
 
 /** The form for a Team read from a file, each slot carrying what the reader wasn't sure of. */
 export function readTeamToDraft(read: ReadTeamView): TeamDraft {
+  const blank = teamToDraft()
   return {
-    ...teamToDraft(),
-    name: read.name,
+    ...blank,
+    // A Team read with no name keeps the blank one's random name.
+    name: read.name.trim() ? read.name : blank.name,
     pokemon: read.pokemon.map((build, index) => ({
       ...buildToDraft(build),
       // A species the reader couldn't match leaves the slot empty for the User to choose.

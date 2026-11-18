@@ -2,7 +2,6 @@
 import {
   MAX_NOTES_LENGTH,
   MAX_REPLICA_TEAM_ID_LENGTH,
-  MAX_TEAM_NAME_LENGTH,
   MAX_TEAM_SIZE,
   REGULATIONS,
   type ReadTeamView,
@@ -129,19 +128,7 @@ const { DiscardDialog } = useDiscardGuard(dirty, 'this Team')
 
 <template>
   <form class="flex flex-col gap-5" novalidate @submit.prevent="submit">
-    <div class="flex flex-col gap-2">
-      <Label for="name">Name</Label>
-      <Input
-        id="name"
-        v-model="draft.name"
-        autocomplete="off"
-        required
-        :maxlength="MAX_TEAM_NAME_LENGTH"
-        :aria-invalid="errors.name ? true : undefined"
-        aria-describedby="name-error"
-      />
-      <p v-if="errors.name" id="name-error" class="text-destructive text-sm">{{ errors.name }}</p>
-    </div>
+    <TeamNameField v-model="draft.name" :error="errors.name" />
 
     <div class="flex flex-col gap-2">
       <Label for="regulation">Regulation</Label>
