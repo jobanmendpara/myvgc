@@ -21,6 +21,18 @@ export const DEFAULT_TEAM_READER_MODEL = 'claude-haiku-5-5'
 const unsetIfBlank = <S extends z.ZodType>(schema: S) =>
   z.preprocess((value) => (typeof value === 'string' && !value.trim() ? undefined : value), schema)
 
+// TEAM_READER_MODEL, trimmed, or the default when it's unset or blank.
+const teamReaderModelSchema = unsetIfBlank(z.string().trim().default(DEFAULT_TEAM_READER_MODEL))
+
+/**
+ * The model that reads Teams from images, by the same rule as `loadConfig`. The accuracy check
+ * (ADR 24) uses it, so `pnpm accuracy` tests the model the app would use without needing the
+ * app's other settings (DEV-153).
+ */
+export function teamReaderModel(env: NodeJS.ProcessEnv = process.env): string {
+  return teamReaderModelSchema.parse(env.TEAM_READER_MODEL)
+}
+
 const schema = z
   .object({
     DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
@@ -52,7 +64,7 @@ const schema = z
     // Reading Teams from images (ADR 24) is off unless a key is set. A blank value counts as unset,
     // so `.env.example`'s empty line keeps it off.
     ANTHROPIC_API_KEY: unsetIfBlank(z.string().trim().optional()),
-    TEAM_READER_MODEL: unsetIfBlank(z.string().trim().default(DEFAULT_TEAM_READER_MODEL)),
+    TEAM_READER_MODEL: teamReaderModelSchema,
     TEAM_READER_DAILY_LIMIT: unsetIfBlank(
       z.coerce
         .number({ error: 'must be a whole number of reads, such as 20' })
