@@ -2,6 +2,7 @@
 import { type TeamView, buildProblems, teamProblems, today } from '@myvgc/core/schema'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 import { FetchError } from 'ofetch'
+import { editTeamPath } from '@/lib/paths'
 
 const route = useRoute()
 const id = computed(() => String(route.params.id))
@@ -133,7 +134,7 @@ const remove = useMutation({
             {{ copyState === 'copied' ? 'Copied' : 'Copy paste' }}
           </Button>
           <Button as-child variant="outline"
-            ><NuxtLink :to="`/teams/${id}/edit`">Edit</NuxtLink></Button
+            ><NuxtLink :to="editTeamPath(id)">Edit</NuxtLink></Button
           >
           <TeamsheetExport
             :url="`/api/teams/${id}/teamsheet`"

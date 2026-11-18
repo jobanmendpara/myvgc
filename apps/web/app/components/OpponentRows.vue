@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { type ListStyle, type OpponentView, formatRecord, groupOpponents } from '@myvgc/core/schema'
+import { opponentPath } from '@/lib/paths'
 
 // The rows of the Opponents list, and what a row shows in each List style. Compact: the
 // display name and Head-to-head record. Grouped: those, then the Aliases and Round count.
@@ -23,7 +24,7 @@ const rounds = ({ roundCount }: OpponentView) =>
     :items="opponents"
     :list-style="listStyle"
     :wide="wide"
-    base="/opponents"
+    :path="opponentPath"
     :group-by="groupBy"
     :searching="searching"
     data-testid="opponents-list"

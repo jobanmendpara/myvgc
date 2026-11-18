@@ -10,8 +10,8 @@ const props = defineProps<{
   items: T[]
   listStyle: ListStyle
   wide: boolean
-  /** The area's path, such as `/teams`; each row links to the item's page under it. */
-  base: string
+  /** The path to an item's page, such as `teamPath`; each row links there. */
+  path: (id: string) => string
   /** How the Grouped List style groups the items. */
   groupBy: (items: T[]) => ListGroup<T>[]
   /** Whether the items are search results, which show under no headings. */
@@ -49,7 +49,7 @@ const selectedId = computed(() => ('id' in route.params ? String(route.params.id
       <ul :class="look.list(wide)">
         <li v-for="item in group.items" :key="item.id">
           <NuxtLink
-            :to="`${base}/${item.id}`"
+            :to="path(item.id)"
             :aria-current="item.id === selectedId ? 'page' : undefined"
             :class="look.link(wide)"
           >

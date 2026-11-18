@@ -2,6 +2,7 @@
 import type { TeamBody, TeamView } from '@myvgc/core/schema'
 import { useQuery } from '@tanstack/vue-query'
 import { FetchError } from 'ofetch'
+import { teamPath } from '@/lib/paths'
 
 const route = useRoute()
 const id = computed(() => String(route.params.id))
@@ -32,7 +33,7 @@ function save(body: TeamBody) {
       v-else-if="teamQuery.data.value"
       :initial="teamQuery.data.value"
       :save="save"
-      :cancel-to="`/teams/${id}`"
+      :cancel-to="teamPath(id)"
     />
     <Alert v-else variant="destructive" role="alert">
       <AlertDescription>Couldn't load this Team.</AlertDescription>

@@ -2,6 +2,7 @@
 import type { TeamView, TournamentView } from '@myvgc/core/schema'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 import { saveFailureMessage } from '@/lib/api'
+import { teamPath } from '@/lib/paths'
 
 // The Team snapshot on a Tournament (ADR 9): link one of the User's Teams, replace or refresh
 // it, or unlink it. Refreshing it from the same Team only works until the Tournament is over.
@@ -63,7 +64,7 @@ const snapshotDate = computed(() =>
         <div class="min-w-0">
           <NuxtLink
             v-if="tournament.team.teamId"
-            :to="`/teams/${tournament.team.teamId}`"
+            :to="teamPath(tournament.team.teamId)"
             class="font-semibold break-words hover:underline"
             data-testid="team-snapshot-name"
             >{{ tournament.team.name }}</NuxtLink

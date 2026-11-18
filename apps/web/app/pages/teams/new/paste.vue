@@ -8,6 +8,7 @@ import {
 } from '@myvgc/core/schema'
 import { useMutation, useQueryClient } from '@tanstack/vue-query'
 import { type CreatedTeam, type CreateTeamError, toCreateTeamError } from '@/lib/api'
+import { teamPath } from '@/lib/paths'
 import { newTeamFields } from '@/lib/team-form'
 
 useHead({ title: 'Import a Team · MyVGC' })
@@ -42,7 +43,7 @@ const save = useMutation({
     queryClient.setQueryData(['team', team.id], team)
     await queryClient.invalidateQueries({ queryKey: ['teams'] })
     useImportWarnings(team.id).value = warnings
-    await navigateTo(`/teams/${team.id}`)
+    await navigateTo(teamPath(team.id))
   },
 })
 
