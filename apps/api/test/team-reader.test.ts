@@ -51,7 +51,7 @@ describe('anthropicTeamReader', () => {
     const [request] = requests
     expect(request!.url).toMatch(/\/v1\/messages/)
     expect(request!.body).toMatchObject({
-      model: 'claude-haiku-5-5',
+      model: DEFAULT_TEAM_READER_MODEL,
       fallbacks: 'default',
       output_config: { format: { type: 'json_schema' } },
     })
