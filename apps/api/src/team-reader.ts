@@ -57,6 +57,7 @@ export function anthropicTeamReader({
           model,
           max_tokens: 16000,
           // On a declined request the API retries on a model chosen for that refusal's category.
+          // Haiku 5.5, the default, has no such fallback, so there a refused read simply fails.
           betas: ['server-side-fallback-2026-07-01'],
           fallbacks: 'default',
           system: INSTRUCTIONS,
