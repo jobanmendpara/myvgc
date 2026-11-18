@@ -9,7 +9,8 @@ import {
 import { useMutation, useQueryClient } from '@tanstack/vue-query'
 import { createReusableTemplate } from '@vueuse/core'
 import { fieldErrorsOf, saveFailureMessage } from '@/lib/api'
-import { formatDates, roundLabel, roundOutcome, roundPath } from '@/lib/format'
+import { formatDates, roundLabel, roundOutcome } from '@/lib/format'
+import { roundPath } from '@/lib/paths'
 
 // Everything known about an Opponent, newest first: their Note entries, and the notes from
 // every Round against them, dated by the Tournament's start date.

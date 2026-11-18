@@ -2,6 +2,7 @@
 import type { TournamentView } from '@myvgc/core/schema'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 import { fieldErrorsOf, saveFailureMessage } from '@/lib/api'
+import { tournamentPath } from '@/lib/paths'
 import { type TournamentBody, blankTournament, lastCurrency } from '@/lib/tournament-form'
 
 useHead({ title: 'New Tournament · MyVGC' })
@@ -19,7 +20,7 @@ const save = useMutation({
     $fetch<TournamentView>('/api/tournaments', { method: 'POST', body }),
   onSuccess: async (tournament) => {
     await queryClient.invalidateQueries({ queryKey: ['tournaments'] })
-    await navigateTo(`/tournaments/${tournament.id}`)
+    await navigateTo(tournamentPath(tournament.id))
   },
 })
 const fieldErrors = computed(() => fieldErrorsOf(save.error.value))

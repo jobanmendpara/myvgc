@@ -11,10 +11,6 @@ import {
 export const roundLabel = (r: Pick<RoundView, 'phase' | 'roundNumber' | 'stage'>) =>
   r.phase === 'swiss' ? `Round ${r.roundNumber}` : TOP_CUT_STAGE_LABELS[r.stage!]
 
-/** The path to a Round's page, such as "/tournaments/abc/rounds/def". */
-export const roundPath = (tournamentId: string, roundId: string) =>
-  `/tournaments/${tournamentId}/rounds/${roundId}`
-
 /** A Round's result, with its Game score when there is one, such as "Win 2-1". */
 export const roundOutcome = (r: Pick<RoundView, 'result' | 'gameScore'>) =>
   r.gameScore

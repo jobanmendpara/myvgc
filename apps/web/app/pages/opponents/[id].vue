@@ -10,7 +10,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 import { useOnline } from '@vueuse/core'
 import { FetchError } from 'ofetch'
 import { fieldErrorsOf, saveFailureMessage } from '@/lib/api'
-import { formatDates, roundLabel, roundOutcome, roundPath } from '@/lib/format'
+import { formatDates, roundLabel, roundOutcome } from '@/lib/format'
+import { roundPath, tournamentPath } from '@/lib/paths'
 import type { OpponentChoice } from '@/components/OpponentPicker.vue'
 
 const route = useRoute()
@@ -240,7 +241,7 @@ const roundsMoving = computed(() => {
             <div class="flex items-start justify-between gap-3">
               <div class="flex min-w-0 flex-col gap-0.5">
                 <NuxtLink
-                  :to="`/tournaments/${group.tournament.id}`"
+                  :to="tournamentPath(group.tournament.id)"
                   class="font-medium break-words hover:underline"
                   >{{ group.tournament.name }}</NuxtLink
                 >
