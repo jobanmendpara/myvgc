@@ -79,4 +79,10 @@ From the chief-of-staff, 2026-11-17:
 - On 2026-11-17 the user decided to keep both wiki lints, which answers the question in PR #208 of which job runs what. The user's own scheduled "Wiki lint" routine starts its own session, lints the wiki and opens a `chore/wiki-lint-<date>` PR (PR #207 was the first). The chief-of-staff's daily upkeep cron removes finished worktrees and runs on `chore/wiki-upkeep-<date>`, adding only what that day's routine PR missed, such as Linear issue states. This amends the 2026-11-16 supersession of the 2026-11-12 line above: the cron still lints, as a second pass after the routine.
 - On 2026-11-17 the chief-of-staff turned on `delete_branch_on_merge`, with the user's approval, so GitHub deletes a PR's remote branch when it merges. See [shipping flow](shipping-flow.md), "Branch protection and auto-merge".
 
+## Environment on 2026-11-17 (DEV-139, DEV-142, DEV-140)
+
+See the [2026-11-17 Refactor round](refactor-round-2026-11-17.md) for how the round ran.
+
+- On 2026-11-17 `ssh -T git@github.com` worked for the chief-of-staff, yet all three implementers' SSH pushes were refused that same day, and each pushed with the HTTPS workaround above. The DEV-139 agent's SSH fetch worked just before its push was refused. So SSH refusal is intermittent within a day: one working SSH call says nothing about the next. Agents should expect it and keep the HTTPS workaround to hand.
+
 Related: [shipping flow](shipping-flow.md), [list and detail rollout](list-detail-rollout.md), [team reading rollout](team-reading-rollout.md).
