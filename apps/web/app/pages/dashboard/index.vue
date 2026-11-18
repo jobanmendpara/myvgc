@@ -2,6 +2,7 @@
 import { type DashboardView, formatMoney, formatRecord } from '@myvgc/core/schema'
 import { keepPreviousData, useQuery } from '@tanstack/vue-query'
 import { formatDates, ordinal, percent } from '@/lib/format'
+import { tournamentPath } from '@/lib/paths'
 
 useHead({ title: 'Dashboard · MyVGC' })
 
@@ -185,7 +186,7 @@ const playedNothing = computed(
             >
               <span class="min-w-0">
                 <NuxtLink
-                  :to="`/tournaments/${p.tournamentId}`"
+                  :to="tournamentPath(p.tournamentId)"
                   class="break-words hover:underline"
                   >{{ p.name }}</NuxtLink
                 >

@@ -2,6 +2,7 @@
 import { EVENT_TIER_LABELS, canRefreshSnapshot, formatMoney, today } from '@myvgc/core/schema'
 import { useMutation, useQueryClient } from '@tanstack/vue-query'
 import { formatDates, ordinal } from '@/lib/format'
+import { editTournamentPath } from '@/lib/paths'
 
 const route = useRoute()
 const id = computed(() => String(route.params.id))
@@ -188,7 +189,7 @@ useHead({
 
       <div class="flex flex-col gap-3 border-t pt-6 sm:flex-row">
         <Button as-child variant="outline"
-          ><NuxtLink :to="`/tournaments/${tournament.id}/edit`">Edit details</NuxtLink></Button
+          ><NuxtLink :to="editTournamentPath(tournament.id)">Edit details</NuxtLink></Button
         >
         <Button variant="ghost" class="text-destructive" @click="confirmingDelete = true">
           Delete Tournament

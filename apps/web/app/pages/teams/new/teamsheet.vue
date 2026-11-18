@@ -2,6 +2,7 @@
 import type { TeamBody } from '@myvgc/core/schema'
 import { TEAM_FILE_TYPES } from '@/composables/useTeamReader'
 import type { CreatedTeam } from '@/lib/api'
+import { tournamentPath } from '@/lib/paths'
 
 // A fresh page per query, so going from a stored PDF to choosing one never keeps the old read.
 definePageMeta({ key: (route) => route.fullPath })
@@ -11,7 +12,7 @@ const route = useRoute()
 const tournamentId = typeof route.query.tournament === 'string' ? route.query.tournament : ''
 const newTeamCancelTo = useNewTeamCancelTo()
 const cancelTo = computed(() =>
-  tournamentId ? `/tournaments/${tournamentId}` : newTeamCancelTo.value,
+  tournamentId ? tournamentPath(tournamentId) : newTeamCancelTo.value,
 )
 
 const { online, fileInput, read, failure, choose, readStored } = useTeamReader(undefined, {

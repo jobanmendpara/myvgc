@@ -2,6 +2,7 @@
 import type { TournamentView } from '@myvgc/core/schema'
 import { useMutation, useQueryClient } from '@tanstack/vue-query'
 import { fieldErrorsOf, saveFailureMessage } from '@/lib/api'
+import { tournamentPath } from '@/lib/paths'
 import { type TournamentBody, tournamentToForm } from '@/lib/tournament-form'
 
 const route = useRoute()
@@ -21,7 +22,7 @@ const save = useMutation({
   onSuccess: async () => {
     await queryClient.invalidateQueries({ queryKey: ['tournament', id.value] })
     await queryClient.invalidateQueries({ queryKey: ['tournaments'] })
-    await navigateTo(`/tournaments/${id.value}`)
+    await navigateTo(tournamentPath(id.value))
   },
 })
 const fieldErrors = computed(() => fieldErrorsOf(save.error.value))
@@ -44,7 +45,7 @@ const failure = computed(() =>
       :field-errors="fieldErrors"
       :pending="save.isPending.value"
       submit-label="Save changes"
-      :cancel-to="`/tournaments/${id}`"
+      :cancel-to="tournamentPath(id)"
       @submit="save.mutate"
     >
       <template #problem>

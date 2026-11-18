@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { Counted, CountedRound } from '@myvgc/core/schema'
-import { countedListing, roundLabel, roundPath } from '@/lib/format'
+import { countedListing, roundLabel } from '@/lib/format'
+import { roundPath } from '@/lib/paths'
 
 // The Rounds or Games behind a Statistics row, each linking to its Round. A Round shows its
 // Opponent and Round result; a Game shows its number and Game result, and on a bring-rate row

@@ -2,6 +2,7 @@
 import { type RoundInput, type SavedRound, losesOpponentTeam } from '@myvgc/core/schema'
 import { useMutation, useQueryClient } from '@tanstack/vue-query'
 import { fieldErrorsOf, saveFailureMessage } from '@/lib/api'
+import { tournamentPath } from '@/lib/paths'
 
 const route = useRoute()
 const id = computed(() => String(route.params.id))
@@ -31,7 +32,7 @@ const save = useMutation({
   onSuccess: async (saved) => {
     await refresh()
     await navigateTo({
-      path: `/tournaments/${id.value}`,
+      path: tournamentPath(id.value),
       query: saved.suggestedPlacement ? { placement: saved.suggestedPlacement } : {},
     })
   },
@@ -45,7 +46,7 @@ const remove = useMutation({
   onSuccess: async () => {
     confirmingDelete.value = false
     await refresh()
-    await navigateTo(`/tournaments/${id.value}`)
+    await navigateTo(tournamentPath(id.value))
   },
 })
 const fieldErrors = computed(() => fieldErrorsOf(save.error.value))
