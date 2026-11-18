@@ -79,6 +79,13 @@ From the chief-of-staff, 2026-11-17:
 - On 2026-11-17 the user decided to keep both wiki lints, which answers the question in PR #208 of which job runs what. The user's own scheduled "Wiki lint" routine starts its own session, lints the wiki and opens a `chore/wiki-lint-<date>` PR (PR #207 was the first). The chief-of-staff's daily upkeep cron removes finished worktrees and runs on `chore/wiki-upkeep-<date>`, adding only what that day's routine PR missed, such as Linear issue states. This amends the 2026-11-16 supersession of the 2026-11-12 line above: the cron still lints, as a second pass after the routine.
 - On 2026-11-17 the chief-of-staff turned on `delete_branch_on_merge`, with the user's approval, so GitHub deletes a PR's remote branch when it merges. See [shipping flow](shipping-flow.md), "Branch protection and auto-merge".
 
+## Daily upkeep on 2026-11-18
+
+From the chief-of-staff's upkeep, 2026-11-18:
+
+- On 2026-11-18 `git fetch` over SSH failed again ("Please make sure you have the correct access rights"), and the HTTPS workaround above worked for fetch. `gh` API calls worked. This is the fourth day it has failed, after 2026-11-11, 2026-11-16 and 2026-11-17.
+- On 2026-11-18 `.claude/worktrees/` held no worktree, so the upkeep removed none. The DEV-129 worktree left on 2026-11-17 was gone, and PR #206 had merged (see [team reading rollout](team-reading-rollout.md)).
+
 ## Environment on 2026-11-17 (DEV-139, DEV-142, DEV-140)
 
 See the [2026-11-17 Refactor round](refactor-round-2026-11-17.md) for how the round ran.

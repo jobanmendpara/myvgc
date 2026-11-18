@@ -51,7 +51,7 @@ Filed in Linear on 2026-11-15, all in Backlog that day:
 - [DEV-143](https://linear.app/mendpara/issue/DEV-143) (Decision, from DEV-116): a glossary term for the Statistics tables' third column, the field now called `outcome`.
 - [DEV-144](https://linear.app/mendpara/issue/DEV-144) (Chore): a bounded way for agents to run tests locally, like `scripts/wait-for-checks.sh`. Widened the same day after the DEV-113 retro: write the full output to a scratchpad log before filtering it, and run locally only the affected packages, leaving the full suite to CI.
 - [DEV-146](https://linear.app/mendpara/issue/DEV-146) (Chore, from the DEV-113 retro): cut CI time for the API tests, by sharding them behind an aggregate job still named `check`, and by profiling the 49 `createTestApp` PGlite boots, each applying 17 migrations.
-- On 2026-11-17 Linear showed DEV-139 to DEV-144 and DEV-146 all still in Backlog.
+- On 2026-11-17 Linear showed DEV-139 to DEV-144 and DEV-146 all still in Backlog. (Superseded 2026-11-18: DEV-139, DEV-140 and DEV-142 merged later on 2026-11-17 in the [2026-11-17 Refactor round](refactor-round-2026-11-17.md), and Linear shows them Done. On 2026-11-18 Linear showed DEV-141, DEV-143, DEV-144 and DEV-146 still in Backlog.)
 
 Not filed: the DEV-127 agent also suggested a start-date parameter for its smoke-test helpers.
 
