@@ -1,4 +1,4 @@
-// The paths to the web app's Tournament and Round pages, built in one place.
+// The paths to the web app's Tournament, Round, Team and Opponent pages, built in one place.
 
 /** The path to a Tournament's page, such as "/tournaments/abc". */
 export const tournamentPath = (tournamentId: string) => `/tournaments/${tournamentId}`
@@ -12,3 +12,12 @@ export const newRoundPath = (tournamentId: string) => `${tournamentPath(tourname
 /** The path to a Round's page, such as "/tournaments/abc/rounds/def". */
 export const roundPath = (tournamentId: string, roundId: string) =>
   `${tournamentPath(tournamentId)}/rounds/${roundId}`
+
+/** The path to a Team's page, such as "/teams/abc". */
+export const teamPath = (teamId: string) => `/teams/${teamId}`
+
+/** The path to the page that edits a Team, such as "/teams/abc/edit". */
+export const editTeamPath = (teamId: string) => `${teamPath(teamId)}/edit`
+
+/** The path to an Opponent's page, such as "/opponents/abc". */
+export const opponentPath = (opponentId: string) => `/opponents/${opponentId}`

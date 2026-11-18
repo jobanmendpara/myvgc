@@ -2,7 +2,7 @@
 import { type DashboardView, formatMoney, formatRecord } from '@myvgc/core/schema'
 import { keepPreviousData, useQuery } from '@tanstack/vue-query'
 import { formatDates, ordinal, percent } from '@/lib/format'
-import { tournamentPath } from '@/lib/paths'
+import { opponentPath, tournamentPath } from '@/lib/paths'
 
 useHead({ title: 'Dashboard · MyVGC' })
 
@@ -162,7 +162,7 @@ const playedNothing = computed(
             <tbody class="divide-y">
               <tr v-for="o in s.opponents" :key="o.id">
                 <td class="py-2">
-                  <NuxtLink :to="`/opponents/${o.id}`" class="hover:underline">{{
+                  <NuxtLink :to="opponentPath(o.id)" class="hover:underline">{{
                     o.displayName
                   }}</NuxtLink>
                 </td>

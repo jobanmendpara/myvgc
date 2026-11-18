@@ -14,6 +14,7 @@ import {
 import { useMediaQuery } from '@vueuse/core'
 import { useMutation, useQueryClient } from '@tanstack/vue-query'
 import { fieldErrorsOf, saveFailureMessage } from '@/lib/api'
+import { teamPath } from '@/lib/paths'
 import { blankBuild, draftErrors, draftToBody, readTeamToDraft, teamToDraft } from '@/lib/team-form'
 
 /** The one form that creates and edits a Team. `save` sends it; this form does the rest. */
@@ -77,7 +78,7 @@ const save = useMutation({
     await queryClient.invalidateQueries({ queryKey: ['teams'] })
     await queryClient.invalidateQueries({ queryKey: ['team', team.id, 'paste'] })
     useImportWarnings(team.id).value = []
-    await navigateTo(`/teams/${team.id}`)
+    await navigateTo(teamPath(team.id))
   },
 })
 

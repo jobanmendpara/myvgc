@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { type ListStyle, type TeamView, groupTeams } from '@myvgc/core/schema'
+import { teamPath } from '@/lib/paths'
 
 // The rows of the Teams list, and what a row shows in each List style. Compact: the name and
 // Regulation, with a red dot if the Team is illegal. Grouped: the name and legality badge, then
@@ -16,7 +17,7 @@ const groupBy = (items: TeamView[]) => groupTeams(items)
     :items="teams"
     :list-style="listStyle"
     :wide="wide"
-    base="/teams"
+    :path="teamPath"
     :group-by="groupBy"
     :searching="searching"
     data-testid="teams-list"

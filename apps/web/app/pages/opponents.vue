@@ -4,6 +4,7 @@ import { searchOpponents } from '@myvgc/core/search'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 import { fieldErrorsOf, saveFailureMessage } from '@/lib/api'
 import { fetchEveryOpponent } from '@/lib/opponent-list'
+import { opponentPath } from '@/lib/paths'
 
 definePageMeta({ listDetail: true })
 useHead({ title: 'Opponents · MyVGC' })
@@ -34,7 +35,7 @@ const add = useMutation({
     // On wide screens the list stays, so close the form for the next one.
     adding.value = false
     newName.value = ''
-    await navigateTo(`/opponents/${created.id}`)
+    await navigateTo(opponentPath(created.id))
   },
 })
 const addError = computed(

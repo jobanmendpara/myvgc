@@ -7,6 +7,7 @@ import {
   groupTournaments,
 } from '@myvgc/core/schema'
 import { formatDates, ordinal } from '@/lib/format'
+import { tournamentPath } from '@/lib/paths'
 
 // The rows of the Tournaments list, and what a row shows in each List style. Compact: the name
 // and one fact (Upcoming, Placement or Record). Grouped: the name, then dates, Record and
@@ -37,7 +38,7 @@ const hasTopCut = ({ record }: TournamentView) =>
     :items="tournaments"
     :list-style="listStyle"
     :wide="wide"
-    base="/tournaments"
+    :path="tournamentPath"
     :group-by="groupBy"
     :searching="searching"
     data-testid="tournaments-list"
