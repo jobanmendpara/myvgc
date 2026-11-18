@@ -1,4 +1,4 @@
-import type { ReadTeamView, TeamView } from '@myvgc/core/schema'
+import { BLANK_TEAM_FIELDS, type ReadTeamView, type TeamView } from '@myvgc/core/schema'
 import { describe, expect, it } from 'vitest'
 import { newTeamFields, readTeamToDraft, teamToDraft } from '../app/lib/team-form'
 
@@ -12,12 +12,10 @@ describe("A Team form's name", () => {
     expect(teamToDraft().name).toMatch(randomName)
   })
 
-  it("starts a new Team's fields blank but for a random name, as the paste page does", () => {
+  it("starts a new Team's fields blank but for a random name", () => {
     expect(newTeamFields()).toEqual({
+      ...BLANK_TEAM_FIELDS,
       name: expect.stringMatching(randomName),
-      regulation: 'M-C',
-      notes: '',
-      replicaTeamId: '',
     })
   })
 
