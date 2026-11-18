@@ -1,9 +1,6 @@
 <script setup lang="ts">
 import {
-  MAX_NOTES_LENGTH,
-  MAX_REPLICA_TEAM_ID_LENGTH,
   MAX_TEAM_SIZE,
-  REGULATIONS,
   type ReadTeamView,
   type TeamBody,
   type TeamView,
@@ -129,107 +126,56 @@ const { DiscardDialog } = useDiscardGuard(dirty, 'this Team')
 
 <template>
   <form class="flex flex-col gap-5" novalidate @submit.prevent="submit">
-    <TeamNameField v-model="draft.name" :error="errors.name" />
-
-    <div class="flex flex-col gap-2">
-      <Label for="regulation">Regulation</Label>
-      <NativeSelect id="regulation" v-model="draft.regulation" class="w-40">
-        <NativeSelectOption v-for="reg in REGULATIONS" :key="reg" :value="reg">
-          Reg {{ reg }}
-        </NativeSelectOption>
-      </NativeSelect>
-    </div>
-
-    <div class="flex flex-col gap-2">
-      <Label for="replica-team-id"
-        >Replica Team ID <span class="text-muted-foreground font-normal">(optional)</span></Label
-      >
-      <Input
-        id="replica-team-id"
-        v-model="draft.replicaTeamId"
-        autocomplete="off"
-        autocapitalize="characters"
-        spellcheck="false"
-        class="w-60 font-mono uppercase"
-        placeholder="9TCG84KWXK"
-        :maxlength="MAX_REPLICA_TEAM_ID_LENGTH"
-        :aria-invalid="errors.replicaTeamId ? true : undefined"
-        aria-describedby="replica-team-id-hint replica-team-id-error"
-      />
-      <p id="replica-team-id-hint" class="text-muted-foreground text-sm">
-        The code Champions gives this Battle Team as a Replica Team, for when a judge asks.
-      </p>
-      <p v-if="errors.replicaTeamId" id="replica-team-id-error" class="text-destructive text-sm">
-        {{ errors.replicaTeamId }}
-      </p>
-    </div>
-
-    <section class="flex flex-col gap-2" aria-labelledby="slots-title">
-      <h2 id="slots-title" class="text-sm leading-none font-medium">Pokémon</h2>
-      <Alert v-if="flagged" data-testid="read-flags-note">
-        <AlertDescription
-          >MyVGC wasn't sure of everything on the file. Check the Pokémon marked below before
-          saving.</AlertDescription
-        >
-      </Alert>
-      <ol class="flex flex-col gap-2" data-testid="build-slots">
-        <BuildSlot
-          v-for="(build, index) in draft.pokemon"
-          :key="build.key"
-          :build="build"
-          :index="index"
-          :count="draft.pokemon.length"
-          :error="slotError(index)"
-          :problems="problemsOf(index)"
-          :flags="build.readFlags"
-          :draggable="finePointer"
-          @dragstart="startDrag($event, index)"
-          @dragend="dragging = null"
-          @dragover.prevent
-          @drop.prevent="drop(index)"
-          @edit="editing = index"
-          @remove="draft.pokemon.splice(index, 1)"
-          @reorder="(to: number) => reorder(index, to)"
-        />
-        <li
-          v-for="empty in MAX_TEAM_SIZE - draft.pokemon.length"
-          :key="`empty-${empty}`"
-          data-testid="empty-slot"
-        >
-          <button
-            type="button"
-            class="text-muted-foreground hover:bg-muted focus-visible:ring-ring/50 min-h-14 w-full rounded-lg border border-dashed px-4 text-left text-sm outline-none focus-visible:ring-3"
-            @click="add"
+    <TeamFieldsSection v-model:fields="draft" :errors="errors">
+      <section class="flex flex-col gap-2" aria-labelledby="slots-title">
+        <h2 id="slots-title" class="text-sm leading-none font-medium">Pokémon</h2>
+        <Alert v-if="flagged" data-testid="read-flags-note">
+          <AlertDescription
+            >MyVGC wasn't sure of everything on the file. Check the Pokémon marked below before
+            saving.</AlertDescription
           >
-            Add a Pokémon
-          </button>
-        </li>
-      </ol>
-      <p v-if="errors.pokemon" class="text-destructive text-sm">{{ errors.pokemon }}</p>
-      <LegalityWarnings
-        v-if="legality && teamProblems(legality).length"
-        :problems="teamProblems(legality)"
-        data-testid="team-problems"
-      />
-    </section>
-
-    <div class="flex flex-col gap-2">
-      <Label for="notes"
-        >Notes <span class="text-muted-foreground font-normal">(optional)</span></Label
-      >
-      <Textarea
-        id="notes"
-        v-model="draft.notes"
-        rows="4"
-        :maxlength="MAX_NOTES_LENGTH"
-        placeholder="Leads, game plans, things to remember…"
-        :aria-invalid="errors.notes ? true : undefined"
-        aria-describedby="notes-error"
-      />
-      <p v-if="errors.notes" id="notes-error" class="text-destructive text-sm">
-        {{ errors.notes }}
-      </p>
-    </div>
+        </Alert>
+        <ol class="flex flex-col gap-2" data-testid="build-slots">
+          <BuildSlot
+            v-for="(build, index) in draft.pokemon"
+            :key="build.key"
+            :build="build"
+            :index="index"
+            :count="draft.pokemon.length"
+            :error="slotError(index)"
+            :problems="problemsOf(index)"
+            :flags="build.readFlags"
+            :draggable="finePointer"
+            @dragstart="startDrag($event, index)"
+            @dragend="dragging = null"
+            @dragover.prevent
+            @drop.prevent="drop(index)"
+            @edit="editing = index"
+            @remove="draft.pokemon.splice(index, 1)"
+            @reorder="(to: number) => reorder(index, to)"
+          />
+          <li
+            v-for="empty in MAX_TEAM_SIZE - draft.pokemon.length"
+            :key="`empty-${empty}`"
+            data-testid="empty-slot"
+          >
+            <button
+              type="button"
+              class="text-muted-foreground hover:bg-muted focus-visible:ring-ring/50 min-h-14 w-full rounded-lg border border-dashed px-4 text-left text-sm outline-none focus-visible:ring-3"
+              @click="add"
+            >
+              Add a Pokémon
+            </button>
+          </li>
+        </ol>
+        <p v-if="errors.pokemon" class="text-destructive text-sm">{{ errors.pokemon }}</p>
+        <LegalityWarnings
+          v-if="legality && teamProblems(legality).length"
+          :problems="teamProblems(legality)"
+          data-testid="team-problems"
+        />
+      </section>
+    </TeamFieldsSection>
 
     <Alert v-if="blocked" variant="destructive" role="alert">
       <AlertDescription>Fix the problems marked above. Nothing was saved.</AlertDescription>
