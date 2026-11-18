@@ -12,8 +12,11 @@ const booleanFlag = z
   .pipe(z.enum(['true', 'false', '1', '0', 'yes', 'no']))
   .transform((value) => value === 'true' || value === '1' || value === 'yes')
 
-/** The model that reads Teams from images when `TEAM_READER_MODEL` isn't set. */
-export const DEFAULT_TEAM_READER_MODEL = 'claude-sonnet-5-5'
+/**
+ * The model that reads Teams from images when `TEAM_READER_MODEL` isn't set. Haiku 5.5 read the
+ * samples exactly as well as Sonnet 5.5 at about 1/17 of the cost (ADR 24, DEV-125).
+ */
+export const DEFAULT_TEAM_READER_MODEL = 'claude-haiku-5-5'
 
 const unsetIfBlank = <S extends z.ZodType>(schema: S) =>
   z.preprocess((value) => (typeof value === 'string' && !value.trim() ? undefined : value), schema)

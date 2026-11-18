@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { type PokemonBuild, type TeamImageType, readSeenTeam } from '@myvgc/core'
 import { afterAll, describe, expect, test } from 'vitest'
+import { DEFAULT_TEAM_READER_MODEL } from '../src/config'
 import { type TeamImage, anthropicTeamReader } from '../src/team-reader'
 
 // The reading accuracy check (ADR 24, DEV-123), run by `pnpm accuracy`, never by `pnpm test` or
@@ -13,8 +14,8 @@ import { type TeamImage, anthropicTeamReader } from '../src/team-reader'
 
 const FIXTURES = fileURLToPath(new URL('reading-fixtures', import.meta.url))
 const REPORTS = fileURLToPath(new URL('../.accuracy', import.meta.url))
-// DEV-123: the check defaults to Haiku 5.5 (DEV-125's choice), even before DEV-131 makes it the app's default.
-const MODEL = process.env.TEAM_READER_MODEL?.trim() || 'claude-haiku-5-5'
+// Like the app, the check reads with TEAM_READER_MODEL, or else the app's default model.
+const MODEL = process.env.TEAM_READER_MODEL?.trim() || DEFAULT_TEAM_READER_MODEL
 const REPEAT = Number(process.env.ACCURACY_REPEAT ?? 1)
 const FORMATS = { png: 'image/png', jpg: 'image/jpeg' } as const satisfies Record<
   string,

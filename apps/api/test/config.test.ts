@@ -130,7 +130,7 @@ describe('loadConfig', () => {
     for (const env of [valid, blank]) {
       const config = loadConfig(env)
       expect(config.ANTHROPIC_API_KEY).toBeUndefined()
-      expect(config.TEAM_READER_MODEL).toBe('claude-sonnet-5-5')
+      expect(config.TEAM_READER_MODEL).toBe('claude-haiku-5-5')
       expect(config.TEAM_READER_DAILY_LIMIT).toBeUndefined()
     }
   })
