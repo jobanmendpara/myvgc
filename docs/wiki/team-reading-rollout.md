@@ -91,7 +91,7 @@ Dates are UTC.
 - Follow-ups raised on 2026-11-19, not filed:
   - From DEV-133: an accuracy fixture with an unsupported image; checking the length of the model's `images` list against the number of uploads; the Team builder showing which image an `images.N` flag means.
   - From DEV-132: comparing Safari's JPEG encoder with Chromium's; putting the model's raw answer in the accuracy report. (Partly superseded later on 2026-11-19: the report now carries flag messages, but still not the raw answer. See "DEV-135 on 2026-11-19" below.)
-- Linear on 2026-11-19 shows the rest of DEV-118's build still Todo: DEV-134 (nicknames and gender), DEV-135 (Stat Alignment from the arrows), DEV-136 and DEV-137. (Superseded later on 2026-11-19 for DEV-134: it merged, see "DEV-134 on 2026-11-19" below. DEV-135, DEV-136 and DEV-137 were still open.) (Superseded later on 2026-11-19 for DEV-135: it merged, see "DEV-135 on 2026-11-19" below. DEV-136 and DEV-137 were still open.)
+- Linear on 2026-11-19 shows the rest of DEV-118's build still Todo: DEV-134 (nicknames and gender), DEV-135 (Stat Alignment from the arrows), DEV-136 and DEV-137. (Superseded later on 2026-11-19 for DEV-134: it merged, see "DEV-134 on 2026-11-19" below. DEV-135, DEV-136 and DEV-137 were still open.) (Superseded later on 2026-11-19 for DEV-135: it merged, see "DEV-135 on 2026-11-19" below. DEV-136 and DEV-137 were still open.) (Superseded later on 2026-11-19 for DEV-136 and DEV-137: both merged, see "DEV-136 and DEV-137 on 2026-11-19" below.)
 
 ## DEV-134 on 2026-11-19
 
@@ -101,7 +101,7 @@ Dates are UTC.
 - `pnpm accuracy`, Haiku 5.5, `--repeat 3` on each side as well as single runs, both summaries in PR #241:
   - Before (`origin/main`): 0 of 18 passed, $0.0628. After: 6 of 18, $0.0662, about 5% more per read.
   - Now right: every nickname and gender the fixtures show. `all` passes in every run, on JPEG and PNG.
-  - Left for other issues: `pair`'s 6 Stat Alignments (DEV-135) and `detail`'s 8 missing item and Replica Team ID flags (DEV-137).
+  - Left for other issues: `pair`'s 6 Stat Alignments (DEV-135) and `detail`'s 8 missing item and Replica Team ID flags (DEV-137). (Superseded later on 2026-11-19: DEV-135 and DEV-137 fixed both, see the sections below.)
   - Read worse in some runs: Basculegion's first move on the JPEG detail screen came back as "Wave Crush", flagged (`Couldn't read "Wave Crush".`), so the User sees it. It happened in 2 of 16 JPEG detail reads after the change and in none of 12 before. The implementer couldn't rule out the longer instructions, so under CLAUDE.md's accuracy rule it held back auto-merge for the maintainer's sign-off. The maintainer signed off on 2026-11-19, before the merge.
   - Read better: the first version of the instructions put "Basculegion (Male)" in the species twice in a single run. The implementer rewrote them to keep the gender out of the species, and after that it happened in no run; before the change the species was sometimes left blank.
 - `pnpm accuracy` reports neither flag messages nor the model's raw answer, so the implementer wrote a scratch script (a `.mts` file run with tsx) to see them while chasing "Wave Crush" and "Basculegion (Male)". This adds to the 2026-11-19 follow-up above about putting the model's raw answer in the accuracy report.
@@ -114,9 +114,9 @@ Dates are UTC.
 - `pnpm accuracy --repeat 3`, Haiku 5.5, both summaries in PR #243:
   - Before (`origin/main` at `c0800d7`): 6 of 18 passed, $0.0658. After: 12 of 18, $0.0707, about 7% more.
   - Now right: `pair` went from 6 differences in every run (all six Stat Alignments blank) to passing in every run.
-  - Unchanged: `all` passes in every run. `detail` keeps the same 8 differences, the missing not-shown flags for the held item and Replica Team ID (DEV-137).
+  - Unchanged: `all` passes in every run. `detail` keeps the same 8 differences, the missing not-shown flags for the held item and Replica Team ID (DEV-137). (Superseded later on 2026-11-19: DEV-137 added them, see "DEV-136 and DEV-137 on 2026-11-19" below.)
   - JPEG against PNG for the arrows: equal. Both formats read every arrow right in all 3 runs each, and no numbers-check flag appeared. So the DEV-132 JPEG decision stands; this supersedes the open question in "DEV-132 and DEV-133 on 2026-11-19" above.
-  - "Wave Crush" (see "DEV-134 on 2026-11-19" above): 0 of 12 reads that include Basculegion's detail screen after DEV-135 (6 JPEG, 6 PNG). Before, one JPEG `detail` run dropped the move. Across PR #241's runs and these, it has only appeared on JPEG.
+  - "Wave Crush" (see "DEV-134 on 2026-11-19" above): 0 of 12 reads that include Basculegion's detail screen after DEV-135 (6 JPEG, 6 PNG). Before, one JPEG `detail` run dropped the move. Across PR #241's runs and these, it has only appeared on JPEG. (Superseded later on 2026-11-19: DEV-137's runs saw "Wave Crush" on PNG too, see "DEV-136 and DEV-137 on 2026-11-19" below.)
   - Nothing read worse, so no maintainer sign-off was needed.
 - As of `jobanmendpara/myvgc@205133a`, the accuracy report's "flag not expected" lines include the flag's message (such as `Couldn't read "Wave Crush".`). This closes part of the gap noted in "DEV-134 on 2026-11-19" above; the model's raw answer is still not shown.
 - Follow-ups raised on 2026-11-19 by the implementer, not filed:
@@ -124,6 +124,30 @@ Dates are UTC.
   - Serious when there are no arrows still rests on a neutral sample that doesn't exist yet (DEV-128).
   - When the model reads a Stat Alignment name that disagrees with the arrows, the name wins and the disagreement isn't in `seenTeamSchema` (DEV-120, DEV-126).
 - Environment friction from the same run is in [parallel agents](parallel-agents.md), "Environment on 2026-11-19 (DEV-135)".
+
+## DEV-136 and DEV-137 on 2026-11-19
+
+Dates are UTC. The two implementers ran in parallel; see [parallel agents](parallel-agents.md), "DEV-136 and DEV-137 on 2026-11-19".
+
+- DEV-136 ("Flag a species when the stats fit the nickname instead", part of DEV-118) merged in PR #245 as `jobanmendpara/myvgc@6fc9689` (commit `5c5445d`), at 15:29 UTC. Linear shows it Done. As of that commit, `readBuild` takes the nickname, and when the nickname is a species' name and the stats fit that species but not the species read, it flags the species and swaps nothing. `readSeenTeam` passes the nickname; the reader's instructions and `seenTeamSchema` are unchanged, so Teamsheet PDF reads are unaffected. See PR #245 for the tests and [ADR 24](../adr/0024-reading-teams-from-files.md) for the rule.
+- Two choices the issue didn't settle were made by the DEV-136 implementer, and the maintainer hadn't confirmed them on 2026-11-19:
+  - Only a species' own name counts as a species-named nickname, not Showdown's aliases such as "Chomp".
+  - When the species flag fires, it replaces the numbers check's per-stat flags, since the species is what to check.
+- DEV-136's tests (`packages/core/test/seen-team-nickname.test.ts`) use Charizard nicknamed "Garchomp", since Gabite isn't in the Champions data.
+- DEV-136's `pnpm accuracy --repeat 3`, Haiku 5.5: 11 of 18 before (`origin/main` at `776f214`), 12 of 18 after, the same differences on both sides; the one extra failure before was a "Chopple Berry" misread in one `all (png)` run. No fixture has a species-named nickname, so no change was expected and no species flag appeared. Summaries in PR #245.
+- DEV-137 ("Flag fields the images didn't show, and images that disagree", part of DEV-118) merged in PR #246 as `jobanmendpara/myvgc@1be13d2` (commit `438f28d`), at 15:41 UTC. Linear shows it Done. As of that commit, `seenTeamSchema` gives each Pokémon `itemShown` and `disagreeing`. `readSeenTeam` gives one Team flag per screenshot row no image showed (held items, abilities and moves, Stat Alignments and stats, Replica Team ID), naming the screenshot that would fill it, plus one flag on each Pokémon affected, and a disagreement flag in place of the unsure one. Nickname, gender and the Battle Team name are never flagged as gaps. ADR 24's status line lists DEV-137. See PR #246 for the tests.
+- DEV-137's `pnpm accuracy --repeat 3`, Haiku 5.5, summaries in PR #246:
+  - Before (`origin/main` at `776f214`): 12 of 18, $0.0697. After, before rebasing: 18 of 18, $0.0717, about 3% more per read. After rebasing onto DEV-136 (`6fc9689`): 17 of 18, $0.0726.
+  - Now right: every `detail` run has all 8 gap flags (`item`, `replicaTeamId`, `pokemon.0-5.item`), which were missing in every run before. This supersedes the "left for DEV-137" notes in the DEV-134 and DEV-135 sections above.
+  - The one failure after the rebase was `detail (png)` run 3, a "Basculegion-Male" species misread. The before run had the same misread, on `detail (jpg)` run 2, so it isn't from this change. No case read worse, so no maintainer sign-off was needed.
+- Basculegion misreads: across DEV-137's before and after runs, "Basculegion-Male" as the species or "Wave Crush" as the first move came back in about 1 in 6 `detail` runs, on both JPEG and PNG (the before set had "Wave Crush" on PNG run 3). This supersedes the claim in "DEV-135 on 2026-11-19" above that "Wave Crush" has only appeared on JPEG.
+- The ADR 24 conflict between the two PRs, and DEV-136's nickname tests needing DEV-137's new fields, were resolved by the DEV-137 implementer when it rebased onto PR #245.
+- On 2026-11-19, with DEV-137 Done, Linear shows every sub-issue of DEV-118 Done: the decisions DEV-102, DEV-119 to DEV-126, and the build DEV-106 and DEV-129 to DEV-137.
+- Follow-ups raised on 2026-11-19 by the implementers, not filed:
+  - From DEV-136: a species that matches nothing isn't checked against the nickname.
+  - From DEV-137: `pnpm accuracy` prints no summary table when every run passes (PR #246 rebuilt its 18 of 18 summary from the JSON report).
+  - From DEV-137: the recurring Basculegion misreads above.
+  - From DEV-137: the Team-level Replica Team ID flag fires even when a Replica Team tab was read but the model returned no ID, and still suggests adding a tab.
 
 ## Gotchas
 

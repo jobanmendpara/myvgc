@@ -1,7 +1,7 @@
 # 24. Reading Teams from files
 
 Date: 2026-11-07
-Status: Accepted (DEV-38, first built in DEV-62), amended by DEV-66, DEV-63 and DEV-118 (decided 2026-11-15, built in part: DEV-106, DEV-130, DEV-131, DEV-132, DEV-133, DEV-134, DEV-135 and DEV-137 so far)
+Status: Accepted (DEV-38, first built in DEV-62), amended by DEV-66, DEV-63 and DEV-118 (decided 2026-11-15, built in part: DEV-106, DEV-130, DEV-131, DEV-132, DEV-133, DEV-134, DEV-135, DEV-136 and DEV-137 so far)
 
 ## Context
 ADR 6 and ADR 10 promise a "file in, Team out" pipeline for uploaded Teamsheet PDFs and screenshots of Replica Teams, but left open how files are read. The files differ a lot. A Teamsheet filled in on teamsheet.gg keeps its 151 form fields (`f0` to `f150`, `docs/research/vg-team-list-pdf.md`), so it can be read exactly, with no OCR. Scans, photos and in-game screenshots can't. Self-hosted installs come first (ADR 2) and need no configuration beyond the database (ADR 15).
