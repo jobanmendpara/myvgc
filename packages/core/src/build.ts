@@ -12,6 +12,16 @@ export const STAT_LABELS: Record<StatId, string> = {
   spe: 'Spe',
 }
 
+/** Each stat's name as Champions writes it, such as "Sp. Atk", for flags about what was read. */
+export const STAT_NAMES: Record<StatId, string> = {
+  hp: 'HP',
+  atk: 'Attack',
+  def: 'Defense',
+  spa: 'Sp. Atk',
+  spd: 'Sp. Def',
+  spe: 'Speed',
+}
+
 /** Most Stat Points one stat can have. */
 export const MAX_STAT_POINTS = 32
 /** Most Stat Points a Pokémon can have in total. */

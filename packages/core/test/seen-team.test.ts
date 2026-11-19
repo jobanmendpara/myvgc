@@ -18,6 +18,8 @@ const seen = (build: Partial<SeenBuild> = {}): SeenBuild => ({
   ability: 'Solar Power',
   item: 'Charizardite Y',
   statAlignment: 'Timid',
+  raisedStat: null,
+  loweredStat: null,
   moves: ['Heat Wave', 'Weather Ball', 'Solar Beam', 'Protect'],
   statValues: noStats,
   statPoints: noStats,
@@ -91,7 +93,13 @@ describe('readSeenTeam', () => {
     )
 
     expect(read.pokemon[0]!.statPoints).toEqual(statPoints)
-    expect(read.flags).toEqual([])
+    // The Stat Points shown win, and the value that doesn't match them is flagged.
+    expect(read.flags).toEqual([
+      {
+        path: ['pokemon', 0, 'statPoints', 'spa'],
+        message: "1 Sp. Atk doesn't match 32 Sp. Atk Stat Points, so check them.",
+      },
+    ])
   })
 
   it('flags names it can not match, impossible Stat Points and what the reader was unsure of', () => {
@@ -356,6 +364,236 @@ describe('readSeenTeam', () => {
       seenTeamSchema.safeParse(team([seen()], { images: [{ kind: 'battle' as 'unsupported' }] }))
         .success,
     ).toBe(false)
+    // HP is never raised or lowered.
+    expect(seenTeamSchema.safeParse(team([seen({ raisedStat: 'hp' as 'atk' })])).success).toBe(
+      false,
+    )
+  })
+})
+
+describe('readSeenTeam: the Stat Alignment', () => {
+  const { baseStats } = championsNames()
+  type Shown = Record<'hp' | 'atk' | 'def' | 'spa' | 'spd' | 'spe', number>
+  const asStats = ([hp, atk, def, spa, spd, spe]: readonly number[]): Shown => ({
+    hp: hp!,
+    atk: atk!,
+    def: def!,
+    spa: spa!,
+    spd: spd!,
+    spe: spe!,
+  })
+
+  // The sample Replica Team's Stats tab (IMG_5086): each Pokémon's ▲ and ▼ stats, the Stat
+  // Alignment its detail screen names, and its Stat Points and stat values, in the order HP, Atk,
+  // Def, SpA, SpD, Spe.
+  const statsTab = [
+    ['Charizard', 'spe', 'atk', 'timid', [2, 0, 0, 32, 0, 32], [155, 93, 98, 161, 105, 167]],
+    ['Venusaur', 'spd', 'atk', 'calm', [32, 0, 2, 16, 16, 0], [187, 91, 105, 136, 149, 100]],
+    ['Whimsicott', 'spe', 'atk', 'timid', [4, 0, 0, 30, 0, 32], [139, 78, 105, 127, 95, 184]],
+    ['Kingambit', 'atk', 'spa', 'adamant', [32, 32, 0, 0, 0, 2], [207, 205, 140, 72, 105, 72]],
+    ['Garchomp', 'spe', 'spa', 'jolly', [0, 32, 2, 0, 0, 32], [183, 182, 117, 90, 105, 169]],
+    ['Basculegion', 'atk', 'spa', 'adamant', [0, 32, 2, 0, 0, 32], [195, 180, 87, 90, 95, 130]],
+  ] as const
+
+  /** A Pokémon as the Stats tab shows it: stat values and Stat Points, and no name. */
+  const onStatsTab = (
+    species: string,
+    points: readonly number[],
+    values: readonly number[],
+    build: Partial<SeenBuild> = {},
+  ) =>
+    seen({
+      species,
+      gender: 'male',
+      ability: null,
+      item: null,
+      statAlignment: null,
+      moves: [],
+      statPoints: asStats(points),
+      statValues: asStats(values),
+      ...build,
+    })
+
+  /** Garchomp's stat values with no Stat Alignment's effect. */
+  const neutralGarchomp = (points: readonly number[]) =>
+    Object.values(statValues(baseStats.garchomp!, asStats(points))) as number[]
+
+  it("works out every sample Pokémon's Stat Alignment from the Stats tab's arrows", () => {
+    const read = readDraft(
+      team(
+        statsTab.map(([species, raisedStat, loweredStat, , points, values]) =>
+          onStatsTab(species, points, values, { raisedStat, loweredStat }),
+        ),
+      ),
+    )
+
+    expect(read.pokemon.map((build) => build.nature)).toEqual(statsTab.map((row) => row[3]))
+    expect(read.pokemon.map((build) => build.statPoints)).toEqual(
+      statsTab.map((row) => asStats(row[4])),
+    )
+    expect(read.flags).toEqual([])
+  })
+
+  it("doesn't flag a lowered stat that two Stat Points values give", () => {
+    // Kingambit's Adamant Sp. Atk is 72 with 0 or 1 Stat Points (ADR 24). The sample has 0; this
+    // one moves a Stat Point from HP to Sp. Atk.
+    const [species, raisedStat, loweredStat] = statsTab[3]
+    const read = readDraft(
+      team([
+        onStatsTab(species, [31, 32, 0, 1, 0, 2], [206, 205, 140, 72, 105, 72], {
+          raisedStat,
+          loweredStat,
+        }),
+      ]),
+    )
+
+    expect(read.pokemon[0]!.statPoints.spa).toBe(1)
+    expect(read.flags).toEqual([])
+  })
+
+  it('takes the name shown over the arrows', () => {
+    const read = readDraft(
+      team([seen({ statAlignment: 'Timid', raisedStat: 'atk', loweredStat: 'spa' })]),
+    )
+
+    expect(read.pokemon[0]!.nature).toBe('timid')
+    expect(read.flags).toEqual([])
+  })
+
+  it('gives Serious, with no flag, when a Stats tab was read and shows no arrows', () => {
+    const points = [0, 32, 0, 0, 0, 32]
+
+    const read = readDraft(team([onStatsTab('Garchomp', points, neutralGarchomp(points))]))
+
+    expect(read.pokemon[0]!.nature).toBe('serious')
+    expect(read.flags).toEqual([])
+  })
+
+  it('leaves the Stat Alignment blank, with no flag, when no Stats tab or name shows it', () => {
+    const read = readDraft(
+      team([seen({ statAlignment: null })], { images: [{ kind: 'replicaTeamMoves' }] }),
+    )
+
+    expect(read.pokemon[0]).not.toHaveProperty('nature')
+    expect(read.flags).toEqual([])
+  })
+
+  it("leaves the Stat Alignment blank, with flags, when the arrows can't be one", () => {
+    const [species, , , , points, values] = statsTab[3]
+    const read = (arrows: Partial<SeenBuild>) =>
+      readDraft(team([onStatsTab(species, points, values, arrows)]))
+    const noStatAlignment = {
+      path: ['pokemon', 0, 'statPoints'],
+      message: 'Stat Points were worked out with no Stat Alignment, so check them.',
+    }
+
+    const oneArrow = read({ raisedStat: 'atk' })
+    expect(oneArrow.pokemon[0]).not.toHaveProperty('nature')
+    expect(oneArrow.pokemon[0]!.statPoints).toEqual(asStats(points))
+    expect(oneArrow.flags).toEqual([
+      {
+        path: ['pokemon', 0, 'nature'],
+        message: 'The arrows showed ▲ Attack and no ▼, so the Stat Alignment was left blank.',
+      },
+      noStatAlignment,
+    ])
+    expect(read({ loweredStat: 'spe' }).flags[0]!.message).toBe(
+      'The arrows showed ▼ Speed and no ▲, so the Stat Alignment was left blank.',
+    )
+    const sameStat = read({ raisedStat: 'spa', loweredStat: 'spa' })
+    expect(sameStat.pokemon[0]).not.toHaveProperty('nature')
+    expect(sameStat.flags).toEqual([
+      {
+        path: ['pokemon', 0, 'nature'],
+        message: 'The arrows showed ▲ Sp. Atk and ▼ Sp. Atk, so the Stat Alignment was left blank.',
+      },
+      noStatAlignment,
+    ])
+  })
+
+  it('flags the Stat Alignment, naming the one the stats fit, but keeps it', () => {
+    const [species, , , , points, values] = statsTab[4]
+
+    const read = readDraft(
+      team([onStatsTab(species, points, values, { statAlignment: 'Adamant' })]),
+    )
+
+    expect(read.pokemon[0]!.nature).toBe('adamant')
+    expect(read.pokemon[0]!.statPoints).toEqual(asStats(points))
+    expect(read.flags).toEqual([
+      {
+        path: ['pokemon', 0, 'nature'],
+        message: 'The stats fit Jolly, not Adamant, so check the Stat Alignment.',
+      },
+    ])
+  })
+
+  it('names a neutral Stat Alignment when the stats fit one', () => {
+    const points = [0, 32, 0, 0, 0, 32]
+    const values = neutralGarchomp(points)
+
+    const read = readDraft(
+      team([onStatsTab('Garchomp', points, values, { raisedStat: 'spe', loweredStat: 'spa' })]),
+    )
+
+    expect(read.pokemon[0]!.nature).toBe('jolly')
+    expect(read.flags).toEqual([
+      {
+        path: ['pokemon', 0, 'nature'],
+        message: 'The stats fit Serious, not Jolly, so check the Stat Alignment.',
+      },
+    ])
+    // A neutral Stat Alignment isn't flagged for fitting another neutral one.
+    expect(
+      readDraft(team([onStatsTab('Garchomp', points, values, { statAlignment: 'Hardy' })])).flags,
+    ).toEqual([])
+  })
+
+  it('flags each stat no other Stat Alignment explains, keeping the Stat Points shown', () => {
+    const garchomp = (shown: Partial<Shown>) =>
+      readDraft(
+        team([
+          seen({
+            species: 'Garchomp',
+            statAlignment: 'Adamant',
+            statPoints: { ...noStats, hp: 0, spe: 32 },
+            statValues: { ...noStats, ...shown },
+          }),
+        ]),
+      )
+
+    // Only Speed is shown, and four Stat Alignments raise it, so the stat is flagged.
+    const speed = garchomp({ spe: 169 })
+    expect(speed.pokemon[0]!.statPoints.spe).toBe(32)
+    expect(speed.flags).toEqual([
+      {
+        path: ['pokemon', 0, 'statPoints', 'spe'],
+        message: "169 Speed doesn't match 32 Speed Stat Points, so check them.",
+      },
+    ])
+    // No Stat Alignment changes HP.
+    expect(garchomp({ hp: 190 }).flags).toEqual([
+      {
+        path: ['pokemon', 0, 'statPoints', 'hp'],
+        message: "190 HP doesn't match 0 HP Stat Points, so check them.",
+      },
+    ])
+  })
+
+  it('checks only HP when there is no Stat Alignment', () => {
+    const [species, , , , points, values] = statsTab[4]
+    const read = (shown: readonly number[]) =>
+      readDraft(
+        team([onStatsTab(species, points, shown)], { images: [{ kind: 'replicaTeamMoves' }] }),
+      )
+
+    expect(read(values).flags).toEqual([])
+    expect(read([184, ...values.slice(1)]).flags).toEqual([
+      {
+        path: ['pokemon', 0, 'statPoints', 'hp'],
+        message: "184 HP doesn't match 0 HP Stat Points, so check them.",
+      },
+    ])
   })
 })
 

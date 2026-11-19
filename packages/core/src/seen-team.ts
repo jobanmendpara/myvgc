@@ -5,10 +5,12 @@ import {
   MAX_TEAM_SIZE,
   type PokemonBuild,
   STAT_IDS,
+  STAT_NAMES,
   type StatId,
 } from './build'
 import { champions } from './champions'
 import { readBuild } from './read-build'
+import { ALIGNED_STAT_IDS, statAlignmentFromArrows } from './stat-alignment'
 import { MAX_TEAM_NAME_LENGTH, type ReadFlag, replicaTeamIdSchema } from './team'
 
 /** A number shown on the image, or null when it isn't shown or can't be made out. */
@@ -106,7 +108,21 @@ export const seenTeamSchema = z.object({
         statAlignment: z
           .string()
           .nullable()
-          .describe('The Stat Alignment (nature), such as Adamant, or null when not shown.'),
+          .describe(
+            "The Stat Alignment's name (nature), such as Adamant, only where it is written. Null when only arrows show.",
+          ),
+        raisedStat: z
+          .enum(ALIGNED_STAT_IDS)
+          .nullable()
+          .describe(
+            'The stat with the pink ▲ by its name: atk Attack, def Defense, spa Sp. Atk, spd Sp. Def, spe Speed. Null when no ▲ is shown.',
+          ),
+        loweredStat: z
+          .enum(ALIGNED_STAT_IDS)
+          .nullable()
+          .describe(
+            'The stat with the blue ▼ by its name: atk Attack, def Defense, spa Sp. Atk, spd Sp. Def, spe Speed. Null when no ▼ is shown.',
+          ),
         moves: z.array(z.string()).describe('Up to four moves, in the order shown.'),
         statValues: stats.describe(
           'Each final stat value as the game shows it, such as 169 Speed. Null for any not shown.',
@@ -197,6 +213,36 @@ function keptNickname(nickname: string | null, species: string): string | undefi
   return text
 }
 
+type SeenBuild = SeenTeam['pokemon'][number]
+
+/**
+ * The Stat Alignment's name to read (DEV-121): the name when one was shown, or else the one the
+ * ▲/▼ arrows name, with no inference. With no arrows and no name, a Pokémon on a Stats tab that was
+ * read gets Serious, since the five neutral Stat Alignments make the same Pokémon; with no Stats
+ * tab it's left blank. Arrows no Stat Alignment has are left blank, with a flag giving what was
+ * seen.
+ */
+function chosenStatAlignment(
+  build: SeenBuild,
+  statsTabRead: boolean,
+  flag: (field: string, message: string) => void,
+): string | undefined {
+  if (build.statAlignment?.trim()) return build.statAlignment
+  const { raisedStat: raised, loweredStat: lowered } = build
+  if (!raised && !lowered) return statsTabRead ? 'Serious' : undefined
+  const found = raised && lowered ? statAlignmentFromArrows(raised, lowered) : undefined
+  if (found) return found.name
+  const seen = [
+    ...(raised ? [`▲ ${STAT_NAMES[raised]}`] : []),
+    ...(lowered ? [`▼ ${STAT_NAMES[lowered]}`] : []),
+    ...(raised ? [] : ['no ▲']),
+    ...(lowered ? [] : ['no ▼']),
+  ]
+  flag('nature', `The arrows showed ${seen.join(' and ')}, so the Stat Alignment was left blank.`)
+  flag('statPoints', 'Stat Points were worked out with no Stat Alignment, so check them.')
+  return undefined
+}
+
 /** The stats that were shown, or nothing when none were. */
 function shownStats(seen: SeenStats): Partial<Record<StatId, number>> | undefined {
   const known = Object.fromEntries(
@@ -207,8 +253,9 @@ function shownStats(seen: SeenStats): Partial<Record<StatId, number>> | undefine
 
 /**
  * Turns what an image reader saw into a draft Team, with the same name matching, Stat Points
- * working and flags as a Teamsheet PDF (ADR 24), plus each Pokémon's nickname and gender and the
- * gender form they choose (DEV-124). Pokémon with no species seen are left out. Each
+ * working, numbers check and flags as a Teamsheet PDF (ADR 24), plus each Pokémon's nickname and
+ * gender and the gender form they choose (DEV-124), and the Stat Alignment its arrows name
+ * (DEV-121). Pokémon with no species seen are left out. Each
  * unsupported image gets a flag for the Team; a read with no supported image, or no Pokémon,
  * fails.
  */
@@ -241,6 +288,7 @@ export function readSeenTeam(
       flags.push({ path: [UNSURE_TEAM[field].path], message: UNSURE_TEAM[field].message })
   const found = seen.pokemon.filter((build) => build.species.trim())
   if (found.length === 0) return { ok: false, error: NO_POKEMON_SEEN }
+  const statsTabRead = seen.images.some((image) => image.kind === 'replicaTeamStats')
   const pokemon = found.slice(0, MAX_TEAM_SIZE).map((build, index): PokemonBuild => {
     // The species is never swapped with the nickname: one that doesn't match is left blank.
     const species = withGenderForm(build.species, build.gender, (message) =>
@@ -251,7 +299,9 @@ export function readSeenTeam(
         species,
         ability: build.ability ?? undefined,
         item: build.item ?? undefined,
-        statAlignment: build.statAlignment ?? undefined,
+        statAlignment: chosenStatAlignment(build, statsTabRead, (field, message) =>
+          flags.push({ path: ['pokemon', index, field], message }),
+        ),
         moves: build.moves,
         statValues: shownStats(build.statValues),
         statPoints: shownStats(build.statPoints),
