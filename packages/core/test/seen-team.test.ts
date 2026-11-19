@@ -17,24 +17,23 @@ const seen = (build: Partial<SeenBuild> = {}): SeenBuild => ({
   gender: null,
   ability: 'Solar Power',
   item: 'Charizardite Y',
+  itemShown: true,
   statAlignment: 'Timid',
   raisedStat: null,
   loweredStat: null,
   moves: ['Heat Wave', 'Weather Ball', 'Solar Beam', 'Protect'],
   statValues: noStats,
-  statPoints: noStats,
+  statPoints: { ...noStats, hp: 2, spa: 32, spe: 32 },
   unsure: [],
+  disagreeing: [],
   ...build,
 })
 
-/**
- * What a reader saw of a Team on a Replica Team's two tabs: no Battle Team name or Replica Team ID
- * unless given.
- */
+/** What a reader saw of a Team on a Replica Team's two tabs: no Battle Team name unless given. */
 const team = (pokemon: SeenBuild[], fields: Partial<Omit<SeenTeam, 'pokemon'>> = {}): SeenTeam => ({
   images: [{ kind: 'replicaTeamMoves' }, { kind: 'replicaTeamStats' }],
   battleTeamName: null,
-  replicaTeamId: null,
+  replicaTeamId: '9TCG84KWXK',
   unsure: [],
   pokemon,
   ...fields,
@@ -78,7 +77,7 @@ describe('readSeenTeam', () => {
     const statPoints = { hp: 2, atk: 0, def: 0, spa: 32, spd: 0, spe: 32 }
     const values = statValues(championsNames().baseStats.charizard!, statPoints, 'timid')
 
-    const read = readDraft(team([seen({ statValues: values })]))
+    const read = readDraft(team([seen({ statValues: values, statPoints: noStats })]))
 
     expect(read.pokemon[0]!.statPoints).toEqual(statPoints)
     expect(read.flags).toEqual([])
@@ -308,7 +307,14 @@ describe('readSeenTeam', () => {
     expect(invalid.flags.map(({ message }) => message)).toEqual([
       '"9TCG_84KWXK" isn\'t a Replica Team ID, so it was left blank.',
     ])
-    expect(readDraft(team([seen()], { unsure: ['replicaTeamId'] })).flags).toEqual([])
+    expect(
+      readDraft(team([seen()], { replicaTeamId: null, unsure: ['replicaTeamId'] })).flags,
+    ).toEqual([
+      {
+        path: ['replicaTeamId'],
+        message: 'No screenshot showed the Replica Team ID. Add a Replica Team tab, or type it in.',
+      },
+    ])
   })
 
   it('flags each unsupported image by its place in the upload, and reads the rest', () => {
@@ -395,7 +401,10 @@ describe('readSeenTeam: the Stat Alignment', () => {
     ['Basculegion', 'atk', 'spa', 'adamant', [0, 32, 2, 0, 0, 32], [195, 180, 87, 90, 95, 130]],
   ] as const
 
-  /** A Pokémon as the Stats tab shows it: stat values and Stat Points, and no name. */
+  /**
+   * A Pokémon as the Stats tab shows it: stat values and Stat Points, and no name. It keeps the
+   * Moves & More tab's fields from `seen`, so only the Stats tab's flags show.
+   */
   const onStatsTab = (
     species: string,
     points: readonly number[],
@@ -405,10 +414,7 @@ describe('readSeenTeam: the Stat Alignment', () => {
     seen({
       species,
       gender: 'male',
-      ability: null,
-      item: null,
       statAlignment: null,
-      moves: [],
       statPoints: asStats(points),
       statValues: asStats(values),
       ...build,
@@ -469,13 +475,20 @@ describe('readSeenTeam: the Stat Alignment', () => {
     expect(read.flags).toEqual([])
   })
 
-  it('leaves the Stat Alignment blank, with no flag, when no Stats tab or name shows it', () => {
+  it('leaves the Stat Alignment blank, flagged as not shown, when no Stats tab or name shows it', () => {
     const read = readDraft(
       team([seen({ statAlignment: null })], { images: [{ kind: 'replicaTeamMoves' }] }),
     )
 
     expect(read.pokemon[0]).not.toHaveProperty('nature')
-    expect(read.flags).toEqual([])
+    expect(read.flags).toEqual([
+      { path: ['pokemon', 0, 'nature'], message: "The Stat Alignment wasn't shown." },
+      {
+        path: ['nature'],
+        message:
+          "No screenshot showed the Stat Alignment. Add the Replica Team's Stats tab or detail screens, or fill it in.",
+      },
+    ])
   })
 
   it("leaves the Stat Alignment blank, with flags, when the arrows can't be one", () => {
@@ -587,11 +600,171 @@ describe('readSeenTeam: the Stat Alignment', () => {
         team([onStatsTab(species, points, shown)], { images: [{ kind: 'replicaTeamMoves' }] }),
       )
 
-    expect(read(values).flags).toEqual([])
-    expect(read([184, ...values.slice(1)]).flags).toEqual([
+    const statPointsFlags = (shown: readonly number[]) =>
+      read(shown).flags.filter(({ path }) => path[2] === 'statPoints')
+    expect(statPointsFlags(values)).toEqual([])
+    expect(statPointsFlags([184, ...values.slice(1)])).toEqual([
       {
         path: ['pokemon', 0, 'statPoints', 'hp'],
         message: "184 HP doesn't match 0 HP Stat Points, so check them.",
+      },
+    ])
+  })
+})
+
+describe("readSeenTeam: fields the images didn't show, and images that disagree", () => {
+  const venusaur = (build: Partial<SeenBuild> = {}) =>
+    seen({
+      species: 'Venusaur',
+      ability: 'Overgrow',
+      item: 'Sitrus Berry',
+      statAlignment: 'Calm',
+      moves: ['Giga Drain', 'Sludge Bomb', 'Sleep Powder', 'Protect'],
+      statPoints: { ...noStats, hp: 32, def: 2, spa: 16, spd: 16 },
+      ...build,
+    })
+  const detailScreens: Partial<SeenTeam> = {
+    images: [{ kind: 'pokemonDetail' }, { kind: 'pokemonDetail' }],
+  }
+
+  it('flags every held item and the Replica Team ID when only detail screens were read', () => {
+    const notShown = { item: null, itemShown: false }
+    const read = readDraft(
+      team([seen(notShown), venusaur(notShown)], { ...detailScreens, replicaTeamId: null }),
+    )
+
+    expect(read.pokemon.map((build) => build.item)).toEqual([undefined, undefined])
+    expect(read.flags).toEqual([
+      {
+        path: ['replicaTeamId'],
+        message: 'No screenshot showed the Replica Team ID. Add a Replica Team tab, or type it in.',
+      },
+      { path: ['pokemon', 0, 'item'], message: "The held item wasn't shown." },
+      { path: ['pokemon', 1, 'item'], message: "The held item wasn't shown." },
+      {
+        path: ['item'],
+        message:
+          "No screenshot showed the held items. Add the Replica Team's Moves & More tab, or fill them in.",
+      },
+    ])
+  })
+
+  it('says "held item" when only one Pokémon is missing it', () => {
+    const read = readDraft(
+      team([seen({ item: null, itemShown: false }), venusaur()], detailScreens),
+    )
+
+    expect(read.flags.map(({ message }) => message)).toEqual([
+      "The held item wasn't shown.",
+      "No screenshot showed the held item. Add the Replica Team's Moves & More tab, or fill it in.",
+    ])
+  })
+
+  it('takes an empty held-item slot as no item, with no flag', () => {
+    const read = readDraft(team([seen({ item: null, itemShown: true })]))
+
+    expect(read.pokemon[0]).not.toHaveProperty('item')
+    expect(read.flags).toEqual([])
+  })
+
+  it('flags nothing, Stat Alignments included, when the Replica Team pair was read', () => {
+    const read = readDraft(
+      team([seen({ statAlignment: null, raisedStat: 'spe', loweredStat: 'atk' })]),
+    )
+
+    expect(read.pokemon[0]!.nature).toBe('timid')
+    expect(read.flags).toEqual([])
+  })
+
+  it('flags abilities and moves, and held items, when only the Stats tab was read', () => {
+    const statsOnly = { ability: null, item: null, itemShown: false, moves: [] }
+    const read = readDraft(
+      team([seen(statsOnly), venusaur(statsOnly)], { images: [{ kind: 'replicaTeamStats' }] }),
+    )
+
+    expect(read.flags).toEqual([
+      { path: ['pokemon', 0, 'item'], message: "The held item wasn't shown." },
+      { path: ['pokemon', 0, 'ability'], message: "The ability and moves weren't shown." },
+      { path: ['pokemon', 1, 'item'], message: "The held item wasn't shown." },
+      { path: ['pokemon', 1, 'ability'], message: "The ability and moves weren't shown." },
+      {
+        path: ['item'],
+        message:
+          "No screenshot showed the held items. Add the Replica Team's Moves & More tab, or fill them in.",
+      },
+      {
+        path: ['ability'],
+        message:
+          "No screenshot showed the abilities and moves. Add the Replica Team's Moves & More tab or detail screens, or fill them in.",
+      },
+    ])
+  })
+
+  it('flags only the moves when the abilities were shown', () => {
+    const read = readDraft(team([seen({ moves: [' '] })]))
+
+    expect(read.flags).toEqual([
+      { path: ['pokemon', 0, 'moves'], message: "The moves weren't shown." },
+      {
+        path: ['moves'],
+        message:
+          "No screenshot showed the moves. Add the Replica Team's Moves & More tab or detail screens, or fill them in.",
+      },
+    ])
+  })
+
+  it('gives one flag for a missing Stat Alignment and stats when only the Moves & More tab was read', () => {
+    const movesOnly = { statAlignment: null, statPoints: noStats }
+    const read = readDraft(
+      team([seen(movesOnly), venusaur(movesOnly)], { images: [{ kind: 'replicaTeamMoves' }] }),
+    )
+
+    expect(read.pokemon[0]).not.toHaveProperty('nature')
+    expect(read.flags).toEqual([
+      { path: ['pokemon', 0, 'nature'], message: "The Stat Alignment and stats weren't shown." },
+      { path: ['pokemon', 1, 'nature'], message: "The Stat Alignment and stats weren't shown." },
+      {
+        path: ['nature'],
+        message:
+          "No screenshot showed the Stat Alignments and stats. Add the Replica Team's Stats tab or detail screens, or fill them in.",
+      },
+    ])
+  })
+
+  it('flags stats no image showed on their own', () => {
+    const read = readDraft(team([seen({ statPoints: noStats })], detailScreens))
+
+    expect(read.flags).toEqual([
+      { path: ['pokemon', 0, 'statPoints'], message: "The stats weren't shown." },
+      {
+        path: ['statPoints'],
+        message:
+          "No screenshot showed the stats. Add the Replica Team's Stats tab or detail screens, or fill them in.",
+      },
+    ])
+  })
+
+  it('never flags a nickname, gender or Battle Team name as missing', () => {
+    expect(readDraft(team([seen({ nickname: null, gender: null })])).flags).toEqual([])
+  })
+
+  it('flags each field the images disagree on, in place of the reader being unsure of it', () => {
+    const read = readDraft(
+      team([seen({ disagreeing: ['item', 'moves', 'item'], unsure: ['item', 'ability'] })]),
+    )
+
+    expect(read.flags).toEqual([
+      {
+        path: ['pokemon', 0, 'item'],
+        message: 'The screenshots show different held items, so check it.',
+      },
+      {
+        path: ['pokemon', 0, 'moves'],
+        message: 'The screenshots show different moves, so check them.',
+      },
+      {
+        path: ['pokemon', 0, 'ability'],
+        message: 'The ability was hard to make out, so check it.',
       },
     ])
   })
