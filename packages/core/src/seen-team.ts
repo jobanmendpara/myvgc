@@ -25,11 +25,39 @@ export const UNSURE_FIELDS = [
 export const UNSURE_TEAM_FIELDS = ['battleTeamName', 'replicaTeamId'] as const
 
 /**
- * What an image reader saw on screenshots or photos of a Team (ADR 24): the words and numbers
+ * What kind of screen an image is (ADR 24, DEV-120): the Replica Team's "Moves & More" or "Stats"
+ * tab, a Pokémon detail screen, or anything else, from which nothing is read.
+ */
+export const SEEN_IMAGE_KINDS = [
+  'replicaTeamMoves',
+  'replicaTeamStats',
+  'pokemonDetail',
+  'unsupported',
+] as const
+
+/** The read's error when no image is a supported screen (DEV-126). It still counts as a read. */
+export const NO_SUPPORTED_IMAGE =
+  'None of these images is a Replica Team or a Pokémon detail screen.'
+/** The read's error when the supported screens showed no Pokémon. */
+export const NO_POKEMON_SEEN = "MyVGC couldn't find a Team's Pokémon on these images."
+
+/**
+ * What an image reader saw on screenshots of a Team (ADR 24): the words and numbers
  * shown, not yet matched to the Champions data. The image reader's model fills this in, so it
  * avoids rules a model can't be held to, such as lengths and ranges; `readSeenTeam` checks those.
  */
 export const seenTeamSchema = z.object({
+  images: z
+    .array(
+      z.object({
+        kind: z
+          .enum(SEEN_IMAGE_KINDS)
+          .describe(
+            "replicaTeamMoves: the Replica Team's Moves & More tab. replicaTeamStats: its Stats tab. pokemonDetail: one Pokémon's detail screen. unsupported: any other image.",
+          ),
+      }),
+    )
+    .describe('One entry per image, in the order the images were given.'),
   battleTeamName: z
     .string()
     .nullable()
@@ -106,15 +134,25 @@ function shownStats(seen: SeenStats): Partial<Record<StatId, number>> | undefine
 
 /**
  * Turns what an image reader saw into a draft Team, with the same name matching, Stat Points
- * working and flags as a Teamsheet PDF (ADR 24). Pokémon with no species seen are left out.
+ * working and flags as a Teamsheet PDF (ADR 24). Pokémon with no species seen are left out. Each
+ * unsupported image gets a flag for the Team; a read with no supported image, or no Pokémon,
+ * fails.
  */
-export function readSeenTeam(seen: SeenTeam): {
-  name: string
-  replicaTeamId: string
-  pokemon: PokemonBuild[]
-  flags: ReadFlag[]
-} {
+export function readSeenTeam(
+  seen: SeenTeam,
+):
+  | { ok: true; name: string; replicaTeamId: string; pokemon: PokemonBuild[]; flags: ReadFlag[] }
+  | { ok: false; error: string } {
+  if (seen.images.length > 0 && seen.images.every((image) => image.kind === 'unsupported'))
+    return { ok: false, error: NO_SUPPORTED_IMAGE }
   const flags: ReadFlag[] = []
+  seen.images.forEach((image, index) => {
+    if (image.kind === 'unsupported')
+      flags.push({
+        path: ['images', index],
+        message: `Image ${index + 1} isn't a Replica Team or Pokémon detail screen, so nothing was read from it.`,
+      })
+  })
   // The ID is stored as the Team schema stores it; one that still isn't valid is left blank.
   const seenId = seen.replicaTeamId?.trim() ?? ''
   const id = replicaTeamIdSchema.safeParse(seenId)
@@ -128,6 +166,7 @@ export function readSeenTeam(seen: SeenTeam): {
     if (field !== 'replicaTeamId' || (id.success && id.data))
       flags.push({ path: [UNSURE_TEAM[field].path], message: UNSURE_TEAM[field].message })
   const found = seen.pokemon.filter((build) => build.species.trim())
+  if (found.length === 0) return { ok: false, error: NO_POKEMON_SEEN }
   const pokemon = found.slice(0, MAX_TEAM_SIZE).map((build, index) => {
     const read = readBuild(
       {
@@ -157,6 +196,7 @@ export function readSeenTeam(seen: SeenTeam): {
       message: `${found.length} Pokémon were seen, so only the first ${MAX_TEAM_SIZE} were read.`,
     })
   return {
+    ok: true,
     // No supported screen shows a Battle Team name, so the name is usually blank, with no flag:
     // the Team builder asks for one (DEV-126).
     name: (seen.battleTeamName ?? '').trim().slice(0, MAX_TEAM_NAME_LENGTH),

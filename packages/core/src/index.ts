@@ -8,7 +8,10 @@ export { judgeTeam } from './legality'
 export { nameBuild } from './names'
 export { readTeamsheet, type ReadTeamsheetResult } from './teamsheet'
 export {
+  NO_POKEMON_SEEN,
+  NO_SUPPORTED_IMAGE,
   readSeenTeam,
+  SEEN_IMAGE_KINDS,
   seenTeamSchema,
   UNSURE_FIELDS,
   UNSURE_TEAM_FIELDS,

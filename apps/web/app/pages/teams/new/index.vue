@@ -26,7 +26,7 @@ const WAYS = computed(() => [
           to: '/teams/new/images',
           title: 'Read screenshots',
           description:
-            'Choose screenshots of a Replica Team or photos of a paper Teamsheet, then check what was read.',
+            'Choose screenshots of a Replica Team or Pokémon detail screens, then check what was read.',
         },
       ]
     : []),
