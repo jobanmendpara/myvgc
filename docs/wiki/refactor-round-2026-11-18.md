@@ -37,5 +37,6 @@ Raised by the agents on 2026-11-18, not filed in Linear that day:
 - From DEV-148 (PR #226): the remaining hand-built list and new-Team links, and `ListDetail`'s `base`.
 - From DEV-149 (PR #228): a render test for `TeamFieldsSection`.
 - From DEV-153 (PR #227): a test of the price table. It belongs in [DEV-152](https://linear.app/mendpara/issue/DEV-152) (show the cost of an accuracy run for any model), which Linear showed in Backlog on 2026-11-18.
+- (Corrected 2026-11-19: two of these were filed on 2026-11-18 after all, at 17:36 UTC, as [DEV-154](https://linear.app/mendpara/issue/DEV-154) (Refactor: build list and new-Team links in one place, from DEV-148) and [DEV-155](https://linear.app/mendpara/issue/DEV-155) (Chore: test that both Team forms render the same Team fields, from DEV-149). Linear showed both in Backlog on 2026-11-19, and DEV-152 still in Backlog.)
 
 Related: [2026-11-17 Refactor round](refactor-round-2026-11-17.md), [2026-11-15 Refactor round](refactor-round-2026-11-15.md), [parallel agents](parallel-agents.md), [shipping flow](shipping-flow.md), [team reading rollout](team-reading-rollout.md).

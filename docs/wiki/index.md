@@ -10,7 +10,7 @@ The chief-of-staff's record of decisions, recurring problems and preferences. It
 - [Todo round, 2026-11-12](todo-round-2026-11-12.md): DEV-67, DEV-71, DEV-60 and DEV-61, how they ran, and the follow-ups DEV-105 to DEV-116.
 - [Refactor round, 2026-11-15](refactor-round-2026-11-15.md): DEV-127, DEV-116, DEV-109, DEV-110 and DEV-113, five implementers at once, the DEV-113 retro and the new rebase rule, and the follow-ups DEV-139 to DEV-144 and DEV-146.
 - [Refactor round, 2026-11-17](refactor-round-2026-11-17.md): DEV-139, DEV-142 and DEV-140, the first round under the rebase rule and auto-merge, all merged on their first CI run, and the follow-ups DEV-148 to DEV-151.
-- [Refactor round, 2026-11-18](refactor-round-2026-11-18.md): DEV-153, DEV-148 and DEV-149, three agents in parallel, all merged on their first CI run, the untested combination of DEV-148 and DEV-149 under `strict: false`, and the follow-ups not yet filed.
+- [Refactor round, 2026-11-18](refactor-round-2026-11-18.md): DEV-153, DEV-148 and DEV-149, three agents in parallel, all merged on their first CI run, the untested combination of DEV-148 and DEV-149 under `strict: false`, and the follow-ups DEV-154 and DEV-155.
 
 ## Preferences
 
