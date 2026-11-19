@@ -104,7 +104,15 @@ export const seenTeamSchema = z.object({
           .nullable()
           .describe('From the gender symbol: ♂ is male, ♀ is female. Null when none is shown.'),
         ability: z.string().nullable(),
-        item: z.string().nullable().describe('The held item, or null when none is shown.'),
+        item: z
+          .string()
+          .nullable()
+          .describe('The held item, or null when the slot is empty or no image shows it.'),
+        itemShown: z
+          .boolean()
+          .describe(
+            "True when any image shows this Pokémon's held-item slot, even an empty one (only the Moves & More tab does). False when no image shows it.",
+          ),
         statAlignment: z
           .string()
           .nullable()
@@ -133,6 +141,9 @@ export const seenTeamSchema = z.object({
         unsure: z
           .array(z.enum(UNSURE_FIELDS))
           .describe('The fields that were hard to make out, so the User should check them.'),
+        disagreeing: z
+          .array(z.enum(UNSURE_FIELDS))
+          .describe('The fields where two images showed different values for this Pokémon.'),
       }),
     )
     .describe('Each Pokémon on the Team, in the order shown. Empty when no Team is shown.'),
@@ -165,6 +176,67 @@ const UNSURE_TEAM: Record<(typeof UNSURE_TEAM_FIELDS)[number], { path: string; m
       message: 'The Replica Team ID was hard to make out, so check it.',
     },
   }
+
+/** What each disagreeing field's flag says (DEV-126). It goes where the field's unsure flag does. */
+const DISAGREEING: Record<(typeof UNSURE_FIELDS)[number], string> = {
+  species: 'The screenshots show different species, so check it.',
+  nickname: 'The screenshots show different nicknames, so check it.',
+  gender: 'The screenshots show different genders, so check it.',
+  ability: 'The screenshots show different abilities, so check it.',
+  item: 'The screenshots show different held items, so check it.',
+  statAlignment: 'The screenshots show different Stat Alignments, so check it.',
+  moves: 'The screenshots show different moves, so check them.',
+  stats: 'The screenshots show different stats, so check them.',
+}
+
+/**
+ * The fields flagged when no image showed them (DEV-126), with where the flag goes and the words
+ * for one Pokémon's and for several. Nickname and gender are optional, so they're never flagged.
+ */
+const GAPS = {
+  item: { path: 'item', one: 'held item', many: 'held items' },
+  ability: { path: 'ability', one: 'ability', many: 'abilities' },
+  moves: { path: 'moves', one: 'moves', many: 'moves' },
+  statAlignment: { path: 'nature', one: 'Stat Alignment', many: 'Stat Alignments' },
+  stats: { path: 'statPoints', one: 'stats', many: 'stats' },
+} as const
+type Gap = keyof typeof GAPS
+
+/** The gaps each screenshot fills (DEV-126). Each row gets one flag for the Team. */
+const GAP_ROWS: { gaps: Gap[]; screenshot: string }[] = [
+  { gaps: ['item'], screenshot: "the Replica Team's Moves & More tab" },
+  {
+    gaps: ['ability', 'moves'],
+    screenshot: "the Replica Team's Moves & More tab or detail screens",
+  },
+  {
+    gaps: ['statAlignment', 'stats'],
+    screenshot: "the Replica Team's Stats tab or detail screens",
+  },
+]
+
+/** The gaps named in a flag, such as "Stat Alignment and stats", and whether they're plural. */
+function gapWords(gaps: Gap[], many: (gap: Gap) => boolean) {
+  const words = gaps.map((gap) => GAPS[gap][many(gap) ? 'many' : 'one'])
+  return { words: words.join(' and '), plural: words.length > 1 || words[0]!.endsWith('s') }
+}
+
+/**
+ * The fields no image showed for a Pokémon. A held item counts as shown when its slot was, even
+ * empty; a Stat Alignment, when its name or an arrow was, or a Stats tab was read (which gives
+ * Serious with no arrows).
+ */
+function gapsOf(build: SeenBuild, statsTabRead: boolean): Set<Gap> {
+  const gaps = new Set<Gap>()
+  if (!build.itemShown && !build.item?.trim()) gaps.add('item')
+  if (!build.ability?.trim()) gaps.add('ability')
+  if (!build.moves.some((move) => move.trim())) gaps.add('moves')
+  if (!build.statAlignment?.trim() && !build.raisedStat && !build.loweredStat && !statsTabRead)
+    gaps.add('statAlignment')
+  if (STAT_IDS.every((stat) => build.statValues[stat] === null && build.statPoints[stat] === null))
+    gaps.add('stats')
+  return gaps
+}
 
 /**
  * The species whose form follows gender in the Champions data (DEV-124): the plain ID is the male
@@ -255,9 +327,10 @@ function shownStats(seen: SeenStats): Partial<Record<StatId, number>> | undefine
  * Turns what an image reader saw into a draft Team, with the same name matching, Stat Points
  * working, numbers check and flags as a Teamsheet PDF (ADR 24), plus each Pokémon's nickname and
  * gender and the gender form they choose (DEV-124), and the Stat Alignment its arrows name
- * (DEV-121). Pokémon with no species seen are left out. Each
- * unsupported image gets a flag for the Team; a read with no supported image, or no Pokémon,
- * fails.
+ * (DEV-121). Pokémon with no species seen are left out. A field no image showed, and one the
+ * images disagree on, is flagged (DEV-126): a gap gets a flag on each Pokémon it affects and one
+ * for the Team naming the screenshot that fills it. Each unsupported image gets a flag for the
+ * Team; a read with no supported image, or no Pokémon, fails.
  */
 export function readSeenTeam(
   seen: SeenTeam,
@@ -282,6 +355,12 @@ export function readSeenTeam(
       path: ['replicaTeamId'],
       message: `"${seenId}" isn't a Replica Team ID, so it was left blank.`,
     })
+  // Either Replica Team tab shows the ID, so a blank one is a gap like any other (DEV-126).
+  if (!seenId)
+    flags.push({
+      path: ['replicaTeamId'],
+      message: 'No screenshot showed the Replica Team ID. Add a Replica Team tab, or type it in.',
+    })
   for (const field of new Set(seen.unsure))
     // An ID left blank already has its flag.
     if (field !== 'replicaTeamId' || (id.success && id.data))
@@ -289,6 +368,8 @@ export function readSeenTeam(
   const found = seen.pokemon.filter((build) => build.species.trim())
   if (found.length === 0) return { ok: false, error: NO_POKEMON_SEEN }
   const statsTabRead = seen.images.some((image) => image.kind === 'replicaTeamStats')
+  // How many Pokémon each gap affects, for the Team's flags.
+  const gapCounts = new Map<Gap, number>()
   const pokemon = found.slice(0, MAX_TEAM_SIZE).map((build, index): PokemonBuild => {
     // The species is never swapped with the nickname: one that doesn't match is left blank.
     const species = withGenderForm(build.species, build.gender, (message) =>
@@ -315,8 +396,24 @@ export function readSeenTeam(
         path: ['pokemon', index, 'moves'],
         message: `More than ${MAX_MOVES} moves were seen, so only the first ${MAX_MOVES} were read.`,
       })
+    const gaps = gapsOf(build, statsTabRead)
+    for (const row of GAP_ROWS) {
+      const missing = row.gaps.filter((gap) => gaps.has(gap))
+      if (missing.length === 0) continue
+      for (const gap of missing) gapCounts.set(gap, (gapCounts.get(gap) ?? 0) + 1)
+      const { words, plural } = gapWords(missing, () => false)
+      flags.push({
+        path: ['pokemon', index, GAPS[missing[0]!].path],
+        message: `The ${words} ${plural ? "weren't" : "wasn't"} shown.`,
+      })
+    }
+    const disagreeing = new Set(build.disagreeing)
+    for (const field of disagreeing)
+      flags.push({ path: ['pokemon', index, UNSURE[field].path], message: DISAGREEING[field] })
+    // A field the images disagree on already has its flag.
     for (const field of new Set(build.unsure))
-      flags.push({ path: ['pokemon', index, UNSURE[field].path], message: UNSURE[field].message })
+      if (!disagreeing.has(field))
+        flags.push({ path: ['pokemon', index, UNSURE[field].path], message: UNSURE[field].message })
     const nickname = keptNickname(build.nickname, build.species)
     const { species: id, ...rest } = read
     return {
@@ -331,6 +428,15 @@ export function readSeenTeam(
       path: ['pokemon', MAX_TEAM_SIZE - 1],
       message: `${found.length} Pokémon were seen, so only the first ${MAX_TEAM_SIZE} were read.`,
     })
+  for (const row of GAP_ROWS) {
+    const missing = row.gaps.filter((gap) => gapCounts.has(gap))
+    if (missing.length === 0) continue
+    const { words, plural } = gapWords(missing, (gap) => gapCounts.get(gap)! > 1)
+    flags.push({
+      path: [GAPS[missing[0]!].path],
+      message: `No screenshot showed the ${words}. Add ${row.screenshot}, or fill ${plural ? 'them' : 'it'} in.`,
+    })
+  }
   return {
     ok: true,
     // No supported screen shows a Battle Team name, so the name is usually blank, with no flag:

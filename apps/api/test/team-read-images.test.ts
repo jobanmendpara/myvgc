@@ -20,6 +20,7 @@ const SEEN: SeenTeam = {
       gender: 'male',
       ability: 'Solar Power',
       item: 'Charizardite Y',
+      itemShown: true,
       statAlignment: 'Timid',
       raisedStat: 'spe',
       loweredStat: 'atk',
@@ -27,6 +28,7 @@ const SEEN: SeenTeam = {
       statValues: noStats,
       statPoints: { ...noStats, hp: 2, spa: 32, spe: 32 },
       unsure: [],
+      disagreeing: [],
     },
     {
       species: 'Incineroar',
@@ -34,13 +36,15 @@ const SEEN: SeenTeam = {
       gender: null,
       ability: 'Intimidate',
       item: 'Sitrus Brry',
+      itemShown: true,
       statAlignment: null,
       raisedStat: null,
       loweredStat: null,
       moves: ['Fake Out'],
       statValues: noStats,
-      statPoints: noStats,
+      statPoints: { ...noStats, hp: 32, atk: 32 },
       unsure: ['moves'],
+      disagreeing: [],
     },
   ],
 }
@@ -117,6 +121,7 @@ describe('image reading', () => {
         statPoints: { hp: 2, atk: 0, def: 0, spa: 32, spd: 0, spe: 32 },
         names: { species: 'Charizard', item: 'Charizardite Y', nature: 'Timid' },
       })
+      // The images showed every field, so nothing is flagged as missing.
       expect(body.flags).toEqual([
         { path: ['pokemon', 1, 'item'], message: 'Couldn\'t read "Sitrus Brry".' },
         {
