@@ -10,20 +10,25 @@ const { baseStats } = championsNames()
 const garchompPoints: Stats = { hp: 0, atk: 32, def: 2, spa: 0, spd: 0, spe: 32 }
 const garchompValues: Stats = { hp: 183, atk: 182, def: 117, spa: 90, spd: 105, spe: 169 }
 
-/** A Pokémon as its detail screen and the Stats tab show it. */
+/**
+ * A Pokémon as its detail screen and the Replica Team's tabs show it, with an empty held-item slot
+ * and one move, so no field is flagged as not shown.
+ */
 const seen = (build: Partial<SeenBuild>): SeenBuild => ({
   species: 'Charizard',
   nickname: 'Garchomp',
   gender: 'male',
-  ability: null,
+  ability: 'Blaze',
   item: null,
+  itemShown: true,
   statAlignment: 'Jolly',
   raisedStat: null,
   loweredStat: null,
-  moves: [],
+  moves: ['Protect'],
   statValues: garchompValues,
   statPoints: garchompPoints,
   unsure: [],
+  disagreeing: [],
   ...build,
 })
 
@@ -32,7 +37,7 @@ function read(build: Partial<SeenBuild>) {
   const result = readSeenTeam({
     images: [{ kind: 'replicaTeamMoves' }, { kind: 'replicaTeamStats' }, { kind: 'pokemonDetail' }],
     battleTeamName: null,
-    replicaTeamId: null,
+    replicaTeamId: '9TCG84KWXK',
     unsure: [],
     pokemon: [seen(build)],
   })
