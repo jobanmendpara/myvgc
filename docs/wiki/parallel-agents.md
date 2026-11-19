@@ -107,4 +107,10 @@ See [team reading rollout](team-reading-rollout.md), "DEV-135 on 2026-11-19".
 - On 2026-11-19 zsh broke `grep --include=*.ts` searches: it expands the unquoted glob itself and fails with "no matches found". Use `git grep` (for example `git grep -n foo -- '*.ts'`) instead.
 - The same day the worktree guard refused a heredoc chained with other commands, as on 2026-11-11 and 2026-11-15 above.
 
+## DEV-136 and DEV-137 on 2026-11-19
+
+See [team reading rollout](team-reading-rollout.md), "DEV-136 and DEV-137 on 2026-11-19".
+
+- On 2026-11-19 the DEV-136 and DEV-137 implementers ran in parallel. Both changed ADR 24 and `packages/core`'s reading code. DEV-136 merged first, in PR #245 (`jobanmendpara/myvgc@6fc9689`). DEV-137's files overlapped, so under the 2026-11-15 rebase rule above it rebased onto PR #245, resolved the conflict in ADR 24, and fixed DEV-136's nickname tests to give the fields DEV-137 had made required. It re-ran `pnpm accuracy` after the rebase, then merged in PR #246 (`jobanmendpara/myvgc@1be13d2`).
+
 Related: [shipping flow](shipping-flow.md), [list and detail rollout](list-detail-rollout.md), [team reading rollout](team-reading-rollout.md).
