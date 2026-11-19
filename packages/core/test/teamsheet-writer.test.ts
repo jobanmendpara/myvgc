@@ -163,6 +163,19 @@ describe('writeTeamsheet', { timeout: 30_000 }, () => {
     })
   })
 
+  it("writes the species, never a Pokémon build's nickname (DEV-124)", async () => {
+    const pdf = await exported([
+      build('basculegionf', { nickname: 'Bad Sushi', gender: 'F' }),
+      build('charizard', { nickname: 'Garchomp' }),
+    ])
+    const fields = await fieldsOf(pdf)
+
+    expect(fields).toMatchObject({ f19: 'Basculegion-F', f41: 'Charizard' })
+    const text = Object.values(fields).join('\n')
+    expect(text).not.toContain('Bad Sushi')
+    expect(text).not.toContain('Garchomp')
+  })
+
   it('fills stat boxes only for a build with a Stat Alignment or Stat Points', async () => {
     const fields = await fieldsOf(
       await exported([

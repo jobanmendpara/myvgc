@@ -16,6 +16,8 @@ const SEEN: SeenTeam = {
   pokemon: [
     {
       species: 'Charizard',
+      nickname: 'Chorizo',
+      gender: 'male',
       ability: 'Solar Power',
       item: 'Charizardite Y',
       statAlignment: 'Timid',
@@ -26,6 +28,8 @@ const SEEN: SeenTeam = {
     },
     {
       species: 'Incineroar',
+      nickname: null,
+      gender: null,
       ability: 'Intimidate',
       item: 'Sitrus Brry',
       statAlignment: null,
@@ -104,6 +108,8 @@ describe('image reading', () => {
       expect(body.pokemon).toHaveLength(2)
       expect(body.pokemon[0]).toMatchObject({
         species: 'charizard',
+        nickname: 'Chorizo',
+        gender: 'M',
         statPoints: { hp: 2, atk: 0, def: 0, spa: 32, spd: 0, spe: 32 },
         names: { species: 'Charizard', item: 'Charizardite Y', nature: 'Timid' },
       })
