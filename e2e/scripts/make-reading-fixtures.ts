@@ -1,8 +1,9 @@
 // Makes one Team's reading fixtures for `pnpm accuracy` (DEV-123) from the maintainer's own
 // screenshots. Each image listed in the Team's expected.json is written twice to
 // apps/api/test/reading-fixtures/<team>/: as PNG scaled to at most 2576 px on the long edge, and
-// as a JPEG copy at quality 0.9. Both come from the web app's own shrinkImage, run in Playwright's
-// Chromium, so the JPEGs come from the encoder the web app uses. On the images marked
+// as a JPEG copy encoded as the web app uploads it (UPLOAD_ENCODING: quality 0.9, DEV-132). Both
+// come from the web app's own shrinkImage, run in Playwright's Chromium, so the JPEGs are what the
+// web app sends. On the images marked
 // `paintTrainerName` (the two Replica Team tabs) a made-up name is painted over the Trainer Name
 // in Game first. Check every image by eye before committing it.
 //
@@ -11,7 +12,7 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { chromium } from '@playwright/test'
-import { shrinkImage } from '../../apps/web/app/lib/shrink-image.ts'
+import { UPLOAD_ENCODING, shrinkImage } from '../../apps/web/app/lib/shrink-image.ts'
 
 /** The name painted over the Trainer Name in Game. */
 const PAINTED_NAME = 'Pip'
@@ -87,7 +88,7 @@ try {
   for (const [name, { source, paintTrainerName }] of Object.entries(expected.images)) {
     const bytes = readFileSync(join(sourceDir, source)).toString('base64')
     const made = await page.evaluate(
-      async ({ bytes, paint, box, text }) => {
+      async ({ bytes, paint, box, text, upload }) => {
         const tools = window as unknown as {
           shrinkImage: typeof shrinkImage
           paintOver: typeof paintOver
@@ -102,7 +103,7 @@ try {
           return btoa(binary)
         }
         const png = await tools.shrinkImage(image, { type: 'image/png' })
-        const jpeg = await tools.shrinkImage(image, { type: 'image/jpeg', quality: 0.9 })
+        const jpeg = await tools.shrinkImage(image, upload)
         const size = await createImageBitmap(png)
         return {
           png: await encode(png),
@@ -111,7 +112,13 @@ try {
           height: size.height,
         }
       },
-      { bytes, paint: paintTrainerName === true, box: TRAINER_NAME, text: PAINTED_NAME },
+      {
+        bytes,
+        paint: paintTrainerName === true,
+        box: TRAINER_NAME,
+        text: PAINTED_NAME,
+        upload: UPLOAD_ENCODING,
+      },
     )
     writeFileSync(join(fixtureDir, `${name}.png`), Buffer.from(made.png, 'base64'))
     writeFileSync(join(fixtureDir, `${name}.jpg`), Buffer.from(made.jpeg, 'base64'))
