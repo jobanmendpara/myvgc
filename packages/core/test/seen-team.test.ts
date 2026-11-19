@@ -13,6 +13,8 @@ const noStats = { hp: null, atk: null, def: null, spa: null, spd: null, spe: nul
 type SeenBuild = SeenTeam['pokemon'][number]
 const seen = (build: Partial<SeenBuild> = {}): SeenBuild => ({
   species: 'Charizard',
+  nickname: null,
+  gender: null,
   ability: 'Solar Power',
   item: 'Charizardite Y',
   statAlignment: 'Timid',
@@ -119,6 +121,107 @@ describe('readSeenTeam', () => {
         path: ['pokemon', 0, 'nature'],
         message: 'The Stat Alignment was hard to make out, so check it.',
       },
+    ])
+  })
+
+  it('keeps the nickname exactly as shown, and the gender, in the Pokémon build', () => {
+    const read = readDraft(team([seen({ nickname: ' Bad Sushi ', gender: 'male' })]))
+
+    expect(read.pokemon[0]).toMatchObject({
+      species: 'charizard',
+      nickname: 'Bad Sushi',
+      gender: 'M',
+    })
+    expect(readDraft(team([seen({ gender: 'female' })])).pokemon[0]!.gender).toBe('F')
+    expect(readDraft(team([seen()])).pokemon[0]).not.toHaveProperty('gender')
+    expect(readDraft(team([seen()])).pokemon[0]).not.toHaveProperty('nickname')
+  })
+
+  it('drops a nickname equal to the species text as read, ignoring case and spaces', () => {
+    for (const nickname of ['Charizard', ' charizard ', ''])
+      expect(readDraft(team([seen({ nickname })])).pokemon[0]).not.toHaveProperty('nickname')
+
+    // Compared with the text read, not the form chosen, so the female form keeps no nickname.
+    const basculegion = readDraft(
+      team([seen({ species: 'Basculegion', nickname: 'BASCULEGION', gender: 'female' })]),
+    ).pokemon[0]!
+    expect(basculegion.species).toBe('basculegionf')
+    expect(basculegion).not.toHaveProperty('nickname')
+  })
+
+  it('never swaps the species with a nickname that names a species', () => {
+    const read = readDraft(team([seen({ species: 'Charizerd', nickname: 'Garchomp' })]))
+
+    expect(read.pokemon[0]).toMatchObject({ species: '', nickname: 'Garchomp' })
+    expect(read.flags).toContainEqual({
+      path: ['pokemon', 0, 'species'],
+      message: 'Couldn\'t read "Charizerd".',
+    })
+  })
+
+  it('chooses the gender form of Meowstic, Indeedee and Basculegion from the gender', () => {
+    const species = (name: string, gender: SeenBuild['gender']) => {
+      const read = readDraft(team([seen({ species: name, gender })]))
+      return { species: read.pokemon[0]!.species, flags: read.flags }
+    }
+
+    expect(species('Meowstic', 'female')).toEqual({ species: 'meowsticf', flags: [] })
+    expect(species('Indeedee', 'female')).toEqual({ species: 'indeedeef', flags: [] })
+    expect(species('Basculegion', 'female')).toEqual({ species: 'basculegionf', flags: [] })
+    expect(species('Basculegion', 'male')).toEqual({ species: 'basculegion', flags: [] })
+    // Other species keep their own form whatever the gender.
+    expect(species('Charizard', 'female')).toEqual({ species: 'charizard', flags: [] })
+  })
+
+  it('keeps the base form, with a flag, when a gender form shows no gender', () => {
+    const read = readDraft(team([seen({ species: 'Basculegion' })]))
+
+    expect(read.pokemon[0]!.species).toBe('basculegion')
+    expect(read.flags).toEqual([
+      {
+        path: ['pokemon', 0, 'species'],
+        message: 'No gender was shown, so check whether this is the female form.',
+      },
+    ])
+  })
+
+  it('takes a form named in the text over the gender, with a flag when they contradict', () => {
+    const read = (name: string, gender: SeenBuild['gender']) =>
+      readDraft(team([seen({ species: name, gender })]))
+    const contradiction = {
+      path: ['pokemon', 0, 'species'],
+      message: "The form shown doesn't match the gender shown, so check them.",
+    }
+
+    expect(read('Meowstic-F', 'female')).toMatchObject({
+      pokemon: [{ species: 'meowsticf', gender: 'F' }],
+      flags: [],
+    })
+    expect(read('Meowstic-F', null)).toMatchObject({
+      pokemon: [{ species: 'meowsticf' }],
+      flags: [],
+    })
+    expect(read('Meowstic-F', 'male')).toMatchObject({
+      pokemon: [{ species: 'meowsticf', gender: 'M' }],
+      flags: [contradiction],
+    })
+    expect(read('Indeedee-M', 'female')).toMatchObject({
+      pokemon: [{ species: 'indeedee', gender: 'F' }],
+      flags: [contradiction],
+    })
+  })
+
+  it('flags a nickname or gender that was hard to make out', () => {
+    const read = readDraft(
+      team([seen({ nickname: 'Chorizo', gender: 'male', unsure: ['nickname', 'gender'] })]),
+    )
+
+    expect(read.flags).toEqual([
+      {
+        path: ['pokemon', 0, 'nickname'],
+        message: 'The nickname was hard to make out, so check it.',
+      },
+      { path: ['pokemon', 0, 'gender'], message: 'The gender was hard to make out, so check it.' },
     ])
   })
 

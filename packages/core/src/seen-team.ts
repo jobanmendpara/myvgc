@@ -1,5 +1,13 @@
 import { z } from 'zod'
-import { MAX_MOVES, MAX_TEAM_SIZE, type PokemonBuild, STAT_IDS, type StatId } from './build'
+import {
+  MAX_MOVES,
+  MAX_NICKNAME_LENGTH,
+  MAX_TEAM_SIZE,
+  type PokemonBuild,
+  STAT_IDS,
+  type StatId,
+} from './build'
+import { champions } from './champions'
 import { readBuild } from './read-build'
 import { MAX_TEAM_NAME_LENGTH, type ReadFlag, replicaTeamIdSchema } from './team'
 
@@ -14,6 +22,8 @@ const stats = z.object(
 /** The fields an image reader can say it wasn't sure of. */
 export const UNSURE_FIELDS = [
   'species',
+  'nickname',
+  'gender',
   'ability',
   'item',
   'statAlignment',
@@ -76,7 +86,21 @@ export const seenTeamSchema = z.object({
   pokemon: z
     .array(
       z.object({
-        species: z.string().describe("The Pokémon's species or form, in English."),
+        species: z
+          .string()
+          .describe(
+            'The species in English: on a detail screen the name after "No.", on a Replica Team tab the panel\'s heading. Exactly as written, with a form only when the screen names one. Never the nickname or the gender.',
+          ),
+        nickname: z
+          .string()
+          .nullable()
+          .describe(
+            'The nickname exactly as shown by the Poké Ball and gender symbol on a detail screen. Null when no detail screen shows this Pokémon: the Replica Team tabs show only the species.',
+          ),
+        gender: z
+          .enum(['male', 'female'])
+          .nullable()
+          .describe('From the gender symbol: ♂ is male, ♀ is female. Null when none is shown.'),
         ability: z.string().nullable(),
         item: z.string().nullable().describe('The held item, or null when none is shown.'),
         statAlignment: z
@@ -104,6 +128,8 @@ type SeenStats = SeenTeam['pokemon'][number]['statValues']
 /** Where each unsure field's flag goes, and what it says. */
 const UNSURE: Record<(typeof UNSURE_FIELDS)[number], { path: string; message: string }> = {
   species: { path: 'species', message: 'The species was hard to make out, so check it.' },
+  nickname: { path: 'nickname', message: 'The nickname was hard to make out, so check it.' },
+  gender: { path: 'gender', message: 'The gender was hard to make out, so check it.' },
   ability: { path: 'ability', message: 'The ability was hard to make out, so check it.' },
   item: { path: 'item', message: 'The held item was hard to make out, so check it.' },
   statAlignment: {
@@ -124,6 +150,53 @@ const UNSURE_TEAM: Record<(typeof UNSURE_TEAM_FIELDS)[number], { path: string; m
     },
   }
 
+/**
+ * The species whose form follows gender in the Champions data (DEV-124): the plain ID is the male
+ * form, and `-F` the female one.
+ */
+const GENDER_FORMS = ['meowstic', 'indeedee', 'basculegion'] as const
+
+/** Lowercase letters and digits only, as Showdown compares names. */
+const toId = (text: string) => text.toLowerCase().replace(/[^a-z0-9]/g, '')
+
+/**
+ * The species text to look up, with its gender form chosen (DEV-124). When the text is a gender
+ * form's base name, female gives the `-F` form and male the base form; with no gender, the base
+ * form stays, with a flag. A form named in the text wins over the gender, with a flag when the two
+ * contradict.
+ */
+function withGenderForm(
+  species: string,
+  gender: 'male' | 'female' | null,
+  flag: (message: string) => void,
+): string {
+  const found = champions.species(species)
+  const base = GENDER_FORMS.find((id) => found?.id === id || found?.id === `${id}f`)
+  if (!found || !base) return species
+  if (toId(species) === base) {
+    if (gender === 'female') return champions.species(`${base}f`)?.name ?? species
+    if (gender === null) flag('No gender was shown, so check whether this is the female form.')
+    return species
+  }
+  if (gender !== null && (found.id === `${base}f`) !== (gender === 'female'))
+    flag("The form shown doesn't match the gender shown, so check them.")
+  return species
+}
+
+/**
+ * The nickname to keep: the text as shown, on one line, or nothing when it's blank or the same as
+ * the species text as read, ignoring case (DEV-124). Comparing with the text rather than the
+ * matched species means a female Basculegion with no nickname doesn't get "Basculegion".
+ */
+function keptNickname(nickname: string | null, species: string): string | undefined {
+  const text = nickname
+    ?.replace(/[\r\n]+/g, ' ')
+    .trim()
+    .slice(0, MAX_NICKNAME_LENGTH)
+  if (!text || text.toLowerCase() === species.trim().toLowerCase()) return undefined
+  return text
+}
+
 /** The stats that were shown, or nothing when none were. */
 function shownStats(seen: SeenStats): Partial<Record<StatId, number>> | undefined {
   const known = Object.fromEntries(
@@ -134,7 +207,8 @@ function shownStats(seen: SeenStats): Partial<Record<StatId, number>> | undefine
 
 /**
  * Turns what an image reader saw into a draft Team, with the same name matching, Stat Points
- * working and flags as a Teamsheet PDF (ADR 24). Pokémon with no species seen are left out. Each
+ * working and flags as a Teamsheet PDF (ADR 24), plus each Pokémon's nickname and gender and the
+ * gender form they choose (DEV-124). Pokémon with no species seen are left out. Each
  * unsupported image gets a flag for the Team; a read with no supported image, or no Pokémon,
  * fails.
  */
@@ -167,10 +241,14 @@ export function readSeenTeam(
       flags.push({ path: [UNSURE_TEAM[field].path], message: UNSURE_TEAM[field].message })
   const found = seen.pokemon.filter((build) => build.species.trim())
   if (found.length === 0) return { ok: false, error: NO_POKEMON_SEEN }
-  const pokemon = found.slice(0, MAX_TEAM_SIZE).map((build, index) => {
+  const pokemon = found.slice(0, MAX_TEAM_SIZE).map((build, index): PokemonBuild => {
+    // The species is never swapped with the nickname: one that doesn't match is left blank.
+    const species = withGenderForm(build.species, build.gender, (message) =>
+      flags.push({ path: ['pokemon', index, 'species'], message }),
+    )
     const read = readBuild(
       {
-        species: build.species,
+        species,
         ability: build.ability ?? undefined,
         item: build.item ?? undefined,
         statAlignment: build.statAlignment ?? undefined,
@@ -188,7 +266,14 @@ export function readSeenTeam(
       })
     for (const field of new Set(build.unsure))
       flags.push({ path: ['pokemon', index, UNSURE[field].path], message: UNSURE[field].message })
-    return read
+    const nickname = keptNickname(build.nickname, build.species)
+    const { species: id, ...rest } = read
+    return {
+      species: id,
+      ...(nickname && { nickname }),
+      ...(build.gender && { gender: build.gender === 'female' ? 'F' : 'M' }),
+      ...rest,
+    }
   })
   if (found.length > MAX_TEAM_SIZE)
     flags.push({
