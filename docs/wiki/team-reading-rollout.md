@@ -69,9 +69,10 @@ Two implementers ran in parallel on 2026-11-18. Each PR merged on its first CI r
 - Open questions for the maintainer on 2026-11-18, not filed yet:
   - Must a Replica Team ID be exactly 10 characters? The example `9TCG84KWX` (9 characters) is valid under the schema as of `jobanmendpara/myvgc@4ca8aa3`.
   - Should Teamsheet PDF reads put an ID-looking "Battle Team Number / Name" value into `replicaTeamId`? As of `jobanmendpara/myvgc@4ca8aa3` PDF reads always give `''`.
+  - (Superseded 2026-11-19 for the second question: filed at 01:28 UTC as [DEV-156](https://linear.app/mendpara/issue/DEV-156), Backlog that day. The length question is still not filed on its own; DEV-156's agent notes point to it, and DEV-108, filed 2026-11-12, asks to check the ID rule against real IDs.)
 - Follow-ups found on 2026-11-18, not filed yet:
   - The "paper Teamsheet" wording on `/teams/new/images` and in `ImageTeamReader`'s comment (fits DEV-133). (Superseded 2026-11-19: DEV-133 removed it, `jobanmendpara/myvgc@34b9b94`, see below.)
-  - No progress is shown while images shrink.
+  - No progress is shown while images shrink. (Superseded 2026-11-19: filed at 01:28 UTC as [DEV-157](https://linear.app/mendpara/issue/DEV-157), Backlog that day.)
   - ADR 24's status line. (Superseded 2026-11-19: as of `jobanmendpara/myvgc@34b9b94` it lists what DEV-118 has built so far: DEV-106, DEV-130, DEV-131, DEV-132 and DEV-133.)
   - No real-browser test of `shrinkImage`.
 - `pnpm accuracy` needs `ANTHROPIC_API_KEY`. On 2026-11-18 each implementer symlinked the main checkout's `.env` into its worktree for the run only, and removed it afterwards. See [parallel agents](parallel-agents.md).

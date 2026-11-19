@@ -86,6 +86,14 @@ From the chief-of-staff's upkeep, 2026-11-18:
 - On 2026-11-18 `git fetch` over SSH failed again ("Please make sure you have the correct access rights"), and the HTTPS workaround above worked for fetch. `gh` API calls worked. This is the fourth day it has failed, after 2026-11-11, 2026-11-16 and 2026-11-17.
 - On 2026-11-18 `.claude/worktrees/` held no worktree, so the upkeep removed none. The DEV-129 worktree left on 2026-11-17 was gone, and PR #206 had merged (see [team reading rollout](team-reading-rollout.md)).
 
+## Daily upkeep on 2026-11-19
+
+From the chief-of-staff's upkeep, 2026-11-19, about 15:45 UTC:
+
+- `git fetch` over SSH worked.
+- The upkeep removed no worktree. Besides its own, `.claude/worktrees/` held one, the wiki agent's on `chore/wiki-reading-dev-136-137-2026-11-19`, locked by the running session, so it was left.
+- No `chore/wiki-lint-2026-11-19` PR from the "Wiki lint" routine existed yet, so this upkeep's lint was the only one so far that day.
+
 ## Environment on 2026-11-17 (DEV-139, DEV-142, DEV-140)
 
 See the [2026-11-17 Refactor round](refactor-round-2026-11-17.md) for how the round ran.
