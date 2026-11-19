@@ -100,4 +100,11 @@ See the [2026-11-18 Refactor round](refactor-round-2026-11-18.md) for how the ro
 - Later on 2026-11-18 the DEV-130 and DEV-106 implementers ran `pnpm accuracy` in their worktrees, which have no `.env`. Each symlinked the main checkout's `.env` into its worktree for the run only, and removed it afterwards. See [team reading rollout](team-reading-rollout.md).
 - On 2026-11-18 the worktree guard again refused compound commands that included git, as on 2026-11-11 above. The wiki agent also had a `gh pr view ... --jq` loop refused, as "too complex to verify". Run each `git` and `gh` command on its own.
 
+## Environment on 2026-11-19 (DEV-135)
+
+See [team reading rollout](team-reading-rollout.md), "DEV-135 on 2026-11-19".
+
+- On 2026-11-19 zsh broke `grep --include=*.ts` searches: it expands the unquoted glob itself and fails with "no matches found". Use `git grep` (for example `git grep -n foo -- '*.ts'`) instead.
+- The same day the worktree guard refused a heredoc chained with other commands, as on 2026-11-11 and 2026-11-15 above.
+
 Related: [shipping flow](shipping-flow.md), [list and detail rollout](list-detail-rollout.md), [team reading rollout](team-reading-rollout.md).

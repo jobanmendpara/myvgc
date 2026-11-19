@@ -81,7 +81,7 @@ Two implementers ran in parallel on 2026-11-18. Each PR merged on its first CI r
 Dates are UTC.
 
 - DEV-132 ("Send JPEG once it reads as well as PNG") first ran as a measurement only, against `jobanmendpara/myvgc@9900d95`. Its comment on DEV-132 (01:33 UTC) compares PNG and JPEG over 36 reads for $0.1189: the two formats got the same fields wrong in every run, but the ▲/▼ arrows couldn't be judged, because nothing in `seenTeamSchema` depended on them yet and every Stat Alignment in `pair` came back blank. The run stopped there, with nothing built.
-- On 2026-11-19 the maintainer chose to adopt JPEG anyway (DEV-132's 02:37 UTC comment), without making DEV-135 a formal blocker. DEV-135's 02:26 UTC comment asks its own `pnpm accuracy` run to compare the JPEG and PNG `pair` cases for the arrows, and to say so in the PR if JPEG reads them worse, since that would reopen the decision.
+- On 2026-11-19 the maintainer chose to adopt JPEG anyway (DEV-132's 02:37 UTC comment), without making DEV-135 a formal blocker. DEV-135's 02:26 UTC comment asks its own `pnpm accuracy` run to compare the JPEG and PNG `pair` cases for the arrows, and to say so in the PR if JPEG reads them worse, since that would reopen the decision. (Superseded later on 2026-11-19: DEV-135's run read the arrows equally well in JPEG and PNG, so the JPEG decision stands. See "DEV-135 on 2026-11-19" below.)
 - DEV-132 merged in PR #238 as `jobanmendpara/myvgc@7589886` (commit `3d5681e`), at 02:36 UTC. As of that commit, the web app's `imageToUpload` shrinks with `UPLOAD_ENCODING` (JPEG at quality 0.9) and names the upload `.jpg`, so a full set is about 3 MB instead of about 26 MB; `e2e/scripts/make-reading-fixtures.ts` uses the same constant, and the committed fixtures were not remade. PR #238 names DEV-135 with "Related to". Linear shows DEV-132 Done.
 - DEV-133 ("Read only Replica Team tabs and Pokémon detail screens", part of DEV-118) merged in PR #239 as `jobanmendpara/myvgc@34b9b94` (commit `5dbbf7a`), at 03:01 UTC, on its first CI run. As of that commit, `seenTeamSchema` has an `images` list labelling each image `replicaTeamMoves`, `replicaTeamStats`, `pokemonDetail` or `unsupported`; `readSeenTeam` flags each unsupported image, fails the read when every image is unsupported, and returns `{ ok, ... }` like `readTeamsheet`. The reader's instructions were rewritten for the two supported screens, and photos of a paper Teamsheet are no longer supported (ADR 24 as of `34b9b94`). See PR #239 for the tests. Linear shows DEV-133 Done.
 - `pnpm accuracy`, Haiku 5.5, single runs, before and after summaries in each PR body. No case got worse, so no maintainer sign-off was needed:
@@ -90,8 +90,8 @@ Dates are UTC.
 - As of `jobanmendpara/myvgc@34b9b94`, `make-reading-fixtures.ts` paints the made-up name "Pip" (`PAINTED_NAME`) over the Trainer Name in Game on the two Replica Team tabs. It is not a nickname. (Checked 2026-11-19 because the session had called the painted name "Banjo"; no wiki page had recorded that name. "Banjo" is one of the random Team-name words added in DEV-138, `packages/core/src/team-name.ts`.)
 - Follow-ups raised on 2026-11-19, not filed:
   - From DEV-133: an accuracy fixture with an unsupported image; checking the length of the model's `images` list against the number of uploads; the Team builder showing which image an `images.N` flag means.
-  - From DEV-132: comparing Safari's JPEG encoder with Chromium's; putting the model's raw answer in the accuracy report.
-- Linear on 2026-11-19 shows the rest of DEV-118's build still Todo: DEV-134 (nicknames and gender), DEV-135 (Stat Alignment from the arrows), DEV-136 and DEV-137. (Superseded later on 2026-11-19 for DEV-134: it merged, see "DEV-134 on 2026-11-19" below. DEV-135, DEV-136 and DEV-137 were still open.)
+  - From DEV-132: comparing Safari's JPEG encoder with Chromium's; putting the model's raw answer in the accuracy report. (Partly superseded later on 2026-11-19: the report now carries flag messages, but still not the raw answer. See "DEV-135 on 2026-11-19" below.)
+- Linear on 2026-11-19 shows the rest of DEV-118's build still Todo: DEV-134 (nicknames and gender), DEV-135 (Stat Alignment from the arrows), DEV-136 and DEV-137. (Superseded later on 2026-11-19 for DEV-134: it merged, see "DEV-134 on 2026-11-19" below. DEV-135, DEV-136 and DEV-137 were still open.) (Superseded later on 2026-11-19 for DEV-135: it merged, see "DEV-135 on 2026-11-19" below. DEV-136 and DEV-137 were still open.)
 
 ## DEV-134 on 2026-11-19
 
@@ -105,6 +105,25 @@ Dates are UTC.
   - Read worse in some runs: Basculegion's first move on the JPEG detail screen came back as "Wave Crush", flagged (`Couldn't read "Wave Crush".`), so the User sees it. It happened in 2 of 16 JPEG detail reads after the change and in none of 12 before. The implementer couldn't rule out the longer instructions, so under CLAUDE.md's accuracy rule it held back auto-merge for the maintainer's sign-off. The maintainer signed off on 2026-11-19, before the merge.
   - Read better: the first version of the instructions put "Basculegion (Male)" in the species twice in a single run. The implementer rewrote them to keep the gender out of the species, and after that it happened in no run; before the change the species was sometimes left blank.
 - `pnpm accuracy` reports neither flag messages nor the model's raw answer, so the implementer wrote a scratch script (a `.mts` file run with tsx) to see them while chasing "Wave Crush" and "Basculegion (Male)". This adds to the 2026-11-19 follow-up above about putting the model's raw answer in the accuracy report.
+
+## DEV-135 on 2026-11-19
+
+Dates are UTC.
+
+- DEV-135 ("Work out the Stat Alignment from the arrows, and check it against the numbers", part of DEV-118) merged in PR #243 as `jobanmendpara/myvgc@205133a` (commit `1bf6212`), at 14:59 UTC. As of that commit, `seenTeamSchema` gives each Pokémon a `raisedStat` and a `loweredStat` from the ▲/▼ arrows. `readSeenTeam` takes the Stat Alignment's name where it is shown, else looks the arrows up in `STAT_ALIGNMENTS`, else gives Serious when a Stats tab was read; arrows that can't be a Stat Alignment leave it blank with two flags. `readBuild` now checks every stat that has both a value and Stat Points, so the check covers every reader, and flags the Stat Alignment when the stats fit exactly one other. ADR 24's status line lists DEV-135, and its JPEG line now says the arrows read as well in JPEG. See PR #243 for the tests and the design decisions in the resolution comments on DEV-120 and DEV-121.
+- `pnpm accuracy --repeat 3`, Haiku 5.5, both summaries in PR #243:
+  - Before (`origin/main` at `c0800d7`): 6 of 18 passed, $0.0658. After: 12 of 18, $0.0707, about 7% more.
+  - Now right: `pair` went from 6 differences in every run (all six Stat Alignments blank) to passing in every run.
+  - Unchanged: `all` passes in every run. `detail` keeps the same 8 differences, the missing not-shown flags for the held item and Replica Team ID (DEV-137).
+  - JPEG against PNG for the arrows: equal. Both formats read every arrow right in all 3 runs each, and no numbers-check flag appeared. So the DEV-132 JPEG decision stands; this supersedes the open question in "DEV-132 and DEV-133 on 2026-11-19" above.
+  - "Wave Crush" (see "DEV-134 on 2026-11-19" above): 0 of 12 reads that include Basculegion's detail screen after DEV-135 (6 JPEG, 6 PNG). Before, one JPEG `detail` run dropped the move. Across PR #241's runs and these, it has only appeared on JPEG.
+  - Nothing read worse, so no maintainer sign-off was needed.
+- As of `jobanmendpara/myvgc@205133a`, the accuracy report's "flag not expected" lines include the flag's message (such as `Couldn't read "Wave Crush".`). This closes part of the gap noted in "DEV-134 on 2026-11-19" above; the model's raw answer is still not shown.
+- Follow-ups raised on 2026-11-19 by the implementer, not filed:
+  - The Teamsheet PDF reader gives only stat values, so the numbers check never fires for it.
+  - Serious when there are no arrows still rests on a neutral sample that doesn't exist yet (DEV-128).
+  - When the model reads a Stat Alignment name that disagrees with the arrows, the name wins and the disagreement isn't in `seenTeamSchema` (DEV-120, DEV-126).
+- Environment friction from the same run is in [parallel agents](parallel-agents.md), "Environment on 2026-11-19 (DEV-135)".
 
 ## Gotchas
 
