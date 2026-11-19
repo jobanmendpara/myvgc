@@ -37,6 +37,19 @@ export const STAT_ALIGNMENTS: readonly StatAlignment[] = [
   { id: 'timid', name: 'Timid', raises: 'spe', lowers: 'atk' },
 ]
 
+/** The stats a Stat Alignment can raise or lower: every stat but HP. */
+export const ALIGNED_STAT_IDS = ['atk', 'def', 'spa', 'spd', 'spe'] as const satisfies StatId[]
+
+/**
+ * The Stat Alignment that raises one stat and lowers another, such as Jolly for raised Speed and
+ * lowered Sp. Atk, looked up with no inference (DEV-121). None when the two are the same stat.
+ */
+export function statAlignmentFromArrows(raises: StatId, lowers: StatId): StatAlignment | undefined {
+  return STAT_ALIGNMENTS.find(
+    (alignment) => alignment.raises === raises && alignment.lowers === lowers,
+  )
+}
+
 /** Whether a Stat Alignment, given by ID, raises or lowers a stat, if it does either. */
 export function statAlignmentEffect(
   statAlignment: string | undefined,

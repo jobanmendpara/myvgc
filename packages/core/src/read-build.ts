@@ -5,12 +5,14 @@ import {
   type PokemonBuild,
   STAT_IDS,
   STAT_LABELS,
+  STAT_NAMES,
   type StatId,
   repeatedMoves,
   totalStatPoints,
 } from './build'
 import { type ChampionsKind, champions, championsNames } from './champions'
-import { statPointsFromValues } from './stat-values'
+import { STAT_ALIGNMENTS } from './stat-alignment'
+import { type BaseStats, statPointsFromValues, statValues } from './stat-values'
 import type { ReadFlag } from './team'
 
 /**
@@ -26,14 +28,18 @@ export interface BuildText {
   moves: string[]
   /** Stat values as the game shows them. Stat Points are worked out from them. */
   statValues?: Partial<Record<StatId, number>>
-  /** Stat Points, when the file shows them. They win over `statValues`. */
+  /**
+   * Stat Points, when the file shows them. They win over `statValues`; a stat that has both is
+   * checked against its value.
+   */
   statPoints?: Partial<Record<StatId, number>>
 }
 
 /**
  * Turns what a reader saw into a Pokémon build (ADR 24). Names become Showdown IDs through the
  * Champions data; one that doesn't match is left out with a flag giving the text read. Anything
- * else the reader can't make sense of is flagged too, on the field it's about.
+ * else the reader can't make sense of is flagged too, on the field it's about, including a stat
+ * whose value and Stat Points don't agree (`checkStatValues`).
  */
 export function readBuild(text: BuildText, index: number, flags: ReadFlag[]): PokemonBuild {
   const flag = (message: string, ...field: (string | number)[]) =>
@@ -84,12 +90,14 @@ export function readBuild(text: BuildText, index: number, flags: ReadFlag[]): Po
   ) as Partial<Record<StatId, number>>
   if (!text.statPoints && !text.statValues) return build
 
+  const pointsRead = new Set<StatId>()
   for (const stat of STAT_IDS) {
     const value = points[stat]
     if (value === undefined) continue
-    if (Number.isInteger(value) && value >= 0 && value <= MAX_STAT_POINTS)
+    if (Number.isInteger(value) && value >= 0 && value <= MAX_STAT_POINTS) {
       build.statPoints[stat] = value
-    else
+      pointsRead.add(stat)
+    } else
       flag(
         `${value} ${STAT_LABELS[stat]} Stat Points isn't possible, so it was set to 0.`,
         'statPoints',
@@ -97,8 +105,19 @@ export function readBuild(text: BuildText, index: number, flags: ReadFlag[]): Po
       )
   }
 
+  const baseStats = championsNames().baseStats[build.species]
+  if (baseStats) {
+    const shown = text.statValues ?? {}
+    checkStatValues(
+      build,
+      baseStats,
+      STAT_IDS.filter((stat) => pointsRead.has(stat) && shown[stat] !== undefined),
+      shown,
+      flag,
+    )
+  }
+
   if (Object.keys(values).length > 0) {
-    const baseStats = championsNames().baseStats[build.species]
     if (!baseStats) {
       flag("Stat Points weren't worked out, since the species wasn't read.", 'statPoints')
     } else {
@@ -119,4 +138,50 @@ export function readBuild(text: BuildText, index: number, flags: ReadFlag[]): Po
   }
   checkTotal()
   return build
+}
+
+/**
+ * The numbers check (ADR 24, DEV-121): each stat with both a value and Stat Points shown is worked
+ * out again from its Stat Points and the chosen Stat Alignment, and compared exactly. The numbers
+ * check the Stat Alignment and never choose it. When the stats that don't match all fit one other
+ * Stat Alignment (the five neutral ones count as one), the Stat Alignment is flagged, naming that
+ * one; any other mismatch flags each stat that doesn't match. With no Stat Alignment, only HP,
+ * which none changes, is checked.
+ */
+function checkStatValues(
+  build: PokemonBuild,
+  baseStats: BaseStats,
+  stats: StatId[],
+  shown: Partial<Record<StatId, number>>,
+  flag: (message: string, ...field: (string | number)[]) => void,
+) {
+  const chosen = STAT_ALIGNMENTS.find(({ id }) => id === build.nature)
+  const checked = chosen ? stats : stats.filter((stat) => stat === 'hp')
+  const mismatched = (statAlignment: string | undefined) => {
+    const worked = statValues(baseStats, build.statPoints, statAlignment)
+    return checked.filter((stat) => worked[stat] !== shown[stat])
+  }
+  const wrong = mismatched(chosen?.id)
+  if (wrong.length === 0) return
+  const fits = chosen
+    ? STAT_ALIGNMENTS.filter(
+        (other) =>
+          (other.raises !== undefined || other.id === 'serious') &&
+          !(other.raises === chosen.raises && other.lowers === chosen.lowers) &&
+          mismatched(other.id).length === 0,
+      )
+    : []
+  if (chosen && fits.length === 1) {
+    flag(
+      `The stats fit ${fits[0]!.name}, not ${chosen.name}, so check the Stat Alignment.`,
+      'nature',
+    )
+    return
+  }
+  for (const stat of wrong)
+    flag(
+      `${shown[stat]} ${STAT_NAMES[stat]} doesn't match ${build.statPoints[stat]} ${STAT_NAMES[stat]} Stat Points, so check them.`,
+      'statPoints',
+      stat,
+    )
 }

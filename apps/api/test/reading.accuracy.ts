@@ -159,9 +159,10 @@ async function readCase(
     const wantFlags = new Set(spec.flags)
     problems = [
       ...differences(draft, expectedDraft(expected.team, spec.notShown)),
-      ...[...gotFlags]
-        .filter((path) => !wantFlags.has(path))
-        .map((path) => `flag not expected: ${path}`),
+      // With the message, which gives the text read, such as `Couldn't read "Wave Crush".`
+      ...flags
+        .filter((flag) => !wantFlags.has(flag.path.join('.')))
+        .map((flag) => `flag not expected: ${flag.path.join('.')} (${flag.message})`),
       ...[...wantFlags]
         .filter((path) => !gotFlags.has(path))
         .map((path) => `flag missing: ${path}`),
