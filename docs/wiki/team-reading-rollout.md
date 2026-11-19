@@ -91,7 +91,20 @@ Dates are UTC.
 - Follow-ups raised on 2026-11-19, not filed:
   - From DEV-133: an accuracy fixture with an unsupported image; checking the length of the model's `images` list against the number of uploads; the Team builder showing which image an `images.N` flag means.
   - From DEV-132: comparing Safari's JPEG encoder with Chromium's; putting the model's raw answer in the accuracy report.
-- Linear on 2026-11-19 shows the rest of DEV-118's build still Todo: DEV-134 (nicknames and gender), DEV-135 (Stat Alignment from the arrows), DEV-136 and DEV-137.
+- Linear on 2026-11-19 shows the rest of DEV-118's build still Todo: DEV-134 (nicknames and gender), DEV-135 (Stat Alignment from the arrows), DEV-136 and DEV-137. (Superseded later on 2026-11-19 for DEV-134: it merged, see "DEV-134 on 2026-11-19" below. DEV-135, DEV-136 and DEV-137 were still open.)
+
+## DEV-134 on 2026-11-19
+
+Dates are UTC.
+
+- DEV-134 ("Read nicknames and gender, and choose gender forms", part of DEV-118) merged in PR #241 as `jobanmendpara/myvgc@c0800d7` (commit `0a93d00`), at 14:43 UTC. Linear shows it Done. As of that commit, `seenTeamSchema` gives each Pokémon a `nickname` and a `gender`, and `unsure` can name either. `readSeenTeam` picks the form of Meowstic, Indeedee and Basculegion from the gender, flags a missing gender or one that contradicts a form named in the species text, never swaps species and nickname, and drops a nickname equal to the species as read. The reader's instructions say where the species and nickname are on a detail screen and to keep the gender out of the species. ADR 24's status line lists DEV-134, and its species bullet says the nickname's stats check is left to DEV-136. See PR #241 for the tests.
+- `pnpm accuracy`, Haiku 5.5, `--repeat 3` on each side as well as single runs, both summaries in PR #241:
+  - Before (`origin/main`): 0 of 18 passed, $0.0628. After: 6 of 18, $0.0662, about 5% more per read.
+  - Now right: every nickname and gender the fixtures show. `all` passes in every run, on JPEG and PNG.
+  - Left for other issues: `pair`'s 6 Stat Alignments (DEV-135) and `detail`'s 8 missing item and Replica Team ID flags (DEV-137).
+  - Read worse in some runs: Basculegion's first move on the JPEG detail screen came back as "Wave Crush", flagged (`Couldn't read "Wave Crush".`), so the User sees it. It happened in 2 of 16 JPEG detail reads after the change and in none of 12 before. The implementer couldn't rule out the longer instructions, so under CLAUDE.md's accuracy rule it held back auto-merge for the maintainer's sign-off. The maintainer signed off on 2026-11-19, before the merge.
+  - Read better: the first version of the instructions put "Basculegion (Male)" in the species twice in a single run. The implementer rewrote them to keep the gender out of the species, and after that it happened in no run; before the change the species was sometimes left blank.
+- `pnpm accuracy` reports neither flag messages nor the model's raw answer, so the implementer wrote a scratch script (a `.mts` file run with tsx) to see them while chasing "Wave Crush" and "Basculegion (Male)". This adds to the 2026-11-19 follow-up above about putting the model's raw answer in the accuracy report.
 
 ## Gotchas
 
