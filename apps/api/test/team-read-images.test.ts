@@ -9,6 +9,7 @@ const noStats = { hp: null, atk: null, def: null, spa: null, spd: null, spe: nul
 
 /** What the stubbed model provider "sees": no request ever leaves the test. */
 const SEEN: SeenTeam = {
+  images: [{ kind: 'replicaTeamMoves' }, { kind: 'replicaTeamStats' }],
   battleTeamName: null,
   replicaTeamId: '9tcg84kwxk',
   unsure: [],
@@ -159,7 +160,7 @@ describe('image reading', () => {
       await setUp()
       const none = await upload()
       expect(none.status).toBe(400)
-      expect(await json(none)).toEqual({ error: 'Choose screenshots or photos of a Team to read.' })
+      expect(await json(none)).toEqual({ error: 'Choose screenshots of a Team to read.' })
 
       const nine = await upload(...Array.from({ length: 9 }, () => image(PNG)))
       expect(nine.status).toBe(400)
@@ -183,6 +184,27 @@ describe('image reading', () => {
       expect(res.status).toBe(413)
       expect(await json(res)).toEqual({ error: 'The images add up to more than 56 MB.' })
       expect(reader.read).not.toHaveBeenCalled()
+    })
+
+    it('reads nothing from an unsupported image, and flags it by its place in the upload', async () => {
+      await setUp({
+        reader: async () => ({
+          ...SEEN,
+          images: [
+            { kind: 'replicaTeamMoves' },
+            { kind: 'unsupported' },
+            { kind: 'pokemonDetail' },
+          ],
+        }),
+      })
+      const res = await upload(image(PNG), image(PNG), image(PNG))
+
+      expect(res.status).toBe(200)
+      expect((await json(res)).flags).toContainEqual({
+        path: ['images', 1],
+        message:
+          "Image 2 isn't a Replica Team or Pokémon detail screen, so nothing was read from it.",
+      })
     })
 
     it("answers 422 when the reader finds no Team's Pokémon", async () => {
@@ -260,6 +282,24 @@ describe('image reading', () => {
       fail = false
       expect((await upload(image(PNG))).status).toBe(200)
       expect((await upload(image(PNG))).status).toBe(429)
+    })
+
+    it('counts a read where no image is a supported screen, since it was paid for', async () => {
+      await setUp({
+        dailyLimit: 1,
+        reader: async () => ({
+          ...SEEN,
+          images: [{ kind: 'unsupported' }, { kind: 'unsupported' }],
+        }),
+      })
+
+      const res = await upload(image(PNG), image(PNG))
+      expect(res.status).toBe(422)
+      expect(await json(res)).toEqual({
+        error: 'None of these images is a Replica Team or a Pokémon detail screen.',
+      })
+      expect((await upload(image(PNG))).status).toBe(429)
+      expect(reader.read).toHaveBeenCalledTimes(1)
     })
 
     it("doesn't count reads, or keep anything, when there is no limit", async () => {

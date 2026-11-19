@@ -32,8 +32,8 @@ const PRICES: Record<string, { input: number; output: number }> = {
 /** The fields a case's images can't show, so its expected draft leaves them out. */
 type NotShown = 'replicaTeamId' | 'name' | Exclude<keyof PokemonBuild, 'species'>
 
-/** A draft Team as `readSeenTeam` returns it, less its flags. */
-type Draft = Omit<ReturnType<typeof readSeenTeam>, 'flags'>
+/** A draft Team as a successful `readSeenTeam` returns it, less its flags. */
+type Draft = Omit<Extract<ReturnType<typeof readSeenTeam>, { ok: true }>, 'ok' | 'flags'>
 
 /** A Team's expected.json, which the maintainer confirms against the game. */
 interface Expected {
@@ -151,7 +151,10 @@ async function readCase(
   let problems: string[]
   let error: string | undefined
   try {
-    const { flags, ...draft } = readSeenTeam(await reader.read(images))
+    const read = readSeenTeam(await reader.read(images))
+    if (!read.ok) throw new Error(read.error)
+    const { flags, name, replicaTeamId, pokemon } = read
+    const draft: Draft = { name, replicaTeamId, pokemon }
     const gotFlags = new Set(flags.map((flag) => flag.path.join('.')))
     const wantFlags = new Set(spec.flags)
     problems = [

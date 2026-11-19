@@ -58,9 +58,8 @@ export function teamReadingRoutes(db: Database, imageReading?: ImageReading) {
   return (
     new Hono<AppEnv>()
       .get('/', (c) => c.json({ images: imageReading !== undefined } satisfies TeamReadingView))
-      // Reads screenshots or photos of one Team into a draft for the Team builder. Nothing is
-      // saved, and the images are never stored or logged: they go to the model provider and are
-      // dropped.
+      // Reads screenshots of one Team into a draft for the Team builder. Nothing is saved, and
+      // the images are never stored or logged: they go to the model provider and are dropped.
       .post(
         '/images',
         bodyLimit({
@@ -80,7 +79,7 @@ export function teamReadingRoutes(db: Database, imageReading?: ImageReading) {
           const form = await c.req.parseBody({ all: true }).catch(() => undefined)
           const files = [form?.image ?? []].flat().filter((file) => file instanceof File)
           if (files.length === 0)
-            return c.json({ error: 'Choose screenshots or photos of a Team to read.' }, 400)
+            return c.json({ error: 'Choose screenshots of a Team to read.' }, 400)
           if (files.length > MAX_TEAM_IMAGES) return c.json({ error: TOO_MANY_TEAM_IMAGES }, 400)
           if (files.some((file) => file.size > MAX_TEAM_IMAGE_BYTES))
             return c.json({ error: TEAM_IMAGE_TOO_LARGE }, 413)
@@ -119,9 +118,9 @@ export function teamReadingRoutes(db: Database, imageReading?: ImageReading) {
             )
           }
 
+          // A read with no supported screen, or no Pokémon, stays counted: it was paid for.
           const read = readSeenTeam(seen)
-          if (read.pokemon.length === 0)
-            return c.json({ error: "MyVGC couldn't find a Team's Pokémon on these images." }, 422)
+          if (!read.ok) return c.json({ error: read.error }, 422)
           const draft: ReadTeamView = {
             name: read.name,
             replicaTeamId: read.replicaTeamId,

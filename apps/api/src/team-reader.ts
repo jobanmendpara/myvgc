@@ -9,9 +9,10 @@ export interface TeamImage {
 }
 
 /**
- * Reads what images of a Team show (ADR 24): screenshots of a Replica Team or photos of a paper
- * Teamsheet, all of one Team. It returns the words and numbers seen; the route matches them to
- * the Champions data. Images are never stored or logged.
+ * Reads what screenshots of a Team show (ADR 24): the Replica Team's "Moves & More" and "Stats"
+ * tabs and Pokémon detail screens, all of one Team. It labels each image's kind, and reads nothing
+ * from any other image. It returns the words and numbers seen; the route matches them to the
+ * Champions data. Images are never stored or logged.
  *
  * Throws `ImageReadFailed` when the provider can't give an answer.
  */
@@ -27,15 +28,21 @@ export class ImageReadFailed extends Error {
   }
 }
 
-const INSTRUCTIONS = `You read Pokémon Champions Teams off images for a VGC player's records.
-The images are screenshots of one Team (such as its Replica Team or status screens) or photos of one paper Teamsheet. Together they show one Team of up to six Pokémon.
-For each Pokémon, give exactly what the images show: species or form, ability, held item, Stat Alignment (nature), up to four moves, and its stats. Use the English names as the game writes them.
+const INSTRUCTIONS = `You read Pokémon Champions Teams off screenshots for a VGC player's records.
+The images are screenshots of one Team of up to six Pokémon. Only two kinds of screen are supported:
+- The Replica Team, which has two tabs. Both show a banner with the slot, the Replica Team ID after "Team ID:" (a code of letters and digits, such as 9TCG84KWXK) and the Trainer Name in Game, then six numbered panels, one per Pokémon, each headed by its species.
+  - The "Moves & More" tab (kind replicaTeamMoves): each panel shows the ability and the held item under the species, and the four moves on the right.
+  - The "Stats" tab (kind replicaTeamStats): each panel shows, for each stat, the stat value then its Stat Points after a bar. A tiny ▲ or ▼ by a stat's name is the Stat Alignment's raised or lowered stat; the tab never writes the Stat Alignment's name.
+- A Pokémon detail screen (kind pokemonDetail), one Pokémon each: each stat's value then its Stat Points after a bar, with the Stat Alignment's name after "Stat Alignment"; the four moves under "Moves" (the number by each move is its PP, not part of the move); the ability under "Ability"; and at the bottom, the nickname by the Poké Ball and the species after "No." and the Pokédex number. A detail screen never shows the held item.
+Label every image's kind, one entry per image in the order given. Any other image, such as a battle screen, a status screen, a photo or a paper Teamsheet, is unsupported: read nothing from it, even if a Pokémon is on it, since it could be someone else's.
+For each Pokémon, give exactly what the supported images show: species or form, ability, held item, Stat Alignment, up to four moves, and its stats. Use the English names as the game writes them. Give the species, never the nickname, as the species.
+Give the Stat Alignment only where its name is written; leave it null when only arrows show. Leave the held item null when no image shows it.
 Give stat values (the final numbers, such as 169 Speed) and Stat Points (0 to 32 per stat) only where the images show them; leave the rest null. Never work numbers out or guess them.
-A Pokémon that appears on more than one image is listed once, with what every image shows of it.
-A Replica Team tab's banner shows the slot, the Replica Team ID after "Team ID:" (a code of letters and digits, such as 9TCG84KWXK) and the Trainer Name in Game. Give the Replica Team ID only as replicaTeamId, never as the Battle Team name. Champions shows no Battle Team name on these screens, so leave it null unless the images show the Team's own name.
+List each Pokémon once, merged across images, with what every image shows of it. List them in the Replica Team's order (its panel numbers) when a Replica Team tab is among the images; otherwise in the order they first appear in the images.
+Give the Replica Team ID only as replicaTeamId, never as the Battle Team name. Champions shows no Battle Team name on these screens, so leave it null unless the images show the Team's own name.
 Ignore the Trainer Name in Game: never put it in any field.
 List a field in "unsure" when it was hard to make out, such as a blurred word, a cut-off number or a Replica Team ID character that could be 0 or O, or 1 or I.
-If the images show no Pokémon Team, return an empty list of Pokémon.`
+If no supported image shows a Pokémon, return an empty list of Pokémon.`
 
 /** Reads images with an Anthropic model, using structured output for the answer. */
 export function anthropicTeamReader({

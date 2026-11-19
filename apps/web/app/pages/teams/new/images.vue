@@ -19,8 +19,9 @@ async function save(body: TeamBody) {
     <div>
       <h1 class="text-2xl font-semibold">Read screenshots</h1>
       <p class="text-muted-foreground text-sm">
-        Choose screenshots of a Replica Team or photos of a paper Teamsheet, up to
-        {{ MAX_TEAM_IMAGES }} of one Team. You can check and change everything before it's saved.
+        Choose screenshots of one Team, up to {{ MAX_TEAM_IMAGES }}: the Replica Team's "Moves &amp;
+        More" and "Stats" tabs, and a Pokémon detail screen for each Pokémon. Other screens and
+        photos aren't read. You can check and change everything before it's saved.
       </p>
     </div>
 
