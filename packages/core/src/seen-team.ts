@@ -297,6 +297,7 @@ export function readSeenTeam(
     const read = readBuild(
       {
         species,
+        nickname: build.nickname ?? undefined,
         ability: build.ability ?? undefined,
         item: build.item ?? undefined,
         statAlignment: chosenStatAlignment(build, statsTabRead, (field, message) =>
