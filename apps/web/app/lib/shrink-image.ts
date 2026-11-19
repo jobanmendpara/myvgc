@@ -41,16 +41,35 @@ export async function shrinkImage(
 }
 
 /**
- * The file to upload for an image the User chose: the shrunk one when shrinking worked and made it
- * smaller, else the original (ADR 24, DEV-122). A browser that can't decode the image (such as
- * HEIC outside Safari) makes `shrink` throw, so the original goes and the server checks it as it
- * would any upload. The shrunk file keeps the original's name.
+ * How an image is encoded for upload: JPEG at quality 0.9, which reads as well as PNG at about a
+ * tenth of the size (ADR 24, DEV-132). The reading-fixtures script makes the JPEG fixtures with it.
+ */
+export const UPLOAD_ENCODING = { type: 'image/jpeg', quality: 0.9 } as const
+
+/** The file extension each type an upload can be encoded as is named with. */
+const EXTENSIONS: Record<string, string> = {
+  'image/jpeg': '.jpg',
+  'image/png': '.png',
+  'image/webp': '.webp',
+}
+
+/**
+ * The file to upload for an image the User chose: the image scaled down and re-encoded with
+ * `UPLOAD_ENCODING` when that worked and made it smaller, else the original (ADR 24, DEV-122). A
+ * browser that can't decode the image (such as HEIC outside Safari) makes `shrink` throw, so the
+ * original goes and the server checks it as it would any upload. The re-encoded file keeps the
+ * original's name, with the extension of its new type when that changed, such as
+ * `stats-tab.png` becoming `stats-tab.jpg`.
  */
 export async function imageToUpload(
   image: File,
-  shrink: (image: Blob) => Promise<Blob> = shrinkImage,
+  shrink: typeof shrinkImage = shrinkImage,
 ): Promise<File> {
-  const shrunk = await shrink(image).catch(() => undefined)
+  const shrunk = await shrink(image, UPLOAD_ENCODING).catch(() => undefined)
   if (!shrunk || shrunk.size >= image.size) return image
-  return new File([shrunk], image.name, { type: shrunk.type || image.type })
+  const type = shrunk.type || image.type
+  const extension = EXTENSIONS[type]
+  const name =
+    type === image.type || !extension ? image.name : image.name.replace(/(\.[^.]*)?$/, extension)
+  return new File([shrunk], name, { type })
 }
