@@ -21,6 +21,11 @@ import type { ReadFlag } from './team'
  */
 export interface BuildText {
   species: string
+  /**
+   * The nickname, when the file shows one. It never becomes the species; one that names a species
+   * the stats fit, when the species read doesn't, flags the species (`nicknameFit`).
+   */
+  nickname?: string
   statAlignment?: string
   ability?: string
   item?: string
@@ -108,13 +113,15 @@ export function readBuild(text: BuildText, index: number, flags: ReadFlag[]): Po
   const baseStats = championsNames().baseStats[build.species]
   if (baseStats) {
     const shown = text.statValues ?? {}
-    checkStatValues(
-      build,
-      baseStats,
-      STAT_IDS.filter((stat) => pointsRead.has(stat) && shown[stat] !== undefined),
-      shown,
-      flag,
-    )
+    const both = STAT_IDS.filter((stat) => pointsRead.has(stat) && shown[stat] !== undefined)
+    const fit = nicknameFit(build, baseStats, both, shown, text.nickname)
+    // When the stats fit the nickname's species, the species is what to check, not each stat.
+    if (fit)
+      flag(
+        `The stats fit ${fit} (the nickname), not ${champions.species(build.species)!.name}, so check the species.`,
+        'species',
+      )
+    else checkStatValues(build, baseStats, both, shown, flag)
   }
 
   if (Object.keys(values).length > 0) {
@@ -156,11 +163,9 @@ function checkStatValues(
   flag: (message: string, ...field: (string | number)[]) => void,
 ) {
   const chosen = STAT_ALIGNMENTS.find(({ id }) => id === build.nature)
-  const checked = chosen ? stats : stats.filter((stat) => stat === 'hp')
-  const mismatched = (statAlignment: string | undefined) => {
-    const worked = statValues(baseStats, build.statPoints, statAlignment)
-    return checked.filter((stat) => worked[stat] !== shown[stat])
-  }
+  const checked = checkedStats(build, stats)
+  const mismatched = (statAlignment: string | undefined) =>
+    mismatchedStats(baseStats, build, checked, shown, statAlignment)
   const wrong = mismatched(chosen?.id)
   if (wrong.length === 0) return
   const fits = chosen
@@ -184,4 +189,54 @@ function checkStatValues(
       'statPoints',
       stat,
     )
+}
+
+/**
+ * The stats the numbers check compares: those with both a value and Stat Points shown, or only HP,
+ * which no Stat Alignment changes, when there is no Stat Alignment.
+ */
+function checkedStats(build: PokemonBuild, stats: StatId[]): StatId[] {
+  return STAT_ALIGNMENTS.some(({ id }) => id === build.nature)
+    ? stats
+    : stats.filter((stat) => stat === 'hp')
+}
+
+/** The stats whose value shown isn't the one worked out from these base stats. */
+function mismatchedStats(
+  baseStats: BaseStats,
+  build: PokemonBuild,
+  stats: StatId[],
+  shown: Partial<Record<StatId, number>>,
+  statAlignment: string | undefined,
+): StatId[] {
+  const worked = statValues(baseStats, build.statPoints, statAlignment)
+  return stats.filter((stat) => worked[stat] !== shown[stat])
+}
+
+/** Lowercase letters and digits only, as Showdown compares names. */
+const toId = (text: string) => text.toLowerCase().replace(/[^a-z0-9]/g, '')
+
+/**
+ * The nickname's species, when the stats fit it and not the species read (ADR 24, DEV-124). It
+ * counts only when the nickname is a Champions species' own name (not one of Showdown's aliases,
+ * such as "Zard"), and uses the numbers check's comparison: every stat checked fits that species'
+ * base stats exactly, with the chosen Stat Alignment, and at least one doesn't fit the species
+ * read. Otherwise, or when no stat is checked, there's nothing to say.
+ */
+function nicknameFit(
+  build: PokemonBuild,
+  baseStats: BaseStats,
+  stats: StatId[],
+  shown: Partial<Record<StatId, number>>,
+  nickname: string | undefined,
+): string | undefined {
+  const name = nickname?.trim()
+  const found = name ? champions.species(name) : undefined
+  if (!name || !found || toId(found.name) !== toId(name) || found.id === build.species) return
+  const nicknameBaseStats = championsNames().baseStats[found.id]
+  const checked = checkedStats(build, stats)
+  if (!nicknameBaseStats || checked.length === 0) return
+  const fits = (base: BaseStats) =>
+    mismatchedStats(base, build, checked, shown, build.nature).length === 0
+  return fits(nicknameBaseStats) && !fits(baseStats) ? found.name : undefined
 }
