@@ -53,7 +53,7 @@ From the 2026-11-18 lint, checked against `gh` and Linear:
 - DEV-129 (check reading accuracy against fixture screenshots) merged in PR #206 as `jobanmendpara/myvgc@8c4e603`, at 03:27 UTC on 2026-11-18 (the evening of 2026-11-17 in US Central). It added `pnpm accuracy` and the `sun-charizard` fixtures in `apps/api/test/reading-fixtures`. See PR #206 and [ADR 24](../adr/0024-reading-teams-from-files.md). Linear shows it Done.
 - DEV-131 (make Haiku 5.5 the default image reader) merged in PR #222 as `jobanmendpara/myvgc@3d0b382`, at 12:49 UTC on 2026-11-18. As of that commit, `DEFAULT_TEAM_READER_MODEL` in `apps/api/src/config.ts` is `claude-haiku-5-5`, and the accuracy check uses the same constant. PR #222 has the before and after `pnpm accuracy` summaries that CLAUDE.md asks for: no case read worse on Haiku, every case failed on both models for reasons DEV-131 doesn't touch, and Haiku cost about an eighteenth as much. Linear shows it Done.
 - Follow-ups filed in Linear on 2026-11-18, about 15 minutes after DEV-131 merged, both in Backlog that day: [DEV-152](https://linear.app/mendpara/issue/DEV-152) (Improvement: show the cost of an accuracy run for any model) and [DEV-153](https://linear.app/mendpara/issue/DEV-153) (Refactor: pick the accuracy check's model through `loadConfig`). (Superseded later on 2026-11-18 for DEV-153: it merged in PR #227 as `jobanmendpara/myvgc@7ea1221`, and Linear shows it Done. As of that commit, the check gets its model from `teamReaderModel(env)` in `apps/api/src/config.ts`, which `loadConfig` shares. See the [2026-11-18 Refactor round](refactor-round-2026-11-18.md). DEV-152 was still in Backlog that day.)
-- On 2026-11-18 Linear showed the rest of DEV-118's build still Todo: DEV-106, DEV-130 and DEV-132 to DEV-137. (Superseded later on 2026-11-18: DEV-130 and DEV-106 merged, see the next section. DEV-132 to DEV-137 were still open.)
+- On 2026-11-18 Linear showed the rest of DEV-118's build still Todo: DEV-106, DEV-130 and DEV-132 to DEV-137. (Superseded later on 2026-11-18: DEV-130 and DEV-106 merged, see the next section. DEV-132 to DEV-137 were still open. Superseded 2026-11-19: DEV-132 and DEV-133 merged, see "DEV-132 and DEV-133 on 2026-11-19" below.)
 
 ## DEV-130 and DEV-106 on 2026-11-18
 
@@ -65,16 +65,33 @@ Two implementers ran in parallel on 2026-11-18. Each PR merged on its first CI r
 - `pnpm accuracy`, Haiku 5.5, single runs, before and after summaries in each PR body. No case got worse in either, so no maintainer sign-off was needed:
   - DEV-130: identical before and after, 0 of 6 passed, $0.0192 each time.
   - DEV-106: 0 of 6 both times. Differences for `all` / `detail` / `pair` went from 14 / 20 / 14 to 12 / 20 / 12, at $0.0194 before and $0.0197 after. The Replica Team ID no longer lands in the Team's name. The remaining `detail` differences belong to DEV-134, DEV-135 and DEV-137 (PR #233).
-- DEV-145 ("Stop offering the Replica Team ID as a Team name in the reader prompt"): on 2026-11-18 the DEV-106 implementer judged it covered by PR #233, which says so but doesn't close it, and the session left it open for the maintainer to decide. Linear, checked by the wiki agent the same day, shows DEV-145 Done at 21:05 UTC, three seconds after DEV-106. Most likely the Linear–GitHub integration closed it because PR #233's body names it; whether the maintainer agrees is still open.
+- DEV-145 ("Stop offering the Replica Team ID as a Team name in the reader prompt"): on 2026-11-18 the DEV-106 implementer judged it covered by PR #233, which says so but doesn't close it, and the session left it open for the maintainer to decide. Linear, checked by the wiki agent the same day, shows DEV-145 Done at 21:05 UTC, three seconds after DEV-106. Most likely the Linear–GitHub integration closed it because PR #233's body names it; whether the maintainer agrees is still open. (Superseded 2026-11-18: the maintainer accepted that DEV-145 stays Done. The same day PR #237, `jobanmendpara/myvgc@b05508a`, added CLAUDE.md's rule against closing keywords before an issue the work doesn't finish; see [shipping flow](shipping-flow.md).)
 - Open questions for the maintainer on 2026-11-18, not filed yet:
   - Must a Replica Team ID be exactly 10 characters? The example `9TCG84KWX` (9 characters) is valid under the schema as of `jobanmendpara/myvgc@4ca8aa3`.
   - Should Teamsheet PDF reads put an ID-looking "Battle Team Number / Name" value into `replicaTeamId`? As of `jobanmendpara/myvgc@4ca8aa3` PDF reads always give `''`.
 - Follow-ups found on 2026-11-18, not filed yet:
-  - The "paper Teamsheet" wording on `/teams/new/images` and in `ImageTeamReader`'s comment (fits DEV-133).
+  - The "paper Teamsheet" wording on `/teams/new/images` and in `ImageTeamReader`'s comment (fits DEV-133). (Superseded 2026-11-19: DEV-133 removed it, `jobanmendpara/myvgc@34b9b94`, see below.)
   - No progress is shown while images shrink.
-  - ADR 24's status line.
+  - ADR 24's status line. (Superseded 2026-11-19: as of `jobanmendpara/myvgc@34b9b94` it lists what DEV-118 has built so far: DEV-106, DEV-130, DEV-131, DEV-132 and DEV-133.)
   - No real-browser test of `shrinkImage`.
 - `pnpm accuracy` needs `ANTHROPIC_API_KEY`. On 2026-11-18 each implementer symlinked the main checkout's `.env` into its worktree for the run only, and removed it afterwards. See [parallel agents](parallel-agents.md).
+
+## DEV-132 and DEV-133 on 2026-11-19
+
+Dates are UTC.
+
+- DEV-132 ("Send JPEG once it reads as well as PNG") first ran as a measurement only, against `jobanmendpara/myvgc@9900d95`. Its comment on DEV-132 (01:33 UTC) compares PNG and JPEG over 36 reads for $0.1189: the two formats got the same fields wrong in every run, but the ▲/▼ arrows couldn't be judged, because nothing in `seenTeamSchema` depended on them yet and every Stat Alignment in `pair` came back blank. The run stopped there, with nothing built.
+- On 2026-11-19 the maintainer chose to adopt JPEG anyway (DEV-132's 02:37 UTC comment), without making DEV-135 a formal blocker. DEV-135's 02:26 UTC comment asks its own `pnpm accuracy` run to compare the JPEG and PNG `pair` cases for the arrows, and to say so in the PR if JPEG reads them worse, since that would reopen the decision.
+- DEV-132 merged in PR #238 as `jobanmendpara/myvgc@7589886` (commit `3d5681e`), at 02:36 UTC. As of that commit, the web app's `imageToUpload` shrinks with `UPLOAD_ENCODING` (JPEG at quality 0.9) and names the upload `.jpg`, so a full set is about 3 MB instead of about 26 MB; `e2e/scripts/make-reading-fixtures.ts` uses the same constant, and the committed fixtures were not remade. PR #238 names DEV-135 with "Related to". Linear shows DEV-132 Done.
+- DEV-133 ("Read only Replica Team tabs and Pokémon detail screens", part of DEV-118) merged in PR #239 as `jobanmendpara/myvgc@34b9b94` (commit `5dbbf7a`), at 03:01 UTC, on its first CI run. As of that commit, `seenTeamSchema` has an `images` list labelling each image `replicaTeamMoves`, `replicaTeamStats`, `pokemonDetail` or `unsupported`; `readSeenTeam` flags each unsupported image, fails the read when every image is unsupported, and returns `{ ok, ... }` like `readTeamsheet`. The reader's instructions were rewritten for the two supported screens, and photos of a paper Teamsheet are no longer supported (ADR 24 as of `34b9b94`). See PR #239 for the tests. Linear shows DEV-133 Done.
+- `pnpm accuracy`, Haiku 5.5, single runs, before and after summaries in each PR body. No case got worse, so no maintainer sign-off was needed:
+  - DEV-132: 0 of 6 both times, the same fields wrong before and after, $0.0197 before and $0.0199 after.
+  - DEV-133: 0 of 6 both times, identical field by field. The longer prompt costs about 7% more ($0.0210 against $0.0196). No `images.N` flag appeared, so the model labelled every fixture image as supported.
+- As of `jobanmendpara/myvgc@34b9b94`, `make-reading-fixtures.ts` paints the made-up name "Pip" (`PAINTED_NAME`) over the Trainer Name in Game on the two Replica Team tabs. It is not a nickname. (Checked 2026-11-19 because the session had called the painted name "Banjo"; no wiki page had recorded that name. "Banjo" is one of the random Team-name words added in DEV-138, `packages/core/src/team-name.ts`.)
+- Follow-ups raised on 2026-11-19, not filed:
+  - From DEV-133: an accuracy fixture with an unsupported image; checking the length of the model's `images` list against the number of uploads; the Team builder showing which image an `images.N` flag means.
+  - From DEV-132: comparing Safari's JPEG encoder with Chromium's; putting the model's raw answer in the accuracy report.
+- Linear on 2026-11-19 shows the rest of DEV-118's build still Todo: DEV-134 (nicknames and gender), DEV-135 (Stat Alignment from the arrows), DEV-136 and DEV-137.
 
 ## Gotchas
 
