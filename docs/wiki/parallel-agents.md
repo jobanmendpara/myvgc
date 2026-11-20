@@ -94,6 +94,15 @@ From the chief-of-staff's upkeep, 2026-11-19, about 15:45 UTC:
 - The upkeep removed no worktree. Besides its own, `.claude/worktrees/` held one, the wiki agent's on `chore/wiki-reading-dev-136-137-2026-11-19`, locked by the running session, so it was left.
 - No `chore/wiki-lint-2026-11-19` PR from the "Wiki lint" routine existed yet, so this upkeep's lint was the only one so far that day.
 
+## Daily upkeep on 2026-11-20
+
+From the chief-of-staff's upkeep, 2026-11-20:
+
+- `.claude/worktrees/` held only the upkeep's own worktree, and no stray `worktree-agent-*` branch was left, so the upkeep removed nothing.
+- In the upkeep's sandbox, `gh` failed every call with "tls: failed to verify certificate: x509: OSStatus -26276", while `curl` to the same API worked. Running `gh` outside the sandbox with `SSL_CERT_FILE=/etc/ssl/cert.pem` fixed it. Fetching over HTTPS with the `gh` credential helper worked.
+- GitHub still held ten remote branches from before `delete_branch_on_merge` (2026-11-17), such as `chore/wiki-lint-2026-11-12`, `jobanmendpara/dev-118-amend-adr-24` and `research/dev-119-image-sizes-and-models`, plus the DEV-129 one noted in [shipping flow](shipping-flow.md). None has a worktree, so the upkeep left them.
+- No `chore/wiki-lint-2026-11-20` PR from the "Wiki lint" routine existed yet.
+
 ## Environment on 2026-11-17 (DEV-139, DEV-142, DEV-140)
 
 See the [2026-11-17 Refactor round](refactor-round-2026-11-17.md) for how the round ran.

@@ -144,6 +144,7 @@ Dates are UTC. The two implementers ran in parallel; see [parallel agents](paral
 - Basculegion misreads: across DEV-137's before and after runs, "Basculegion-Male" as the species or "Wave Crush" as the first move came back in about 1 in 6 `detail` runs, on both JPEG and PNG (the before set had "Wave Crush" on PNG run 3). This supersedes the claim in "DEV-135 on 2026-11-19" above that "Wave Crush" has only appeared on JPEG.
 - The ADR 24 conflict between the two PRs, and DEV-136's nickname tests needing DEV-137's new fields, were resolved by the DEV-137 implementer when it rebased onto PR #245.
 - On 2026-11-19, with DEV-137 Done, Linear shows every sub-issue of DEV-118 Done: the decisions DEV-102, DEV-119 to DEV-126, and the build DEV-106 and DEV-129 to DEV-137.
+- On 2026-11-19 at 16:14 UTC the maintainer moved DEV-118 itself to Done in Linear. Image reading shipped in v0.2.0 that day, see [shipping flow](shipping-flow.md), "Releases".
 - Follow-ups raised on 2026-11-19 by the implementers, not filed:
   - From DEV-136: a species that matches nothing isn't checked against the nickname.
   - From DEV-137: `pnpm accuracy` prints no summary table when every run passes (PR #246 rebuilt its 18 of 18 summary from the JSON report).
