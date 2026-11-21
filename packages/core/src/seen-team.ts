@@ -248,27 +248,35 @@ const GENDER_FORMS = ['meowstic', 'indeedee', 'basculegion'] as const
 const toId = (text: string) => text.toLowerCase().replace(/[^a-z0-9]/g, '')
 
 /**
+ * A species name followed by the word Male or Female, as a detail screen writes a gender form
+ * ("No. 902 Basculegion Male"), with or without a hyphen or brackets (DEV-163).
+ */
+const GENDER_WORD = /^(.+?)[\s-]*\(?\b(male|female)\)?$/i
+
+/**
  * The species text to look up, with its gender form chosen (DEV-124). When the text is a gender
  * form's base name, female gives the `-F` form and male the base form; with no gender, the base
- * form stays, with a flag. A form named in the text wins over the gender, with a flag when the two
- * contradict.
+ * form stays, with a flag. A form named in the text, including a Male or Female written after the
+ * base name (DEV-163), wins over the gender, with a flag when the two contradict.
  */
 function withGenderForm(
   species: string,
   gender: 'male' | 'female' | null,
   flag: (message: string) => void,
 ): string {
-  const found = champions.species(species)
+  const word = champions.species(species) ? null : GENDER_WORD.exec(species.trim())
+  const found = champions.species(word ? word[1]! : species)
   const base = GENDER_FORMS.find((id) => found?.id === id || found?.id === `${id}f`)
-  if (!found || !base) return species
-  if (toId(species) === base) {
+  if (!found || !base || (word && found.id !== base)) return species
+  if (!word && toId(species) === base) {
     if (gender === 'female') return champions.species(`${base}f`)?.name ?? species
     if (gender === null) flag('No gender was shown, so check whether this is the female form.')
     return species
   }
-  if (gender !== null && (found.id === `${base}f`) !== (gender === 'female'))
+  const female = word ? word[2]!.toLowerCase() === 'female' : found.id === `${base}f`
+  if (gender !== null && female !== (gender === 'female'))
     flag("The form shown doesn't match the gender shown, so check them.")
-  return species
+  return champions.species(female ? `${base}f` : base)?.name ?? species
 }
 
 /**
