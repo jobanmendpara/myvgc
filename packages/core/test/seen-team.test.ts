@@ -218,6 +218,44 @@ describe('readSeenTeam', () => {
     })
   })
 
+  it('reads the Male or Female a detail screen writes after a gender form as its form', () => {
+    // A detail screen writes "No. 902 Basculegion Male" (DEV-163), and the model sometimes keeps
+    // the word in the species.
+    const read = (name: string, gender: SeenBuild['gender']) =>
+      readDraft(team([seen({ species: name, gender })]))
+    const contradiction = {
+      path: ['pokemon', 0, 'species'],
+      message: "The form shown doesn't match the gender shown, so check them.",
+    }
+
+    for (const name of ['Basculegion-Male', 'Basculegion Male', 'Basculegion (Male)'])
+      expect(read(name, 'male')).toMatchObject({
+        pokemon: [{ species: 'basculegion', gender: 'M' }],
+        flags: [],
+      })
+    expect(read('Basculegion-Female', 'female')).toMatchObject({
+      pokemon: [{ species: 'basculegionf', gender: 'F' }],
+      flags: [],
+    })
+    expect(read('Indeedee Female', null)).toMatchObject({
+      pokemon: [{ species: 'indeedeef' }],
+      flags: [],
+    })
+    expect(read('Meowstic Male', null)).toMatchObject({
+      pokemon: [{ species: 'meowstic' }],
+      flags: [],
+    })
+    expect(read('Basculegion-Male', 'female')).toMatchObject({
+      pokemon: [{ species: 'basculegion', gender: 'F' }],
+      flags: [contradiction],
+    })
+    // Only the gender forms: any other species with a gender word still doesn't match.
+    expect(read('Charizard-Male', 'male')).toMatchObject({
+      pokemon: [{ species: '' }],
+      flags: [{ path: ['pokemon', 0, 'species'], message: 'Couldn\'t read "Charizard-Male".' }],
+    })
+  })
+
   it('flags a nickname or gender that was hard to make out', () => {
     const read = readDraft(
       team([seen({ nickname: 'Chorizo', gender: 'male', unsure: ['nickname', 'gender'] })]),
