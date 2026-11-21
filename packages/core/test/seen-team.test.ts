@@ -312,7 +312,28 @@ describe('readSeenTeam', () => {
     ).toEqual([
       {
         path: ['replicaTeamId'],
-        message: 'No screenshot showed the Replica Team ID. Add a Replica Team tab, or type it in.',
+        message: "The Replica Team ID couldn't be read from the Replica Team tabs, so type it in.",
+      },
+    ])
+  })
+
+  it("asks for the Replica Team ID to be typed in, not for another tab, when a tab was read but the ID wasn't", () => {
+    const fromTab = (kind: 'replicaTeamMoves' | 'replicaTeamStats') =>
+      readDraft(
+        team([seen()], {
+          images: [{ kind }, { kind: 'pokemonDetail' }],
+          replicaTeamId: null,
+        }),
+      ).flags
+    for (const kind of ['replicaTeamMoves', 'replicaTeamStats'] as const)
+      expect(fromTab(kind)).toContainEqual({
+        path: ['replicaTeamId'],
+        message: "The Replica Team ID couldn't be read from the Replica Team tab, so type it in.",
+      })
+    expect(readDraft(team([seen()], { replicaTeamId: ' ' })).flags).toEqual([
+      {
+        path: ['replicaTeamId'],
+        message: "The Replica Team ID couldn't be read from the Replica Team tabs, so type it in.",
       },
     ])
   })
