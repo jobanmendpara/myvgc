@@ -355,11 +355,18 @@ export function readSeenTeam(
       path: ['replicaTeamId'],
       message: `"${seenId}" isn't a Replica Team ID, so it was left blank.`,
     })
-  // Either Replica Team tab shows the ID, so a blank one is a gap like any other (DEV-126).
+  // Either Replica Team tab shows the ID, so a blank one is a gap like any other (DEV-126),
+  // unless a tab was read: then another tab won't help, so the User types it in (DEV-164).
+  const tabsRead = seen.images.filter(
+    (image) => image.kind === 'replicaTeamMoves' || image.kind === 'replicaTeamStats',
+  ).length
   if (!seenId)
     flags.push({
       path: ['replicaTeamId'],
-      message: 'No screenshot showed the Replica Team ID. Add a Replica Team tab, or type it in.',
+      message:
+        tabsRead > 0
+          ? `The Replica Team ID couldn't be read from the Replica Team ${tabsRead > 1 ? 'tabs' : 'tab'}, so type it in.`
+          : 'No screenshot showed the Replica Team ID. Add a Replica Team tab, or type it in.',
     })
   for (const field of new Set(seen.unsure))
     // An ID left blank already has its flag.
