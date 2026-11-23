@@ -20,6 +20,7 @@
     "test:scripts": "vitest run --dir scripts",
     "accuracy": "pnpm --filter @myvgc/api accuracy",
     "smoke": "pnpm --filter @myvgc/e2e smoke",
+    "sprites:update": "pnpm --filter @myvgc/core sprites:update",
     "up:local": "docker compose -f compose.yaml -f compose.build.yaml up -d --build --wait"
   },
   "devDependencies": {

@@ -78,5 +78,22 @@ onMounted(() => {
       </div>
       <ThemePicker />
     </section>
+
+    <footer class="text-muted-foreground flex flex-col gap-1 border-t pt-4 text-xs">
+      <p>
+        Pokémon and Pokémon images are © Nintendo, Creatures, GAME FREAK and The Pokémon Company.
+        MyVGC is not affiliated with them.
+      </p>
+      <p>
+        Sprites from
+        <a
+          href="https://github.com/PokeAPI/sprites"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="underline underline-offset-2"
+          >PokeAPI</a
+        >
+      </p>
+    </footer>
   </div>
 </template>

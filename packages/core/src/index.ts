@@ -5,6 +5,7 @@ export * from './schema'
 export { champions, championsNames, displayName, type ChampionsKind } from './champions'
 export { checkGames, checkPokemon, type PokemonIssue } from './check-pokemon'
 export { judgeTeam } from './legality'
+export { POKEAPI_SPRITES, SPRITE_FILES } from './sprites'
 export { nameBuild } from './names'
 export { readTeamsheet, type ReadTeamsheetResult } from './teamsheet'
 export {

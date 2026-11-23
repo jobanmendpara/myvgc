@@ -10,7 +10,8 @@ const NEVER_STALE = new Set(['/sw.js', '/manifest.webmanifest'])
 /**
  * Serves the generated Nuxt single-page app from `webDir`. Any GET outside `/api`
  * that doesn't match a file gets `index.html` with a 200, never a redirect, so client-side
- * routes survive a reload and the service worker's navigation fallback works on iOS.
+ * routes survive a reload and the service worker's navigation fallback works on iOS. A missing
+ * Sprite gets 404 instead, so the web app's `<img>` fails and the name stands alone (ADR 29).
  */
 export function mountWeb<E extends Env>(app: Hono<E>, webDir: string): void {
   const indexPath = join(webDir, 'index.html')
@@ -27,6 +28,7 @@ export function mountWeb<E extends Env>(app: Hono<E>, webDir: string): void {
   app.use('*', serveStatic({ root: webDir }))
   app.get('*', (c) => {
     if (c.req.path === '/api' || c.req.path.startsWith('/api/')) return c.notFound()
+    if (c.req.path.startsWith('/sprites/')) return c.notFound()
     return c.html(indexHtml)
   })
 }
