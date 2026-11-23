@@ -4,8 +4,8 @@ import { teamPath } from '@/lib/paths'
 
 // The rows of the Teams list, and what a row shows in each List style. Compact: the name and
 // Regulation, with a red dot if the Team is illegal. Grouped: the name and legality badge, then
-// the species; the heading already names the Regulation. Detailed: name, legality badge,
-// Regulation and species chips, tighter on wide screens.
+// the species, each after its Sprite; the heading already names the Regulation. Detailed: name,
+// legality badge, Regulation and species chips with their Sprites, tighter on wide screens.
 defineProps<{ teams: TeamView[]; listStyle: ListStyle; wide: boolean; searching: boolean }>()
 
 // Typed here: passing the generic core function straight to ListRows broke CI's typecheck.
@@ -41,9 +41,15 @@ const groupBy = (items: TeamView[]) => groupTeams(items)
         <span class="truncate font-medium">{{ item.name }}</span>
         <LegalityBadge :legality="item.legality" />
       </span>
-      <span class="text-muted-foreground truncate text-xs">{{
-        item.pokemon.map((build) => build.names.species).join(' · ')
-      }}</span>
+      <span class="text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
+        <span
+          v-for="(build, index) in item.pokemon"
+          :key="index"
+          class="inline-flex items-center gap-0.5"
+        >
+          <Sprite :species="build.species" surface="team-row-grouped" />{{ build.names.species }}
+        </span>
+      </span>
     </template>
 
     <template #detailed="{ item }">
@@ -58,9 +64,10 @@ const groupBy = (items: TeamView[]) => groupTeams(items)
         <li
           v-for="(build, index) in item.pokemon"
           :key="index"
-          class="bg-muted text-muted-foreground rounded"
+          class="bg-muted text-muted-foreground flex items-center gap-1 rounded"
           :class="wide ? 'px-1.5 py-0.5 text-xs' : 'px-2 py-0.5 text-sm'"
         >
+          <Sprite :species="build.species" surface="team-row-detailed" />
           {{ build.names.species }}
         </li>
       </ul>

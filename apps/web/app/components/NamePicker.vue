@@ -80,7 +80,10 @@ function onKeydown(event: KeyboardEvent) {
       class="flex min-h-11 items-center justify-between gap-2 rounded-md border px-3"
       :data-testid="`${props.id}-choice`"
     >
-      <span class="min-w-0 break-words">{{ chosenName }}</span>
+      <span class="flex min-w-0 items-center gap-2">
+        <Sprite v-if="props.kind === 'species'" :species="choice" surface="species-picker-choice" />
+        <span class="min-w-0 break-words">{{ chosenName }}</span>
+      </span>
       <Button type="button" variant="ghost" size="sm" @click="choice = null">Change</Button>
     </div>
     <p v-else-if="unavailable" class="text-muted-foreground text-sm">
@@ -118,10 +121,15 @@ function onKeydown(event: KeyboardEvent) {
           :key="option.id"
           role="option"
           :aria-selected="index === active"
-          class="flex min-h-11 cursor-pointer items-center rounded px-3 py-1 text-sm aria-selected:bg-muted"
+          class="flex min-h-11 cursor-pointer items-center gap-2 rounded px-3 py-1 text-sm aria-selected:bg-muted"
           @mousedown.prevent="pick(index)"
           @mouseenter="active = index"
         >
+          <Sprite
+            v-if="props.kind === 'species'"
+            :species="option.id"
+            surface="species-picker-option"
+          />
           {{ option.name }}
         </li>
       </ul>

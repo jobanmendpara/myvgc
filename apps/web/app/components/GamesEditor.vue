@@ -131,9 +131,10 @@ const sideError = (game: Game, side: Side) =>
             :disabled="
               stateOf(game, side, species) === 'none' && game[side.brought].length >= MAX_BROUGHT
             "
-            class="focus-visible:ring-ring/50 data-[state=brought]:border-primary data-[state=lead]:border-primary data-[state=lead]:bg-primary data-[state=lead]:text-primary-foreground data-[state=brought]:bg-primary/10 flex min-h-11 items-center gap-1 rounded-md border px-3 text-sm font-medium outline-none focus-visible:ring-3 disabled:opacity-50"
+            class="focus-visible:ring-ring/50 data-[state=brought]:border-primary data-[state=lead]:border-primary data-[state=lead]:bg-primary data-[state=lead]:text-primary-foreground data-[state=brought]:bg-primary/10 flex min-h-11 items-center gap-1 rounded-md border pr-3 pl-1.5 text-sm font-medium outline-none focus-visible:ring-3 disabled:opacity-50"
             @click="tap(game, side, species)"
           >
+            <Sprite :species="species" surface="games-button" />
             {{ nameOf(species) }}
             <span v-if="stateOf(game, side, species) !== 'none'" class="text-xs font-normal">
               · {{ stateOf(game, side, species) === 'lead' ? 'Lead' : 'Brought' }}

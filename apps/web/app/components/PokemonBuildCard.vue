@@ -31,10 +31,13 @@ const values = useStatValues(() => props.build)
 <template>
   <article class="flex flex-col gap-3 rounded-lg border p-4" data-testid="pokemon-build">
     <header class="flex flex-col gap-0.5">
-      <h2 class="font-semibold break-words">
-        {{ title }}
-        <span v-if="build.gender" class="text-muted-foreground font-normal"
-          >({{ build.gender }})</span
+      <h2 class="flex items-center gap-1.5 font-semibold">
+        <Sprite :species="build.species" surface="build-card" />
+        <span class="min-w-0 break-words"
+          >{{ title }}
+          <span v-if="build.gender" class="text-muted-foreground font-normal"
+            >({{ build.gender }})</span
+          ></span
         >
       </h2>
       <p v-if="build.names.item" class="text-muted-foreground text-sm">@ {{ build.names.item }}</p>
