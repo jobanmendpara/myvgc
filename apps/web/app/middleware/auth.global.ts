@@ -63,6 +63,8 @@ export default defineNuxtRouteMiddleware(async (to) => {
     if (start.kind === 'logged-out') {
       // Also how a deleted account's data leaves a device: its next answer is "logged out".
       currentUser.value = null
+      // The outbox keeps the User's unsent changes until they log in again (ADR 17).
+      nuxtApp.$outbox.close()
       await forgetDevice(queryClient)
       if (isPublic) return
       const query = to.fullPath === '/' ? {} : { next: to.fullPath }
@@ -73,6 +75,8 @@ export default defineNuxtRouteMiddleware(async (to) => {
     }
     currentUser.value = start.user
     await persistCacheFor(queryClient, start.user.id)
+    // Their changes not yet sent show over the restored cache, and are sent when they can be.
+    await nuxtApp.$outbox.open(start.user.id)
     keepStorage()
     if (isPublic) return inApp(() => navigateTo('/'))
   }

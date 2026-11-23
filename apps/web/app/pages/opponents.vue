@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import type { OpponentView } from '@myvgc/core/schema'
+import { newOpponentSchema, type OpponentView } from '@myvgc/core/schema'
 import { searchOpponents } from '@myvgc/core/search'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
-import { fieldErrorsOf, saveFailureMessage } from '@/lib/api'
+import { useMutation, useQuery } from '@tanstack/vue-query'
+import { checkBeforeSaving, fieldErrorsOf, saveFailureMessage } from '@/lib/api'
+import { addOpponent } from '@/lib/outbox-writes'
 import { fetchEveryOpponent } from '@/lib/opponent-list'
 import { opponentPath } from '@/lib/paths'
 
@@ -23,19 +24,23 @@ const { query, searching, results, noMatches } = useListSearch(
 
 const adding = ref(false)
 const newName = ref('')
-const queryClient = useQueryClient()
+// Kept on the phone first, so an Opponent can be added with no signal too (ADR 17).
+const outbox = useOutbox()
 const add = useMutation({
-  mutationFn: () =>
-    $fetch<OpponentView>('/api/opponents', {
-      method: 'POST',
-      body: { displayName: newName.value },
-    }),
-  onSuccess: async (created) => {
-    await queryClient.invalidateQueries({ queryKey: ['opponents'] })
+  // Runs with no signal too, as the outbox keeps the change (ADR 17).
+  networkMode: 'always',
+  mutationFn: async () => {
+    const write = addOpponent(newName.value.trim())
+    // Checked here too, as with no signal the server can't say what is wrong with it.
+    checkBeforeSaving(newOpponentSchema, write.request.body)
+    await outbox.save(write)
+    return write.subject.opponentId!
+  },
+  onSuccess: async (id) => {
     // On wide screens the list stays, so close the form for the next one.
     adding.value = false
     newName.value = ''
-    await navigateTo(opponentPath(created.id))
+    await navigateTo(opponentPath(id))
   },
 })
 const addError = computed(

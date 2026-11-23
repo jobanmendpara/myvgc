@@ -37,7 +37,7 @@ const MENU_ITEM =
         <DropdownMenuItem :class="MENU_ITEM" @select="navigateTo('/settings')">
           <SettingsIcon aria-hidden="true" /> Settings
         </DropdownMenuItem>
-        <DropdownMenuItem :class="MENU_ITEM" @select="logOut">
+        <DropdownMenuItem :class="MENU_ITEM" @select="logOut()">
           <LogOutIcon aria-hidden="true" /> Log out
         </DropdownMenuItem>
       </DropdownMenuContent>

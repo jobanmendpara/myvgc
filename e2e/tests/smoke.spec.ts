@@ -589,3 +589,36 @@ test('with no signal, the app opens as the last known User with their cached pag
   await expect(offline.getByText("Can't reach the server")).toHaveCount(0)
   await context.setOffline(false)
 })
+
+test('a Round logged with no signal is kept on the phone and sent when the signal returns', async ({
+  context,
+  page,
+}) => {
+  await signUp(page, 'smoke-outbox')
+  await createTournament(page, 'Outbox Open')
+  // Opened once with a signal, so the Round form has what it needs offline.
+  await page.getByRole('link', { name: 'Log Round' }).click()
+  await expect(page.getByRole('heading', { name: 'Log a Round' })).toBeVisible()
+  await page.goBack()
+  await expect(page.getByTestId('tournament-name')).toHaveText('Outbox Open')
+
+  await context.setOffline(true)
+  await page.getByRole('link', { name: 'Log Round' }).click()
+  await expect(page.getByRole('heading', { name: 'Log a Round' })).toBeVisible()
+  await page.getByRole('combobox', { name: 'Opponent' }).fill('Offline Opponent')
+  await page.getByRole('option', { name: /Add “Offline Opponent”/ }).click()
+  await page.getByText('Win', { exact: true }).click()
+  await page.getByRole('button', { name: 'Log Round' }).click()
+
+  // Shown at once, with the Record, while it waits on the phone.
+  await expect(page.getByTestId('record')).toContainText('Swiss 1-0-0')
+  await expect(page.getByTestId('round')).toContainText('Offline Opponent')
+  await expect(page.getByTestId('outbox-pending')).toContainText('1 change saved on this phone')
+
+  // Back online, it is sent, and the server has it.
+  await context.setOffline(false)
+  await expect(page.getByTestId('outbox-pending')).toHaveCount(0)
+  await page.reload()
+  await expect(page.getByTestId('record')).toContainText('Swiss 1-0-0')
+  await expect(page.getByTestId('round')).toContainText('Offline Opponent')
+})

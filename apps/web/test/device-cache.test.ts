@@ -197,7 +197,33 @@ describe('The device database', () => {
       request.onerror = () => reject(request.error)
     })
     expect(db.version).toBe(DATABASE_VERSION)
-    expect([...db.objectStoreNames].sort()).toEqual(['query-cache', 'user'])
+    expect([...db.objectStoreNames].sort()).toEqual(['outbox', 'query-cache', 'user'])
     db.close()
+  })
+
+  it('adds a missing store on an upgrade and keeps what the others hold', async () => {
+    await closeDeviceDatabase()
+    // A device on the first version: only the query cache and the last known User.
+    await new Promise<void>((resolve, reject) => {
+      const request = indexedDB.open(DATABASE_NAME, 1)
+      request.onupgradeneeded = () => {
+        request.result.createObjectStore('query-cache')
+        request.result.createObjectStore('user').put(ash, 'last')
+      }
+      request.onsuccess = () => {
+        request.result.close()
+        resolve()
+      }
+      request.onerror = () => reject(request.error)
+    })
+    expect(await lastKnownUser()).toEqual(ash)
+    await deviceStore('outbox').set(['u1', 1, 'w1'], { id: 'w1' })
+    expect(await deviceStore('outbox').getAll()).toEqual([{ id: 'w1' }])
+  })
+
+  it('never touches the outbox when the query cache is cleared', async () => {
+    await deviceStore('outbox').set(['u1', 1, 'w1'], { id: 'w1' })
+    await forgetDevice(freshClient())
+    expect(await deviceStore('outbox').getAll()).toEqual([{ id: 'w1' }])
   })
 })
