@@ -34,3 +34,6 @@ playwright-report/
 
 # Reports from pnpm accuracy (DEV-123)
 /apps/api/.accuracy/
+
+# The app run by pnpm preview (DEV-184): state, logs and screenshots
+/.preview/

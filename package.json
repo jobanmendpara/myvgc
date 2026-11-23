@@ -10,6 +10,9 @@
   "scripts": {
     "dev": "pnpm --parallel --filter \"./apps/*\" dev",
     "dev:lan": "WEB_HOST=0.0.0.0 pnpm dev",
+    "preview": "node scripts/preview.ts",
+    "preview:stop": "node scripts/preview.ts stop",
+    "screenshots": "pnpm --filter @myvgc/e2e screenshots",
     "db:up": "docker compose -f compose.yaml -f compose.dev.yaml up -d db",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",

@@ -32,6 +32,7 @@
 
 - `pnpm db:up`: start Postgres for development (needs a `.env` copied from `.env.example`).
 - `pnpm dev`: run the API (port 3001) and the web app (port 3000, proxying `/api`).
+- `pnpm preview`: run this checkout's app to look at UI changes, from any worktree. It starts in the background on free ports with a throwaway database, signs up a User with a Team, prints the address and login, and never touches the dev database or ports 3000/3001. `pnpm screenshots [path...]` saves each page at phone and desktop width to `.preview/screenshots` (no path: the Team). Stop with `pnpm preview:stop`.
 - `pnpm typecheck`, `pnpm lint`, `pnpm format:check`, `pnpm test`: what CI runs. `pnpm test` ends with `pnpm test:scripts`, the tests for `scripts/`.
 - `pnpm up:local`: build the image from this checkout and start it with Postgres (`compose.yaml` plus `compose.build.yaml`). Plain `compose.yaml` pulls the published GHCR image.
 - `pnpm accuracy`: the image reader against the real model on the fixtures in `apps/api/test/reading-fixtures` (costs money, needs `ANTHROPIC_API_KEY`; `--repeat n` runs each case n times). Never in CI. `pnpm --filter @myvgc/e2e reading-fixtures <folder> <team>` remakes a Team's fixtures from screenshots.
