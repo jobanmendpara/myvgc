@@ -26,21 +26,40 @@ const spreadKnown = computed(
   () => Boolean(props.build.nature) || STAT_IDS.some((stat) => props.build.statPoints[stat] > 0),
 )
 const values = useStatValues(() => props.build)
+const { style: spriteStyle } = useSpriteStyle()
 </script>
 
 <template>
   <article class="flex flex-col gap-3 rounded-lg border p-4" data-testid="pokemon-build">
-    <header class="flex flex-col gap-0.5">
-      <h2 class="flex items-center gap-1.5 font-semibold">
-        <Sprite :species="build.species" surface="build-card" />
-        <span class="min-w-0 break-words"
-          >{{ title }}
-          <span v-if="build.gender" class="text-muted-foreground font-normal"
-            >({{ build.gender }})</span
-          ></span
-        >
-      </h2>
-      <p v-if="build.names.item" class="text-muted-foreground text-sm">@ {{ build.names.item }}</p>
+    <!-- Inline: the Sprite before the title. Leading slot: a slot left of the title and item.
+         Stacked tiles: in the top-right corner. -->
+    <header
+      class="flex gap-3"
+      :class="{
+        'items-center': spriteStyle === 'leading-slot',
+        'items-start justify-between': spriteStyle === 'stacked-tiles',
+      }"
+    >
+      <Sprite v-if="spriteStyle === 'leading-slot'" :species="build.species" surface="build-card" />
+      <div class="flex min-w-0 flex-col gap-0.5">
+        <h2 class="flex items-center gap-1.5 font-semibold">
+          <Sprite v-if="spriteStyle === 'inline'" :species="build.species" surface="build-card" />
+          <span class="min-w-0 break-words"
+            >{{ title }}
+            <span v-if="build.gender" class="text-muted-foreground font-normal"
+              >({{ build.gender }})</span
+            ></span
+          >
+        </h2>
+        <p v-if="build.names.item" class="text-muted-foreground text-sm">
+          @ {{ build.names.item }}
+        </p>
+      </div>
+      <Sprite
+        v-if="spriteStyle === 'stacked-tiles'"
+        :species="build.species"
+        surface="build-card"
+      />
     </header>
 
     <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">

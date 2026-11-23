@@ -97,6 +97,11 @@ const sideError = (game: Game, side: Side) =>
   Object.entries(props.errors[game.number] ?? {}).find(
     ([field]) => field.startsWith(side.brought) || field.startsWith(side.leads),
   )?.[1]
+
+// Inline and Leading slot: the Sprite inside the button. Stacked tiles: tiles with the Sprite
+// over the name, three a row on a phone and six on a wider screen.
+const { style: spriteStyle } = useSpriteStyle()
+const tiles = computed(() => spriteStyle.value === 'stacked-tiles')
 </script>
 
 <template>
@@ -122,7 +127,7 @@ const sideError = (game: Game, side: Side) =>
             {{ game[side.leads].length }}/{{ MAX_LEADS }} leads
           </span>
         </legend>
-        <div class="flex flex-wrap gap-2">
+        <div class="gap-2" :class="tiles ? 'grid grid-cols-3 sm:grid-cols-6' : 'flex flex-wrap'">
           <button
             v-for="species in choices(game, side, offered())"
             :key="species"
@@ -131,13 +136,17 @@ const sideError = (game: Game, side: Side) =>
             :disabled="
               stateOf(game, side, species) === 'none' && game[side.brought].length >= MAX_BROUGHT
             "
-            class="focus-visible:ring-ring/50 data-[state=brought]:border-primary data-[state=lead]:border-primary data-[state=lead]:bg-primary data-[state=lead]:text-primary-foreground data-[state=brought]:bg-primary/10 flex min-h-11 items-center gap-1 rounded-md border pr-3 pl-1.5 text-sm font-medium outline-none focus-visible:ring-3 disabled:opacity-50"
+            class="focus-visible:ring-ring/50 data-[state=brought]:border-primary data-[state=lead]:border-primary data-[state=lead]:bg-primary data-[state=lead]:text-primary-foreground data-[state=brought]:bg-primary/10 flex min-h-11 items-center gap-1 rounded-md border text-sm font-medium outline-none focus-visible:ring-3 disabled:opacity-50"
+            :class="
+              tiles ? 'min-w-0 flex-col justify-center px-1 py-1.5 text-center' : 'pr-3 pl-1.5'
+            "
             @click="tap(game, side, species)"
           >
             <Sprite :species="species" surface="games-button" />
-            {{ nameOf(species) }}
+            <span :class="{ 'w-full text-xs break-words': tiles }">{{ nameOf(species) }}</span>
             <span v-if="stateOf(game, side, species) !== 'none'" class="text-xs font-normal">
-              · {{ stateOf(game, side, species) === 'lead' ? 'Lead' : 'Brought' }}
+              <template v-if="!tiles">· </template
+              >{{ stateOf(game, side, species) === 'lead' ? 'Lead' : 'Brought' }}
             </span>
           </button>
         </div>

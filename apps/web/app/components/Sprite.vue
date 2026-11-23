@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { type SpriteSurface, spriteSize, spriteUrl } from '@/lib/sprites'
+import { type SpriteStyle, type SpriteSurface, spriteSize, spriteUrl } from '@/lib/sprites'
 
 /**
  * A species or form's Sprite (ADR 29), sized for the surface it's on in the page's Sprite style.
@@ -10,10 +10,12 @@ const props = defineProps<{
   /** The Showdown ID stored on the build, such as `charizardmegax`. */
   species: string
   surface: SpriteSurface
+  /** A Sprite style other than the page's, as in the Sprite style dialog's previews. */
+  spriteStyle?: SpriteStyle
 }>()
 
-const style = useSpriteStyle()
-const size = computed(() => spriteSize(props.surface, style.value))
+const { style } = useSpriteStyle()
+const size = computed(() => spriteSize(props.surface, props.spriteStyle ?? style.value))
 const box = computed(() => ({ width: `${size.value}px`, height: `${size.value}px` }))
 
 const failed = ref(false)
