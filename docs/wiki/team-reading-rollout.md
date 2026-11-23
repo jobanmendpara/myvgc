@@ -148,8 +148,15 @@ Dates are UTC. The two implementers ran in parallel; see [parallel agents](paral
 - Follow-ups raised on 2026-11-19 by the implementers, not filed:
   - From DEV-136: a species that matches nothing isn't checked against the nickname.
   - From DEV-137: `pnpm accuracy` prints no summary table when every run passes (PR #246 rebuilt its 18 of 18 summary from the JSON report).
-  - From DEV-137: the recurring Basculegion misreads above.
-  - From DEV-137: the Team-level Replica Team ID flag fires even when a Replica Team tab was read but the model returned no ID, and still suggests adding a tab.
+  - From DEV-137: the recurring Basculegion misreads above. (Superseded 2026-11-23: DEV-163 merged on 2026-11-21, see "DEV-163 and DEV-164 on 2026-11-21" below.)
+  - From DEV-137: the Team-level Replica Team ID flag fires even when a Replica Team tab was read but the model returned no ID, and still suggests adding a tab. (Superseded 2026-11-23: DEV-164 merged on 2026-11-21, see the next section.)
+
+## DEV-163 and DEV-164 on 2026-11-21
+
+Dates are UTC. The lint on 2026-11-23 found these from `git log` on `main`; Linear wasn't reachable that day, so the issues' states are not checked.
+
+- DEV-163 (Basculegion misread as "Basculegion Male") merged in PR #258 as `jobanmendpara/myvgc@e383032` (commit `294dafe`, dated 2026-11-20 in git). As of that commit, `readSeenTeam` reads a Male or Female after Meowstic, Indeedee or Basculegion as a named form, and the reader's instructions say the word is the gender and ask for each name letter by letter. Per the commit message, the letter-by-letter instruction cut the "Wave Crush" misread of "Wave Crash" but didn't stop it. ADR 24's species bullet describes DEV-163. This follows up the Basculegion misreads recorded under "DEV-136 and DEV-137 on 2026-11-19" above. See PR #258 for the tests; its `pnpm accuracy` summaries are not recorded here.
+- DEV-164 (the Replica Team ID flag asks for a tab already added) merged in PR #257 as `jobanmendpara/myvgc@01f7c02` (commit `b8b0068`, dated 2026-11-20 in git). As of that commit, when a Replica Team tab was read but no Replica Team ID came back, the Team flag says the ID couldn't be read from the tab and asks the User to type it in. With no Replica Team tab read, the flag is unchanged. This follows up DEV-137's last follow-up above.
 
 ## Gotchas
 
