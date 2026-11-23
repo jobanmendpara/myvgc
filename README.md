@@ -6,7 +6,7 @@ MyVGC will be available as a paid hosted service and as a free, self-hostable Do
 
 Status: early development. Accounts and Teams work: import a Champions Showdown paste, then list, view, copy and delete your Teams. See `CONTEXT.md` for domain terms, `docs/adr/` for decisions, `docs/roadmap.md` for the order of work, and `docs/risks.md` for open risks.
 
-MyVGC is not affiliated with Nintendo, Creatures, Game Freak or The Pokémon Company.
+Pokémon and Pokémon images are © Nintendo, Creatures, GAME FREAK and The Pokémon Company. MyVGC is not affiliated with them. Sprites from [PokeAPI](https://github.com/PokeAPI/sprites); the Sprite images in `apps/web/public/sprites` are not covered by the AGPL (see the `NOTICE` there).
 
 ## Self-hosting
 

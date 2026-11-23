@@ -11,7 +11,8 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "sprites:update": "node scripts/update-sprites.ts"
   },
   "dependencies": {
     "@leeoniya/ufuzzy": "1.0.19",
@@ -23,6 +24,7 @@
   },
   "devDependencies": {
     "@types/node": "^24.19.2",
+    "sharp": "0.34.5",
     "vitest": "^5.1.0"
   }
 }

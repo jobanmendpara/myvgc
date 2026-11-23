@@ -1,0 +1,10 @@
+The images in this folder (the Sprites) are Pokémon game icons. Pokémon and Pokémon images are
+© Nintendo, Creatures, GAME FREAK and The Pokémon Company. MyVGC is not affiliated with them.
+
+The images are not covered by MyVGC's licence, the GNU AGPL v3. No licence to them is granted
+here.
+
+They come from the Pokémon Champions icons in PokeAPI's sprites repository
+(https://github.com/PokeAPI/sprites), resized to 96 × 96 and converted to WebP by
+`pnpm sprites:update`. The pinned commit and the table of files are in
+packages/core/src/sprites.ts. See docs/adr/0029-sprites-from-pokeapi-champions-icons.md.

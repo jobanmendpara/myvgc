@@ -18,6 +18,8 @@ describe('serving the web app', () => {
     writeFileSync(join(webDir, '_nuxt', 'entry.js'), 'console.log("hi")')
     writeFileSync(join(webDir, 'sw.js'), 'self.addEventListener("fetch", () => {})')
     writeFileSync(join(webDir, 'manifest.webmanifest'), '{"name":"MyVGC","display":"standalone"}')
+    mkdirSync(join(webDir, 'sprites'))
+    writeFileSync(join(webDir, 'sprites', 'garchomp.webp'), 'RIFF....WEBP')
     const testApp = await createTestApp({ webDir })
     app = testApp.app
     closeDb = () => testApp.client.close()
@@ -71,6 +73,18 @@ describe('serving the web app', () => {
       expect(await res.text()).toContain('<title>MyVGC</title>')
     },
   )
+
+  it('serves a Sprite as an image', async () => {
+    const res = await app.request('/sprites/garchomp.webp')
+    expect(res.status).toBe(200)
+    expect(res.headers.get('content-type')).toBe('image/webp')
+  })
+
+  it('answers a missing Sprite with 404, not index.html, so the image fails to load', async () => {
+    const res = await app.request('/sprites/terapagosterastal.webp')
+    expect(res.status).toBe(404)
+    expect(res.headers.get('content-type')).not.toMatch(/text\/html/)
+  })
 
   it('never answers an API route with index.html', async () => {
     const res = await app.request('/api/nope')
