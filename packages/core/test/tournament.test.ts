@@ -35,7 +35,7 @@ describe('Entry fee currency', () => {
     newTournamentSchema.safeParse({
       name: 'Locals',
       startDate: '2026-10-01',
-      eventTier: 'grassroots',
+      eventTier: 'local',
       entryFee: { amount: 1000, currency },
     }).success
 

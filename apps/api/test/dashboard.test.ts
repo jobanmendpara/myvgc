@@ -47,7 +47,7 @@ describe('GET /api/dashboard', () => {
       name: 'M-C locals',
       startDate: '2026-10-10',
       regulation: 'M-C',
-      eventTier: 'grassroots',
+      eventTier: 'local',
     })
   }
   const dashboard = async (query = '') => json(await get(t.app, `/api/dashboard${query}`, ash))
@@ -83,8 +83,7 @@ describe('GET /api/dashboard', () => {
       (await dashboard('?regulation=all&from=2026-07-01&to=2026-09-19')).summary.rounds.wins,
     ).toBe(2)
     expect(
-      (await dashboard('?regulation=all&eventTier=regional&eventTier=grassroots')).summary.rounds
-        .wins,
+      (await dashboard('?regulation=all&eventTier=regional&eventTier=local')).summary.rounds.wins,
     ).toBe(3)
     expect((await dashboard('?regulation=all&setting=online')).summary.rounds.wins).toBe(1)
     expect((await dashboard('?regulation=all&setting=in-person')).summary.rounds.wins).toBe(3)

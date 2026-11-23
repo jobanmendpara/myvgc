@@ -127,8 +127,8 @@ export const versionThree = () => ({
   },
 })
 
-/** A file in the current version, version 4: version 3 plus each Team's Replica Team ID. */
-export const current = () => {
+/** A version 4 file: version 3 plus each Team's Replica Team ID. */
+export const versionFour = () => {
   const file = versionThree()
   return {
     ...file,
@@ -136,3 +136,6 @@ export const current = () => {
     teams: file.teams.map((team) => ({ ...team, replicaTeamId: '9TCG84KWXK' })),
   }
 }
+
+/** A file in the current version, version 5: version 4 with the Grassroots Event tier named Local. */
+export const current = () => ({ ...versionFour(), version: 5 })

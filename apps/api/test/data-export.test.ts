@@ -125,7 +125,7 @@ describe('Data export and import', () => {
     const text = await res.text()
     expect(text).not.toContain('ash@example.com')
     const file = JSON.parse(text)
-    expect(file).toMatchObject({ format: 'myvgc-export', version: 4, playerDetails })
+    expect(file).toMatchObject({ format: 'myvgc-export', version: 5, playerDetails })
     expect(file.teams).toHaveLength(1)
     expect(file.teams[0].replicaTeamId).toBe('9TCG84KWXK')
     expect(file.opponents.map((o: { displayName: string }) => o.displayName).sort()).toEqual([

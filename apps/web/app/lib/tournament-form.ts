@@ -15,7 +15,7 @@ export function blankTournament(lastCurrency = ''): TournamentFormValues {
     name: '',
     startDate,
     endDate: '',
-    eventTier: 'grassroots',
+    eventTier: 'local',
     online: false,
     regulation: regulationOn(startDate),
     defaultBestOf: 1,

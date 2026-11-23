@@ -16,7 +16,7 @@ export const EVENT_TIERS = [
   'regional',
   'international',
   'worlds',
-  'grassroots',
+  'local',
   'online',
   'other',
 ] as const
@@ -27,7 +27,7 @@ export const EVENT_TIER_LABELS: Record<EventTier, string> = {
   regional: 'Regional',
   international: 'International',
   worlds: 'Worlds',
-  grassroots: 'Grassroots',
+  local: 'Local',
   online: 'Online',
   other: 'Other',
 }

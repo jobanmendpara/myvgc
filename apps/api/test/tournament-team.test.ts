@@ -112,7 +112,7 @@ describe('A Tournament’s Team snapshot', () => {
     const { teamId, tournamentId } = await setUp({
       name: 'Old locals',
       startDate: '2026-05-01',
-      eventTier: 'grassroots',
+      eventTier: 'local',
     })
     const url = `/api/tournaments/${tournamentId}/team`
     expect((await put(t.app, url, { teamId }, ash)).status).toBe(200)
