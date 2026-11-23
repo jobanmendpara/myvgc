@@ -15,7 +15,7 @@ At small Local Tournaments, Juniors, Seniors and Masters play together, so a Use
 - **Lifecycle.** It is deleted with the last Round against that Opponent in the Tournament, or when that Round changes Opponent, in the same transaction as their Opponent's Team, after the same warning.
 - **Merge.** Where both Opponents have one in a Tournament, the survivor's is kept; otherwise the duplicate's moves to the survivor.
 - **Shown** as a J / S / M badge beside the Opponent's name in a Tournament's Rounds, and in full on each Tournament on the Opponent's page. It is not shown on the Opponents list, because one person can be in different divisions over time.
-- **Data export** version 5 carries each Tournament's Opponent's Age Divisions, with their ids and timestamps (ADR 23). Version 4 files are upgraded with none. Import adds one only where the account has none for that Tournament and Opponent, and only where a Round there is against that Opponent.
+- **Data export** version 6 carries each Tournament's Opponent's Age Divisions, with their ids and timestamps (ADR 23). Version 5 files are upgraded with none. Import adds one only where the account has none for that Tournament and Opponent, and only where a Round there is against that Opponent.
 
 ## Consequences
 - Statistics and Head-to-head records are not split by Age Division. Doing so later can read from this table.
