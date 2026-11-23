@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import type { OpponentView } from '@myvgc/core/schema'
-import { useQuery } from '@tanstack/vue-query'
+import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import { refDebounced } from '@vueuse/core'
+import { opponentOptions, SUGGESTIONS, suggestOpponents } from '@/lib/opponent-suggestions'
 
 /** Who the User played: one of their Opponents, or a new one to add on the spot. */
 export type OpponentChoice =
@@ -20,38 +21,31 @@ const props = withDefaults(
 )
 const choice = defineModel<OpponentChoice | null>({ required: true })
 
-const SUGGESTIONS = 8
 const text = ref('')
 const open = ref(false)
 const active = ref(0)
 const search = refDebounced(text, 200)
 // One more when one is left out, so there are still enough to show.
 const limit = computed(() => SUGGESTIONS + (props.exclude ? 1 : 0))
+const queryClient = useQueryClient()
+// The server searches; when it can't be reached, the Opponents list cached on the device does.
 const matches = useQuery({
   queryKey: computed(() => ['opponents', 'suggestions', search.value.trim(), limit.value]),
   queryFn: () =>
-    $fetch<OpponentView[]>('/api/opponents', {
-      query: { q: search.value.trim() || undefined, limit: limit.value },
-    }),
+    suggestOpponents(search.value, limit.value, () =>
+      queryClient.getQueryData<OpponentView[]>(['opponents', 'list']),
+    ),
   enabled: computed(() => open.value),
   placeholderData: (previous) => previous,
 })
 
 const typed = computed(() => text.value.trim())
-// "Create" is offered unless an Opponent already has exactly that display name.
-const canCreate = computed(
-  () =>
-    props.allowNew &&
-    typed.value.length > 0 &&
-    !matches.data.value?.some((o) => o.displayName.toLowerCase() === typed.value.toLowerCase()),
+const options = computed(() =>
+  opponentOptions(matches.data.value ?? [], typed.value, {
+    exclude: props.exclude,
+    allowNew: props.allowNew,
+  }),
 )
-const options = computed(() => [
-  ...(matches.data.value ?? [])
-    .filter((o) => o.id !== props.exclude)
-    .slice(0, SUGGESTIONS)
-    .map((o) => ({ kind: 'existing' as const, opponent: o })),
-  ...(canCreate.value ? [{ kind: 'new' as const }] : []),
-])
 watch(options, () => (active.value = 0))
 
 function pick(index: number) {

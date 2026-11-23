@@ -10,7 +10,7 @@ definePageMeta({ listDetail: true })
 useHead({ title: 'Opponents · MyVGC' })
 
 // The whole list, searched in the browser so it also works offline. The Round form's Opponent
-// picker still searches on the server.
+// picker searches on the server, and searches this list when the server can't be reached.
 const opponents = useQuery({
   queryKey: ['opponents', 'list'],
   queryFn: () => fetchEveryOpponent(),
