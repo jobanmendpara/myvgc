@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { CountedRound } from '@myvgc/core/schema'
 import { percent } from '@/lib/format'
-import { rowSpecies } from '@/lib/sprites'
+import { rowSpecies, spriteSize } from '@/lib/sprites'
 import type { StatisticsTableRow, StatisticsTableView } from '@/lib/statistics-tables'
 
 // One Statistics table: a row per species or Lead pair with its sample size, its outcome (the
@@ -57,6 +57,14 @@ const columns = computed(() => {
     { column: 'rate', label: headings.rate, align: 'text-right' },
   ] satisfies { column: Column; label: string; align: string }[]
 })
+
+const { style: spriteStyle } = useSpriteStyle()
+// The Leading slot keeps room for two Sprites (and the 2 px between them) on every row.
+const slotWidth = computed(() =>
+  spriteStyle.value === 'leading-slot'
+    ? { width: `${spriteSize('statistics-row', 'leading-slot') * 2 + 2}px` }
+    : undefined,
+)
 </script>
 
 <template>
@@ -101,7 +109,16 @@ const columns = computed(() => {
                   <span aria-hidden="true" class="text-muted-foreground w-3 text-xs">{{
                     expanded === row.key ? '▾' : '▸'
                   }}</span>
-                  <span class="flex shrink-0 items-center gap-0.5">
+                  <!-- Inline: side by side. Leading slot: a fixed slot two Sprites wide, so
+                       names line up. Stacked tiles: a Lead pair overlapping. -->
+                  <span
+                    class="flex shrink-0 items-center"
+                    :class="{
+                      'gap-0.5': spriteStyle !== 'stacked-tiles',
+                      '[&>*+*]:-ml-3': spriteStyle === 'stacked-tiles',
+                    }"
+                    :style="slotWidth"
+                  >
                     <Sprite
                       v-for="species in rowSpecies(row.key)"
                       :key="species"

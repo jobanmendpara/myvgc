@@ -7,6 +7,7 @@ defineProps<{ pokemon: PokemonBuild[] }>()
 
 const names = useChampionsNames()
 const nameOf = (kind: NameKind, id: string) => names.data.value?.[kind][id] ?? id
+const { style: spriteStyle } = useSpriteStyle()
 </script>
 
 <template>
@@ -14,23 +15,36 @@ const nameOf = (kind: NameKind, id: string) => names.data.value?.[kind][id] ?? i
     <li
       v-for="build in pokemon"
       :key="build.species"
-      class="bg-muted/40 flex flex-col gap-0.5 rounded-md p-2 text-sm"
+      class="bg-muted/40 flex gap-2 rounded-md p-2 text-sm"
+      :class="{ 'flex-col items-center text-center': spriteStyle === 'stacked-tiles' }"
     >
-      <p class="flex items-center gap-1 font-medium">
-        <Sprite :species="build.species" surface="opponent-team" />
-        <span class="min-w-0 break-words"
-          >{{ nameOf('species', build.species) }}
-          <span v-if="build.item" class="text-muted-foreground font-normal"
-            >@ {{ nameOf('items', build.item) }}</span
-          ></span
+      <!-- Inline: the Sprite before the name. Leading slot: a slot to the left. Stacked tiles:
+           on top, centred. -->
+      <Sprite v-if="spriteStyle !== 'inline'" :species="build.species" surface="opponent-team" />
+      <div class="flex min-w-0 flex-col gap-0.5">
+        <p
+          class="flex items-center gap-1 font-medium"
+          :class="{ 'justify-center': spriteStyle === 'stacked-tiles' }"
         >
-      </p>
-      <p v-if="build.ability" class="text-muted-foreground text-xs">
-        {{ nameOf('abilities', build.ability) }}
-      </p>
-      <p v-if="build.moves.length" class="text-xs">
-        {{ build.moves.map((move) => nameOf('moves', move)).join(' · ') }}
-      </p>
+          <Sprite
+            v-if="spriteStyle === 'inline'"
+            :species="build.species"
+            surface="opponent-team"
+          />
+          <span class="min-w-0 break-words"
+            >{{ nameOf('species', build.species) }}
+            <span v-if="build.item" class="text-muted-foreground font-normal"
+              >@ {{ nameOf('items', build.item) }}</span
+            ></span
+          >
+        </p>
+        <p v-if="build.ability" class="text-muted-foreground text-xs">
+          {{ nameOf('abilities', build.ability) }}
+        </p>
+        <p v-if="build.moves.length" class="text-xs">
+          {{ build.moves.map((move) => nameOf('moves', move)).join(' · ') }}
+        </p>
+      </div>
     </li>
   </ul>
 </template>

@@ -4,12 +4,16 @@ import { teamPath } from '@/lib/paths'
 
 // The rows of the Teams list, and what a row shows in each List style. Compact: the name and
 // Regulation, with a red dot if the Team is illegal. Grouped: the name and legality badge, then
-// the species, each after its Sprite; the heading already names the Regulation. Detailed: name,
+// the species with their Sprites; the heading already names the Regulation. Detailed: name,
 // legality badge, Regulation and species chips with their Sprites, tighter on wide screens.
+// The page's Sprite style lays the Sprites out: in the Grouped style, Inline puts each before
+// its name, Leading slot a row of them above the names line, Stacked tiles a 3 × 2 grid with
+// each over its name; in the Detailed style, Stacked tiles turns the chips into tiles.
 defineProps<{ teams: TeamView[]; listStyle: ListStyle; wide: boolean; searching: boolean }>()
 
 // Typed here: passing the generic core function straight to ListRows broke CI's typecheck.
 const groupBy = (items: TeamView[]) => groupTeams(items)
+const { style: spriteStyle } = useSpriteStyle()
 </script>
 
 <template>
@@ -41,13 +45,39 @@ const groupBy = (items: TeamView[]) => groupTeams(items)
         <span class="truncate font-medium">{{ item.name }}</span>
         <LegalityBadge :legality="item.legality" />
       </span>
-      <span class="text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
+      <span
+        v-if="spriteStyle === 'inline'"
+        class="text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs"
+      >
         <span
           v-for="(build, index) in item.pokemon"
           :key="index"
           class="inline-flex items-center gap-0.5"
         >
           <Sprite :species="build.species" surface="team-row-grouped" />{{ build.names.species }}
+        </span>
+      </span>
+      <template v-else-if="spriteStyle === 'leading-slot'">
+        <span class="flex gap-1">
+          <Sprite
+            v-for="(build, index) in item.pokemon"
+            :key="index"
+            :species="build.species"
+            surface="team-row-grouped"
+          />
+        </span>
+        <span class="text-muted-foreground truncate text-xs">{{
+          item.pokemon.map((build) => build.names.species).join(' · ')
+        }}</span>
+      </template>
+      <span v-else class="grid grid-cols-3 gap-1">
+        <span
+          v-for="(build, index) in item.pokemon"
+          :key="index"
+          class="text-muted-foreground flex min-w-0 flex-col items-center text-center text-xs leading-tight"
+        >
+          <Sprite :species="build.species" surface="team-row-grouped" />
+          <span class="w-full truncate">{{ build.names.species }}</span>
         </span>
       </span>
     </template>
@@ -60,7 +90,11 @@ const groupBy = (items: TeamView[]) => groupTeams(items)
           <Badge variant="secondary">Reg {{ item.regulation }}</Badge>
         </span>
       </span>
-      <ul class="flex flex-wrap gap-1.5" :aria-label="`Pokémon in ${item.name}`">
+      <ul
+        v-if="spriteStyle !== 'stacked-tiles'"
+        class="flex flex-wrap gap-1.5"
+        :aria-label="`Pokémon in ${item.name}`"
+      >
         <li
           v-for="(build, index) in item.pokemon"
           :key="index"
@@ -69,6 +103,21 @@ const groupBy = (items: TeamView[]) => groupTeams(items)
         >
           <Sprite :species="build.species" surface="team-row-detailed" />
           {{ build.names.species }}
+        </li>
+      </ul>
+      <ul
+        v-else
+        class="grid grid-cols-3 gap-1.5"
+        :class="{ 'sm:grid-cols-6': !wide }"
+        :aria-label="`Pokémon in ${item.name}`"
+      >
+        <li
+          v-for="(build, index) in item.pokemon"
+          :key="index"
+          class="bg-muted text-muted-foreground flex min-w-0 flex-col items-center rounded p-1 text-center text-xs"
+        >
+          <Sprite :species="build.species" surface="team-row-detailed" />
+          <span class="w-full truncate">{{ build.names.species }}</span>
         </li>
       </ul>
     </template>

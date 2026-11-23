@@ -45,6 +45,7 @@ const title = computed(() => {
   return props.build.nickname ? `${props.build.nickname} (${species})` : species
 })
 const moveCount = computed(() => props.build.moves.filter(Boolean).length)
+const { style: spriteStyle } = useSpriteStyle()
 
 const MENU_ITEM =
   'data-[highlighted]:bg-muted data-[disabled]:text-muted-foreground flex min-h-9 cursor-pointer items-center gap-2 rounded px-2 text-sm outline-none data-[disabled]:cursor-default [&_svg]:size-4'
@@ -61,13 +62,23 @@ const MENU_ITEM =
       class="text-muted-foreground size-4 shrink-0 cursor-grab"
       aria-hidden="true"
     />
+    <!-- Inline: the Sprite before the title. Leading slot and Stacked tiles: a slot to the left. -->
+    <Sprite
+      v-if="spriteStyle !== 'inline' && props.build.species"
+      :species="props.build.species"
+      surface="build-slot"
+    />
     <button
       type="button"
       class="focus-visible:ring-ring/50 flex min-h-11 min-w-0 flex-1 flex-col justify-center rounded px-2 text-left outline-none focus-visible:ring-3"
       @click="emit('edit')"
     >
       <span class="flex items-center gap-1.5 font-medium">
-        <Sprite v-if="props.build.species" :species="props.build.species" surface="build-slot" />
+        <Sprite
+          v-if="spriteStyle === 'inline' && props.build.species"
+          :species="props.build.species"
+          surface="build-slot"
+        />
         <span class="min-w-0 break-words">{{ title }}</span>
       </span>
       <span v-if="props.build.species" class="text-muted-foreground text-sm">

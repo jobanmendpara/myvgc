@@ -89,6 +89,19 @@ test('sign up, import a Team and see its six Pokémon', async ({ page }) => {
     .poll(() => sprite.evaluate((img: HTMLImageElement) => (img.complete ? img.naturalWidth : 0)))
     .toBeGreaterThan(0)
 
+  // Each page's Sprite style is a Device setting picked from the header, Inline until then
+  // (DEV-180). It applies at once and stays on the device.
+  await expect(sprite).toHaveAttribute('width', '32')
+  const styleButton = page.getByRole('button', { name: 'Sprite style' })
+  await styleButton.click()
+  const styleDialog = page.getByRole('dialog', { name: 'Sprites on Teams' })
+  await styleDialog.getByText('Stacked tiles').click()
+  await expect(styleDialog).toBeHidden()
+  await expect(sprite).toHaveAttribute('width', '48')
+  await expect(styleButton).toHaveAttribute('title', 'Sprite style: Stacked tiles')
+  await page.reload()
+  await expect(sprite).toHaveAttribute('width', '48')
+
   // Teamsheet export needs the bundled team list and font in the image (ADR 18, ADR 25).
   await page.getByTestId('export-teamsheet').click()
   await expect(page.getByRole('alertdialog', { name: 'Export Teamsheet' })).toBeVisible()
