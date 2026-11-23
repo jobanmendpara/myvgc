@@ -521,6 +521,17 @@ test('a page visited before opens with no signal, and the API never comes from t
   expect(res?.status()).toBe(200)
   expect(res?.fromServiceWorker()).toBe(true)
   await expect(offline.getByText('MyVGC', { exact: true }).first()).toBeVisible()
+  // Every Sprite is kept on the device, also one no page has shown yet.
+  const sprite = await offline.evaluate(
+    () =>
+      new Promise<number>((resolve) => {
+        const img = new Image()
+        img.onload = () => resolve(img.naturalWidth)
+        img.onerror = () => resolve(0)
+        img.src = '/sprites/garchomp.webp'
+      }),
+  )
+  expect(sprite).toBeGreaterThan(0)
   // With no signal the API can't be reached: the service worker never answers for it.
   const api = await offline.evaluate(() =>
     fetch('/api/health').then(
