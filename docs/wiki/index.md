@@ -11,14 +11,15 @@ The chief-of-staff's record of decisions, recurring problems and preferences. It
 - [Refactor round, 2026-11-15](refactor-round-2026-11-15.md): DEV-127, DEV-116, DEV-109, DEV-110 and DEV-113, five implementers at once, the DEV-113 retro and the new rebase rule, and the follow-ups DEV-139 to DEV-144 and DEV-146.
 - [Refactor round, 2026-11-17](refactor-round-2026-11-17.md): DEV-139, DEV-142 and DEV-140, the first round under the rebase rule and auto-merge, all merged on their first CI run, and the follow-ups DEV-148 to DEV-151 (DEV-151 Done with v0.2.0 on 2026-11-19).
 - [Refactor round, 2026-11-18](refactor-round-2026-11-18.md): DEV-153, DEV-148 and DEV-149, three agents in parallel, all merged on their first CI run, the untested combination of DEV-148 and DEV-149 under `strict: false`, and the follow-ups DEV-154 and DEV-155.
+- [Sprites rollout](sprites-rollout.md): DEV-177 to DEV-180 (Map DEV-168, ADR 29), all merged on 2026-11-23: the Sprite files and table, `Sprite.vue`, offline precaching and a Sprite style per page; the follow-ups DEV-181 to DEV-184, and an open question on which other surfaces show Sprites.
 
 ## Preferences
 
-- [Shipping flow](shipping-flow.md): how the user wants agent work committed, reviewed and merged, and from 2026-11-15 branch protection with auto-merge on `main`, and from 2026-11-17 GitHub deleting merged branches; releases, from v0.2.0 on 2026-11-19.
+- [Shipping flow](shipping-flow.md): how the user wants agent work committed, reviewed and merged, and from 2026-11-15 branch protection with auto-merge on `main`, and from 2026-11-17 GitHub deleting merged branches; releases, from v0.2.0 on 2026-11-19; from 2026-11-23, a conflicting PR left pending silently under auto-merge (DEV-181), and starting a blocked issue's agent early.
 
 ## Recurring problems
 
-- [Parallel agents](parallel-agents.md): running several implementers at once without them colliding, plus the session limit, SSH refusal, worktree locks and, from 2026-11-16, the daily upkeep rules (and from 2026-11-17, how the upkeep and the "Wiki lint" routine split the work; the 2026-11-18 upkeep is there too; from 2026-11-19, `git grep` instead of zsh-broken `--include` globs, and DEV-137 rebasing onto DEV-136 after both ran in parallel; from 2026-11-20, `gh` failing TLS in the sandbox).
+- [Parallel agents](parallel-agents.md): running several implementers at once without them colliding, plus the session limit, SSH refusal, worktree locks and, from 2026-11-16, the daily upkeep rules (and from 2026-11-17, how the upkeep and the "Wiki lint" routine split the work; the 2026-11-18 upkeep is there too; from 2026-11-19, `git grep` instead of zsh-broken `--include` globs, and DEV-137 rebasing onto DEV-136 after both ran in parallel; from 2026-11-20, `gh` failing TLS in the sandbox; from 2026-11-23, the 5-hour usage limit and resume, and the commands the worktree guard refused).
 - [up:local shares the dev DB](up-local-shares-dev-db.md): a stale container breaks dev migrations.
 - [Flaky tests](flaky-tests.md): tests that failed once and passed on a rerun.
 
