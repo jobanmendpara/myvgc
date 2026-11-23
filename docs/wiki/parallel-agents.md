@@ -130,4 +130,14 @@ See [team reading rollout](team-reading-rollout.md), "DEV-136 and DEV-137 on 202
 
 - On 2026-11-19 the DEV-136 and DEV-137 implementers ran in parallel. Both changed ADR 24 and `packages/core`'s reading code. DEV-136 merged first, in PR #245 (`jobanmendpara/myvgc@6fc9689`). DEV-137's files overlapped, so under the 2026-11-15 rebase rule above it rebased onto PR #245, resolved the conflict in ADR 24, and fixed DEV-136's nickname tests to give the fields DEV-137 had made required. It re-ran `pnpm accuracy` after the rebase, then merged in PR #246 (`jobanmendpara/myvgc@1be13d2`).
 
+## Environment on 2026-11-23 (DEV-177 to DEV-180)
+
+See [sprites rollout](sprites-rollout.md) for how the round ran. From the implementers' reports, 2026-11-23:
+
+- On 2026-11-23 the DEV-177 and DEV-178 agents hit the 5-hour usage limit early in their runs. After the reset SendMessage resumed both, with their work intact in their worktrees, as on 2026-11-11 above.
+- The worktree guard refused `$(git merge-base …)` command substitution, `git status` combined with `pnpm test`, heredocs, and `git -C` combined with `cd`. Run each `git` and `gh` command on its own, with literal values.
+- SSH push and `gh` worked for every agent with no workaround.
+- A full `pnpm test` again ran past the 180-second foreground limit, as on 2026-11-15 above (DEV-144).
+- `gh run view --log` needs `--allow-escape-sequences` to print the log.
+
 Related: [shipping flow](shipping-flow.md), [list and detail rollout](list-detail-rollout.md), [team reading rollout](team-reading-rollout.md).
