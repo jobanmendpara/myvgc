@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ImageIcon } from '@lucide/vue'
 import { DialogContent, DialogOverlay, DialogPortal, DialogRoot, DialogTitle } from 'reka-ui'
-import { SPRITE_PAGES, SPRITE_STYLE_LABELS, SPRITE_STYLES } from '@/lib/sprites'
+import { SPRITE_PAGES, SPRITE_STYLE_LABELS, SPRITE_STYLES, type SpriteStyle } from '@/lib/sprites'
 
 // The header's Sprite style button, on the four pages that show Sprites (DEV-180). It opens a
 // dialog, a bottom sheet on a phone, where the User picks the page's Sprite style, a Device
@@ -12,9 +12,13 @@ const SAMPLE = { species: 'incineroar', name: 'Incineroar', item: 'Sitrus Berry'
 
 // A choice applies at once. A click or tap (whose `detail` counts it, unlike the click a
 // browser fires for arrow keys) or Enter also closes the dialog; arrow keys only move between
-// styles, so a keyboard User can look through them first.
-function closeOnTap(event: MouseEvent) {
-  if (event.detail > 0) open.value = false
+// styles, so a keyboard User can look through them first. A tap applies the style here rather
+// than waiting for the radio's change: closing removes the radio before the label passes the
+// click on to it.
+function tap(value: SpriteStyle, event: MouseEvent) {
+  if (event.detail === 0) return
+  setStyle(value)
+  open.value = false
 }
 </script>
 
@@ -50,7 +54,7 @@ function closeOnTap(event: MouseEvent) {
               v-for="value in SPRITE_STYLES"
               :key="value"
               class="has-[:checked]:border-primary has-[:checked]:bg-primary/5 has-[:focus-visible]:ring-ring/50 flex cursor-pointer flex-col gap-2 rounded-lg border p-3 has-[:focus-visible]:ring-3"
-              @click="closeOnTap"
+              @click="tap(value, $event)"
             >
               <input
                 type="radio"
