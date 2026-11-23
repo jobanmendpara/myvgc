@@ -32,7 +32,7 @@ function tryAgain() {
         <CardDescription>
           <template v-if="unreachable">
             The MyVGC server didn't answer. If you run it yourself, check that it's running, then
-            try again.
+            try again. Open MyVGC once with a connection, and it will open without one after that.
           </template>
           <template v-else-if="notFound">There's nothing at this address.</template>
           <template v-else>{{ error.statusMessage || 'Try again in a moment.' }}</template>

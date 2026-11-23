@@ -7,10 +7,10 @@ import {
   DropdownMenuRoot,
   DropdownMenuTrigger,
 } from 'reka-ui'
-import { authClient } from '@/lib/auth-client'
 
-/** The header's menu for the logged-in User: Settings and Log out. */
-const session = authClient.useSession()
+// The header's menu for the logged-in User: Settings and Log out. With no connection, the User
+// is the last known one saved on the device (ADR 17).
+const user = useCurrentUser()
 const logOut = useLogOut()
 
 const MENU_ITEM =
@@ -22,12 +22,8 @@ const MENU_ITEM =
     <DropdownMenuTrigger as-child>
       <Button variant="ghost" size="sm" class="min-w-0" aria-label="Account">
         <UserIcon aria-hidden="true" />
-        <span
-          v-if="session.data"
-          class="hidden max-w-56 truncate sm:inline"
-          data-testid="current-user"
-        >
-          {{ session.data.user.email }}
+        <span v-if="user" class="hidden max-w-56 truncate sm:inline" data-testid="current-user">
+          {{ user.email }}
         </span>
         <ChevronDownIcon class="text-muted-foreground" aria-hidden="true" />
       </Button>

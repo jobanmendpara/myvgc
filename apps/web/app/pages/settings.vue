@@ -1,10 +1,8 @@
 <script setup lang="ts">
-import { authClient } from '@/lib/auth-client'
-
 useHead({ title: 'Settings · MyVGC' })
 
 // Account settings are kept on the User; Device settings in this browser (see CONTEXT.md).
-const session = authClient.useSession()
+const user = useCurrentUser()
 const logOut = useLogOut()
 
 // Opening /settings#player-details from outside the app: the browser looks for the section
@@ -24,7 +22,7 @@ onMounted(() => {
       <div class="flex flex-col gap-1">
         <p class="text-sm font-medium">Email</p>
         <p class="text-muted-foreground text-sm break-all" data-testid="settings-email">
-          {{ session.data?.user.email }}
+          {{ user?.email }}
         </p>
       </div>
       <div class="flex flex-col gap-3">
@@ -65,6 +63,7 @@ onMounted(() => {
         </p>
       </div>
       <DataExportImport />
+      <ClearDeviceData />
     </section>
 
     <section
