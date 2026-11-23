@@ -1,6 +1,6 @@
 # 29. Sprites come from PokeAPI's Champions icons
 
-Date: 2026-11-23 (amended 2026-11-23 for the gap a missing Sprite leaves, DEV-178)
+Date: 2026-11-23 (amended 2026-11-23 for the gap a missing Sprite leaves, DEV-178; amended 2026-11-23 for the measured size, DEV-182)
 Status: Accepted
 
 ## Context
@@ -21,5 +21,6 @@ v0.3.0 shows a Sprite next to every species (map DEV-168). Until now `docs/risks
 ## Consequences
 - `docs/risks.md` changes from "no official art" to Sprites only: small game icons from PokeAPI under fan-use tolerance, with no logos and no other official art. Formal legal review is still due before taking payments.
 - MyVGC redistributes The Pokémon Company's images in a public repository and a public image, as it already does with the team list PDF (ADR 18). Git history and old image tags keep them even if they are removed later.
-- The repository and the image grow by the Sprite files, an estimated well under 1 MB, to be measured when the script first runs.
+- The repository and the image grow by the Sprite files: 382 files at 96 × 96, WebP quality 80, totalling 1,373,174 bytes (1.31 MiB, about 3.6 KB each), measured when the script first ran (DEV-177). This is above the first estimate of well under 1 MB. The maintainer accepted the measured size on 2026-11-23 (DEV-182).
+- Precaching every Sprite (DEV-179) grew the service worker's precache from 875.72 KiB to 2216.71 KiB. Each device downloads about 1.3 MB more on its first launch with a connection, all at once on an iPhone Home Screen install.
 - The table is MyVGC's to maintain. New forms in a Regulation show a gap beside the name until someone adds a row, and the failing test makes sure someone notices.
