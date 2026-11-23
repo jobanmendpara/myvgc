@@ -8,7 +8,38 @@ export default defineNuxtConfig({
   compatibilityDate: '2026-11-01',
   ssr: false,
   devtools: { enabled: false },
-  modules: ['shadcn-nuxt'],
+  modules: ['shadcn-nuxt', '@vite-pwa/nuxt'],
+  // The installable app shell (ADR 17): a service worker keeps the generated app on the device so
+  // its pages open with no signal. It never answers /api/*; API data lives in the Query cache.
+  pwa: {
+    // A new version waits until the User chooses to reload (UpdateBanner).
+    registerType: 'prompt',
+    manifest: {
+      name: 'MyVGC',
+      short_name: 'MyVGC',
+      description: 'Track your Pokémon VGC Tournaments, Teams and Opponents.',
+      display: 'standalone',
+      start_url: '/',
+      scope: '/',
+      theme_color: '#18181b',
+      background_color: '#18181b',
+      icons: [
+        { src: '/pwa-192.png', sizes: '192x192', type: 'image/png' },
+        { src: '/pwa-512.png', sizes: '512x512', type: 'image/png' },
+      ],
+    },
+    generateSW: {
+      // The manifest and its icons are added by the module itself.
+      globPatterns: ['**/*.{js,css,html,svg,ico,png,woff2}'],
+      // Every page is the same index.html. It must answer 200, never a redirect: iOS rejects a
+      // redirected navigation from a service worker.
+      navigateFallback: '/',
+      navigateFallbackDenylist: [/^\/api(\/|$)/],
+      cleanupOutdatedCaches: true,
+    },
+    // app/plugins/update-checks.client.ts checks for new versions instead.
+    client: { installPrompt: false, periodicSyncForUpdates: 0 },
+  },
   css: ['~/assets/css/main.css'],
   app: {
     head: {
@@ -17,6 +48,11 @@ export default defineNuxtConfig({
         { name: 'viewport', content: 'width=device-width, initial-scale=1' },
         // Native controls follow the system until the theme sets `color-scheme` (see main.css).
         { name: 'color-scheme', content: 'light dark' },
+      ],
+      // In the static HTML, so Safari finds them before the app starts.
+      link: [
+        { rel: 'manifest', href: '/manifest.webmanifest' },
+        { rel: 'apple-touch-icon', href: '/apple-touch-icon.png' },
       ],
       script: [
         {

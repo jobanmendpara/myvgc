@@ -16,6 +16,8 @@ describe('serving the web app', () => {
     writeFileSync(join(webDir, 'index.html'), '<!doctype html><title>MyVGC</title>')
     mkdirSync(join(webDir, '_nuxt'))
     writeFileSync(join(webDir, '_nuxt', 'entry.js'), 'console.log("hi")')
+    writeFileSync(join(webDir, 'sw.js'), 'self.addEventListener("fetch", () => {})')
+    writeFileSync(join(webDir, 'manifest.webmanifest'), '{"name":"MyVGC","display":"standalone"}')
     const testApp = await createTestApp({ webDir })
     app = testApp.app
     closeDb = () => testApp.client.close()
@@ -37,6 +39,27 @@ describe('serving the web app', () => {
     expect(res.status).toBe(200)
     expect(res.headers.get('content-type')).toMatch(/javascript/)
     expect(await res.text()).toBe('console.log("hi")')
+  })
+
+  it('serves the service worker from the site root, never cached', async () => {
+    const res = await app.request('/sw.js')
+    expect(res.status).toBe(200)
+    expect(res.headers.get('content-type')).toMatch(/javascript/)
+    expect(res.headers.get('cache-control')).toBe('no-cache')
+    expect(await res.text()).toContain('addEventListener')
+  })
+
+  it('serves the web manifest, never cached', async () => {
+    const res = await app.request('/manifest.webmanifest')
+    expect(res.status).toBe(200)
+    expect(res.headers.get('content-type')).toMatch(/manifest\+json/)
+    expect(res.headers.get('cache-control')).toBe('no-cache')
+    expect(await res.json()).toEqual({ name: 'MyVGC', display: 'standalone' })
+  })
+
+  it('leaves other built files to the browser cache', async () => {
+    const res = await app.request('/_nuxt/entry.js')
+    expect(res.headers.get('cache-control')).toBeNull()
   })
 
   it.each(['/teams', '/teams/123', '/login'])(

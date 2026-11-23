@@ -499,3 +499,35 @@ test('the chosen palette and mode survive a reload, also before logging in', asy
   await expect(page.getByRole('combobox', { name: 'Palette' })).toContainText('Lapras')
   await expect(page.getByRole('radio', { name: 'Dark' })).toBeChecked()
 })
+
+test('a page visited before opens with no signal, and the API never comes from the device', async ({
+  context,
+  page,
+}) => {
+  const session = page.waitForResponse((res) => res.url().includes('/api/auth/get-session'))
+  await page.goto('/login')
+  await expect(page.getByRole('heading', { name: 'Log in' })).toBeVisible()
+  expect((await session).fromServiceWorker()).toBe(false)
+  // The service worker has kept the app's files on the device.
+  await page.evaluate(() => navigator.serviceWorker.ready)
+  const manifest = await page.request.get('/manifest.webmanifest')
+  expect(await manifest.json()).toMatchObject({ name: 'MyVGC', display: 'standalone' })
+  await page.close()
+
+  // A cold start with no signal: a new page, as when the app is opened from the home screen.
+  await context.setOffline(true)
+  const offline = await context.newPage()
+  const res = await offline.goto('/tournaments')
+  expect(res?.status()).toBe(200)
+  expect(res?.fromServiceWorker()).toBe(true)
+  await expect(offline.getByText('MyVGC', { exact: true }).first()).toBeVisible()
+  // With no signal the API can't be reached: the service worker never answers for it.
+  const api = await offline.evaluate(() =>
+    fetch('/api/health').then(
+      () => 'answered',
+      () => 'unreachable',
+    ),
+  )
+  expect(api).toBe('unreachable')
+  await context.setOffline(false)
+})
