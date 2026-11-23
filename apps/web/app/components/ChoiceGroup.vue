@@ -16,7 +16,7 @@ const model = defineModel<T | undefined>()
       <label
         v-for="option in props.options"
         :key="String(option.value)"
-        class="has-[:checked]:border-primary has-[:checked]:bg-primary has-[:checked]:text-primary-foreground has-[:focus-visible]:ring-ring/50 flex min-h-11 min-w-16 flex-1 cursor-pointer items-center justify-center rounded-md border px-3 text-sm font-medium has-[:focus-visible]:ring-3 sm:flex-none"
+        class="has-[:checked]:border-primary has-[:checked]:bg-primary has-[:checked]:text-primary-foreground has-[:focus-visible]:ring-ring/50 relative flex min-h-11 min-w-16 flex-1 cursor-pointer items-center justify-center rounded-md border px-3 text-sm font-medium has-[:focus-visible]:ring-3 sm:flex-none"
       >
         <input
           v-model="model"

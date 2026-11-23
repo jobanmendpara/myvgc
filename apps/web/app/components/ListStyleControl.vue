@@ -25,7 +25,7 @@ const OPTIONS = {
       v-for="value in LIST_STYLES"
       :key="value"
       :title="OPTIONS[value].label"
-      class="text-muted-foreground has-[:checked]:bg-background has-[:checked]:text-foreground has-[:focus-visible]:ring-ring/50 inline-flex h-full cursor-pointer items-center rounded-sm px-2 has-[:checked]:shadow-xs has-[:disabled]:cursor-not-allowed has-[:focus-visible]:ring-3"
+      class="text-muted-foreground has-[:checked]:bg-background has-[:checked]:text-foreground has-[:focus-visible]:ring-ring/50 relative inline-flex h-full cursor-pointer items-center rounded-sm px-2 has-[:checked]:shadow-xs has-[:disabled]:cursor-not-allowed has-[:focus-visible]:ring-3"
     >
       <input
         v-model="model"

@@ -228,6 +228,9 @@ test('log a Tournament and a Round against a new Opponent', async ({ page }) => 
   await page.getByText('Win', { exact: true }).click()
   await page.getByTestId('games').locator('summary').click()
   await page.getByTestId('game-1').getByText('Win', { exact: true }).click()
+  // On wide screens only the pane scrolls: picking a choice never scrolls the page past the
+  // form into blank space (DEV-165).
+  if (wide) expect(await page.evaluate(() => window.scrollY)).toBe(0)
   await page.getByRole('button', { name: 'Log Round' }).click()
 
   await expect(page.getByTestId('record')).toContainText('Swiss 1-0-0')
