@@ -1,6 +1,6 @@
 # 29. Sprites come from PokeAPI's Champions icons
 
-Date: 2026-11-23
+Date: 2026-11-23 (amended 2026-11-23 for the gap a missing Sprite leaves, DEV-178)
 Status: Accepted
 
 ## Context
@@ -13,13 +13,13 @@ v0.3.0 shows a Sprite next to every species (map DEV-168). Until now `docs/risks
 - **The table.** `packages/core` holds a table from each Champions species or form's Showdown ID to its PokeAPI file, about 392 rows, most of them generated and about 25 written by hand. Every Alcremie uses the Strawberry Sweet icon for its cream, because Showdown doesn't record the sweet. The 10 battle-only forms that `packages/core` accepts but Champions lacks (DEV-173) get no row.
 - **Committed files.** A script, `pnpm sprites:update`, reads the table, downloads the icons from the pinned commit, converts them to 96 × 96 WebP and writes them to `apps/web/public/sprites/<showdown-id>.webp`. The output is committed, with a NOTICE saying the images belong to The Pokémon Company and are not covered by the AGPL (ADR 1). Building the image and running the app never fetch Sprites, so a self-hosted install with no internet access has every one.
 - **Served from MyVGC's own origin.** The files are part of the generated web app, so Hono serves them like the rest of the web app's files. The browser never asks a third party for a Sprite.
-- **No mapping in the web app.** The web app builds a Sprite's URL from the species ID it already has, and still imports only `@myvgc/core/schema` (ADR 17). A Sprite is shown at 48 CSS px or smaller. If the file fails to load, the name stands alone.
+- **No mapping in the web app.** The web app builds a Sprite's URL from the species ID it already has, and still imports only `@myvgc/core/schema` (ADR 17). A Sprite is shown at 48 CSS px or smaller. If there is no file, or it fails to load, a gap of the Sprite's size keeps rows aligned and the name shows as usual.
 - **Offline.** The service worker precaches every Sprite with the app shell (ADR 17), so all of them show offline from the first launch, even on an iPhone's Home Screen app, which starts with empty storage.
-- **Upkeep.** A Vitest test in `packages/core` fails when a Champions species or form has no row in the table or no file. A `@pkmn/mods` bump that adds a form therefore needs a new row and a rerun of the script. Until then, the name stands alone.
+- **Upkeep.** A Vitest test in `packages/core` fails when a Champions species or form has no row in the table or no file. A `@pkmn/mods` bump that adds a form therefore needs a new row and a rerun of the script. Until then, its Sprite shows as a gap beside the name.
 - **Disclaimer.** The Settings page has a footer reading "Pokémon and Pokémon images are © Nintendo, Creatures, GAME FREAK and The Pokémon Company. MyVGC is not affiliated with them." and "Sprites from PokeAPI". The README carries the same line.
 
 ## Consequences
 - `docs/risks.md` changes from "no official art" to Sprites only: small game icons from PokeAPI under fan-use tolerance, with no logos and no other official art. Formal legal review is still due before taking payments.
 - MyVGC redistributes The Pokémon Company's images in a public repository and a public image, as it already does with the team list PDF (ADR 18). Git history and old image tags keep them even if they are removed later.
 - The repository and the image grow by the Sprite files, an estimated well under 1 MB, to be measured when the script first runs.
-- The table is MyVGC's to maintain. New forms in a Regulation show the name alone until someone adds a row, and the failing test makes sure someone notices.
+- The table is MyVGC's to maintain. New forms in a Regulation show a gap beside the name until someone adds a row, and the failing test makes sure someone notices.

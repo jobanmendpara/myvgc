@@ -66,7 +66,10 @@ const MENU_ITEM =
       class="focus-visible:ring-ring/50 flex min-h-11 min-w-0 flex-1 flex-col justify-center rounded px-2 text-left outline-none focus-visible:ring-3"
       @click="emit('edit')"
     >
-      <span class="font-medium break-words">{{ title }}</span>
+      <span class="flex items-center gap-1.5 font-medium">
+        <Sprite v-if="props.build.species" :species="props.build.species" surface="build-slot" />
+        <span class="min-w-0 break-words">{{ title }}</span>
+      </span>
       <span v-if="props.build.species" class="text-muted-foreground text-sm">
         <template v-if="props.build.item">{{ nameOf('items', props.build.item) }} · </template>
         {{ moveCount === 1 ? '1 move' : `${moveCount} moves` }}

@@ -81,6 +81,14 @@ test('sign up, import a Team and see its six Pokémon', async ({ page }) => {
     await expect(builds.nth(index).getByRole('heading', { level: 2 })).toHaveText(species)
   }
 
+  // Each build card shows its Sprite, a committed file served from the app's own origin (ADR 29).
+  const sprite = builds.nth(2).getByTestId('sprite')
+  await sprite.scrollIntoViewIfNeeded()
+  await expect(sprite).toHaveAttribute('src', '/sprites/kingambit.webp')
+  await expect
+    .poll(() => sprite.evaluate((img: HTMLImageElement) => (img.complete ? img.naturalWidth : 0)))
+    .toBeGreaterThan(0)
+
   // Teamsheet export needs the bundled team list and font in the image (ADR 18, ADR 25).
   await page.getByTestId('export-teamsheet').click()
   await expect(page.getByRole('alertdialog', { name: 'Export Teamsheet' })).toBeVisible()

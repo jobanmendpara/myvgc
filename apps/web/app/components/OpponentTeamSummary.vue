@@ -16,10 +16,13 @@ const nameOf = (kind: NameKind, id: string) => names.data.value?.[kind][id] ?? i
       :key="build.species"
       class="bg-muted/40 flex flex-col gap-0.5 rounded-md p-2 text-sm"
     >
-      <p class="font-medium">
-        {{ nameOf('species', build.species) }}
-        <span v-if="build.item" class="text-muted-foreground font-normal"
-          >@ {{ nameOf('items', build.item) }}</span
+      <p class="flex items-center gap-1 font-medium">
+        <Sprite :species="build.species" surface="opponent-team" />
+        <span class="min-w-0 break-words"
+          >{{ nameOf('species', build.species) }}
+          <span v-if="build.item" class="text-muted-foreground font-normal"
+            >@ {{ nameOf('items', build.item) }}</span
+          ></span
         >
       </p>
       <p v-if="build.ability" class="text-muted-foreground text-xs">

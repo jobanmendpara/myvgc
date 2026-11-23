@@ -53,6 +53,7 @@ const error = (index: number, field: string) => props.errors[`${index}.${field}`
             :aria-expanded="opened === build.species"
             @click="opened = opened === build.species ? null : build.species"
           >
+            <Sprite :species="build.species" surface="opponent-team-editor" />
             <span class="break-words">{{ nameOf(build.species) }}</span>
             <span v-if="errorsOf(index).length" class="text-destructive text-xs font-normal"
               >· check this Pokémon</span

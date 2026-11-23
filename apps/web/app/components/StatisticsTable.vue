@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { CountedRound } from '@myvgc/core/schema'
 import { percent } from '@/lib/format'
+import { rowSpecies } from '@/lib/sprites'
 import type { StatisticsTableRow, StatisticsTableView } from '@/lib/statistics-tables'
 
 // One Statistics table: a row per species or Lead pair with its sample size, its outcome (the
@@ -100,6 +101,14 @@ const columns = computed(() => {
                   <span aria-hidden="true" class="text-muted-foreground w-3 text-xs">{{
                     expanded === row.key ? '▾' : '▸'
                   }}</span>
+                  <span class="flex shrink-0 items-center gap-0.5">
+                    <Sprite
+                      v-for="species in rowSpecies(row.key)"
+                      :key="species"
+                      :species="species"
+                      surface="statistics-row"
+                    />
+                  </span>
                   {{ row.name }}
                 </button>
               </td>
