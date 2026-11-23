@@ -4,7 +4,7 @@ import { recordIdSchema as recordId } from './client-id'
 import { newNoteEntrySchema } from './note-entry'
 import { newOpponentSchema } from './opponent'
 import { opponentTeamSchema } from './opponent-team'
-import { playerDetailsSchema } from './player-details'
+import { ageDivisionSchema, playerDetailsSchema } from './player-details'
 import { ROUND_RESULTS, TOP_CUT_STAGES, TOP_CUT_STAGE_LABELS, roundInputSchema } from './round'
 import { REGULATIONS, teamSchema } from './team'
 import { newTournamentSchema } from './tournament'
@@ -16,7 +16,7 @@ import { newTournamentSchema } from './tournament'
  */
 export const DATA_EXPORT_FORMAT = 'myvgc-export'
 /** The version this install writes. Each new kind of User data bumps it, with an upgrade step. */
-export const DATA_EXPORT_VERSION = 5
+export const DATA_EXPORT_VERSION = 6
 
 const timestamp = z.iso.datetime('Use a time such as 2026-09-19T10:00:00.000Z.')
 const timestamps = { createdAt: timestamp, updatedAt: timestamp }
@@ -33,8 +33,13 @@ const exportedOpponentSchema = newOpponentSchema.extend({
 })
 
 const exportedRoundSchema = roundInputSchema
-  // An Opponent's Team is exported with its Tournament instead.
-  .omit({ newOpponentId: true, newOpponentName: true, opponentTeam: true })
+  // An Opponent's Team and Age Division are exported with their Tournament instead.
+  .omit({
+    newOpponentId: true,
+    newOpponentName: true,
+    opponentTeam: true,
+    opponentAgeDivision: true,
+  })
   .extend({
     id: recordId,
     // Always stored, so totals don't recompute it.
@@ -59,12 +64,20 @@ const exportedOpponentTeamSchema = z.object({
   ...timestamps,
 })
 
+const exportedOpponentAgeDivisionSchema = z.object({
+  id: recordId,
+  opponentId: recordId,
+  ageDivision: ageDivisionSchema,
+  ...timestamps,
+})
+
 const exportedTournamentSchema = newTournamentSchema.safeExtend({
   id: recordId,
   regulation: z.enum(REGULATIONS),
   team: exportedSnapshotSchema.nullable(),
   rounds: z.array(exportedRoundSchema),
   opponentTeams: z.array(exportedOpponentTeamSchema),
+  opponentAgeDivisions: z.array(exportedOpponentAgeDivisionSchema),
   ...timestamps,
 })
 
@@ -88,10 +101,11 @@ export type ExportedNoteEntry = ExportedOpponent['noteEntries'][number]
 export type ExportedTournament = DataExport['tournaments'][number]
 export type ExportedRound = ExportedTournament['rounds'][number]
 export type ExportedOpponentTeam = ExportedTournament['opponentTeams'][number]
+export type ExportedOpponentAgeDivision = ExportedTournament['opponentAgeDivisions'][number]
 
 /**
  * Steps that upgrade a file by one version, keyed by the version they upgrade from. A file from
- * version 1 when the current version is 5 goes through `1`, `2`, `3` and then `4`.
+ * version 1 when the current version is 6 goes through `1`, `2`, `3`, `4` and then `5`.
  */
 const UPGRADES: Record<number, (file: Record<string, unknown>) => Record<string, unknown>> = {
   // Version 2 added Opponent's Teams (ADR 22), which version 1 files never have.
@@ -126,6 +140,17 @@ const UPGRADES: Record<number, (file: Record<string, unknown>) => Record<string,
           'eventTier' in tournament &&
           tournament.eventTier === 'grassroots'
             ? { ...tournament, eventTier: 'local' }
+            : tournament,
+        )
+      : file.tournaments,
+  }),
+  // Version 6 added Opponent's Age Divisions (ADR 30), which version 5 files never have.
+  5: (file) => ({
+    ...file,
+    tournaments: Array.isArray(file.tournaments)
+      ? file.tournaments.map((tournament: unknown) =>
+          tournament && typeof tournament === 'object'
+            ? { ...tournament, opponentAgeDivisions: [] }
             : tournament,
         )
       : file.tournaments,

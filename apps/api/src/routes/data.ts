@@ -23,6 +23,7 @@ import {
   opponent,
   opponentAlias,
   opponentNoteEntry,
+  opponentAgeDivision,
   opponentTeam,
   playerDetails,
   round,
@@ -51,45 +52,59 @@ export async function exportData(db: Database, ownerId: string): Promise<DataExp
     .from(tournament)
     .where(eq(tournament.ownerId, ownerId))
 
-  const [details, teams, opponents, aliases, noteEntries, tournaments, rounds, opponentTeams] =
-    await Promise.all([
-      loadPlayerDetails(db, ownerId),
-      db
-        .select()
-        .from(team)
-        .where(eq(team.ownerId, ownerId))
-        .orderBy(asc(team.createdAt), asc(team.id)),
-      db
-        .select()
-        .from(opponent)
-        .where(eq(opponent.ownerId, ownerId))
-        .orderBy(asc(opponent.createdAt), asc(opponent.id)),
-      db
-        .select()
-        .from(opponentAlias)
-        .where(inArray(opponentAlias.opponentId, ownOpponents))
-        .orderBy(asc(sql`lower(${opponentAlias.name})`), asc(opponentAlias.name)),
-      db
-        .select()
-        .from(opponentNoteEntry)
-        .where(inArray(opponentNoteEntry.opponentId, ownOpponents))
-        .orderBy(
-          asc(opponentNoteEntry.date),
-          asc(opponentNoteEntry.createdAt),
-          asc(opponentNoteEntry.id),
-        ),
-      db
-        .select()
-        .from(tournament)
-        .where(eq(tournament.ownerId, ownerId))
-        .orderBy(asc(tournament.startDate), asc(tournament.createdAt), asc(tournament.id)),
-      db.select().from(round).where(inArray(round.tournamentId, ownTournaments)),
-      db
-        .select()
-        .from(opponentTeam)
-        .where(inArray(opponentTeam.tournamentId, ownTournaments))
-        .orderBy(asc(opponentTeam.createdAt), asc(opponentTeam.id)),
-    ])
+  const [
+    details,
+    teams,
+    opponents,
+    aliases,
+    noteEntries,
+    tournaments,
+    rounds,
+    opponentTeams,
+    opponentAgeDivisions,
+  ] = await Promise.all([
+    loadPlayerDetails(db, ownerId),
+    db
+      .select()
+      .from(team)
+      .where(eq(team.ownerId, ownerId))
+      .orderBy(asc(team.createdAt), asc(team.id)),
+    db
+      .select()
+      .from(opponent)
+      .where(eq(opponent.ownerId, ownerId))
+      .orderBy(asc(opponent.createdAt), asc(opponent.id)),
+    db
+      .select()
+      .from(opponentAlias)
+      .where(inArray(opponentAlias.opponentId, ownOpponents))
+      .orderBy(asc(sql`lower(${opponentAlias.name})`), asc(opponentAlias.name)),
+    db
+      .select()
+      .from(opponentNoteEntry)
+      .where(inArray(opponentNoteEntry.opponentId, ownOpponents))
+      .orderBy(
+        asc(opponentNoteEntry.date),
+        asc(opponentNoteEntry.createdAt),
+        asc(opponentNoteEntry.id),
+      ),
+    db
+      .select()
+      .from(tournament)
+      .where(eq(tournament.ownerId, ownerId))
+      .orderBy(asc(tournament.startDate), asc(tournament.createdAt), asc(tournament.id)),
+    db.select().from(round).where(inArray(round.tournamentId, ownTournaments)),
+    db
+      .select()
+      .from(opponentTeam)
+      .where(inArray(opponentTeam.tournamentId, ownTournaments))
+      .orderBy(asc(opponentTeam.createdAt), asc(opponentTeam.id)),
+    db
+      .select()
+      .from(opponentAgeDivision)
+      .where(inArray(opponentAgeDivision.tournamentId, ownTournaments))
+      .orderBy(asc(opponentAgeDivision.createdAt), asc(opponentAgeDivision.id)),
+  ])
 
   const times = (row: { createdAt: Date; updatedAt: Date }) => ({
     createdAt: row.createdAt.toISOString(),
@@ -165,6 +180,14 @@ export async function exportData(db: Database, ownerId: string): Promise<DataExp
       opponentTeams: opponentTeams
         .filter((o) => o.tournamentId === row.id)
         .map((o) => ({ id: o.id, opponentId: o.opponentId, pokemon: o.pokemon, ...times(o) })),
+      opponentAgeDivisions: opponentAgeDivisions
+        .filter((o) => o.tournamentId === row.id)
+        .map((o) => ({
+          id: o.id,
+          opponentId: o.opponentId,
+          ageDivision: o.ageDivision,
+          ...times(o),
+        })),
       ...times(row),
     })),
   }
@@ -216,6 +239,13 @@ async function importData(tx: Tx, ownerId: string, file: ReadDataExport): Promis
       path: ['tournaments', ti, 'opponentTeams', oi],
     })),
   )
+  const fileOpponentAgeDivisions = file.tournaments.flatMap((t, ti) =>
+    t.opponentAgeDivisions.map((o, oi) => ({
+      division: o,
+      tournamentId: t.id,
+      path: ['tournaments', ti, 'opponentAgeDivisions', oi],
+    })),
+  )
   const fileNoteEntries = file.opponents.flatMap((o, oi) =>
     o.noteEntries.map((n, ni) => ({
       entry: n,
@@ -242,6 +272,7 @@ async function importData(tx: Tx, ownerId: string, file: ReadDataExport): Promis
     storedTournaments,
     roundOwners,
     opponentTeamOwners,
+    opponentAgeDivisionOwners,
   ] = await Promise.all([
     owners(
       tx.select({ id: team.id, ownerId: team.ownerId }).from(team).where(inArray(team.id, teamIds)),
@@ -301,6 +332,18 @@ async function importData(tx: Tx, ownerId: string, file: ReadDataExport): Promis
           ),
         ),
     ),
+    owners(
+      tx
+        .select({ id: opponentAgeDivision.id, ownerId: tournament.ownerId })
+        .from(opponentAgeDivision)
+        .innerJoin(tournament, eq(opponentAgeDivision.tournamentId, tournament.id))
+        .where(
+          inArray(
+            opponentAgeDivision.id,
+            fileOpponentAgeDivisions.map((o) => o.division.id),
+          ),
+        ),
+    ),
   ])
 
   const tournamentOwners: OwnerById = new Map(storedTournaments.map((t) => [t.id, t.ownerId]))
@@ -317,6 +360,11 @@ async function importData(tx: Tx, ownerId: string, file: ReadDataExport): Promis
     })),
     ...fileRounds.map((r) => ({ held: roundOwners, id: r.round.id, path: r.path })),
     ...fileOpponentTeams.map((o) => ({ held: opponentTeamOwners, id: o.team.id, path: o.path })),
+    ...fileOpponentAgeDivisions.map((o) => ({
+      held: opponentAgeDivisionOwners,
+      id: o.division.id,
+      path: o.path,
+    })),
   ]
   for (const { held, id, path } of records) {
     const owner = held.get(id)
@@ -508,17 +556,18 @@ async function importData(tx: Tx, ownerId: string, file: ReadDataExport): Promis
     ),
   )
 
-  // An Opponent's Team the User already has for that Opponent there is kept, and one is only
-  // added for an Opponent a Round there is against, which a Round the User has may no longer be
-  // (ADR 22).
+  // An Opponent's Team or Age Division the User already has for that Opponent there is kept, and
+  // one is only added for an Opponent a Round there is against, which a Round the User has may no
+  // longer be (ADR 22, ADR 30).
+  const withOpponentRecords = new Set(
+    [...fileOpponentTeams, ...fileOpponentAgeDivisions].map((o) => o.tournamentId),
+  )
   const played = new Set(
     (
       await tx
         .selectDistinct({ tournamentId: round.tournamentId, opponentId: round.opponentId })
         .from(round)
-        .where(
-          inArray(round.tournamentId, [...new Set(fileOpponentTeams.map((o) => o.tournamentId))]),
-        )
+        .where(inArray(round.tournamentId, [...withOpponentRecords]))
     ).map((r) => `${r.tournamentId} ${r.opponentId}`),
   )
   await insertAll(
@@ -532,6 +581,18 @@ async function importData(tx: Tx, ownerId: string, file: ReadDataExport): Promis
         ...times(o),
       })),
     (chunk) => tx.insert(opponentTeam).values(chunk).onConflictDoNothing(),
+  )
+  await insertAll(
+    fileOpponentAgeDivisions
+      .filter((o) => played.has(`${o.tournamentId} ${o.division.opponentId}`))
+      .map(({ division: o, tournamentId }) => ({
+        id: o.id,
+        tournamentId,
+        opponentId: o.opponentId,
+        ageDivision: o.ageDivision,
+        ...times(o),
+      })),
+    (chunk) => tx.insert(opponentAgeDivision).values(chunk).onConflictDoNothing(),
   )
 
   const count = (all: number, added: number) => ({ added, alreadyThere: all - added })

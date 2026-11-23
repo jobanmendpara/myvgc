@@ -3,6 +3,8 @@ import {
   type OpponentTeamInput,
   type PokemonBuild,
   type ReadTeamView,
+  losesOpponentAgeDivision,
+  losesOpponentTeam,
   opponentTeamFromRead,
 } from '@myvgc/core/schema'
 
@@ -60,3 +62,21 @@ export const toOpponentTeamInput = (drafts: readonly OpponentBuildDraft[]): Oppo
     ...(build.item ? { item: build.item } : {}),
     moves: build.moves.filter((move): move is string => Boolean(move)),
   }))
+
+/**
+ * What is recorded about an Opponent in a Tournament that goes once a Round is no longer against
+ * them, deleted or given another, such as `Team and Age Division` (ADR 22, ADR 30). Nothing when
+ * another Round there is against them, or nothing is recorded.
+ */
+export function lostWithLastRound(
+  tournament: Parameters<typeof losesOpponentTeam>[0] &
+    Parameters<typeof losesOpponentAgeDivision>[0],
+  roundId: string | undefined,
+  opponentId: string | undefined,
+): string | undefined {
+  const lost = [
+    losesOpponentTeam(tournament, roundId, opponentId) && 'Team',
+    losesOpponentAgeDivision(tournament, roundId, opponentId) && 'Age Division',
+  ].filter(Boolean)
+  return lost.length ? lost.join(' and ') : undefined
+}

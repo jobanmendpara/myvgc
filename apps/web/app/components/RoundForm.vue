@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import {
+  AGE_DIVISIONS,
   BEST_OF,
   GAME_NUMBERS,
   MAX_NOTES_LENGTH,
@@ -8,6 +9,7 @@ import {
   ROUND_RESULT_LABELS,
   TOP_CUT_STAGES,
   TOP_CUT_STAGE_LABELS,
+  type AgeDivision,
   type BestOf,
   type Game,
   type GameScore,
@@ -19,8 +21,9 @@ import {
   type TopCutStage,
   type TournamentView,
   isEmptyGame,
+  latestOpponentAgeDivision,
   latestOpponentTeam,
-  losesOpponentTeam,
+  opponentAgeDivisionOf,
   opponentTeamOf,
 } from '@myvgc/core/schema'
 import { useQuery } from '@tanstack/vue-query'
@@ -30,6 +33,7 @@ import { tournamentPath } from '@/lib/paths'
 import type { OpponentChoice } from './OpponentPicker.vue'
 import {
   type OpponentBuildDraft,
+  lostWithLastRound,
   newOpponentBuild,
   readToOpponentTeam,
   toOpponentBuildDraft,
@@ -195,6 +199,41 @@ const copyable = computed(() => {
     tournamentId: props.tournament.id,
   })
 })
+
+// Their Age Division (ADR 30), shared the same way. Choosing an Opponent with none here fills in
+// theirs from the latest other Tournament this Season, as a Junior may be a Senior next Season.
+type AgeDivisionChoice = AgeDivision | 'unknown'
+const savedAgeDivisionOf = (id: string | undefined) =>
+  opponentAgeDivisionOf(props.tournament.opponentAgeDivisions, id)
+const ageDivision = ref<AgeDivisionChoice>(savedAgeDivisionOf(opponentId.value) ?? 'unknown')
+const filledIn = ref<{ from: string; ageDivision: AgeDivision }>()
+watch(opponentId, (id) => {
+  const saved = savedAgeDivisionOf(id)
+  const latest =
+    id && !saved
+      ? latestOpponentAgeDivision(tournaments.data.value ?? [], {
+          opponentId: id,
+          tournamentId: props.tournament.id,
+          startDate: props.tournament.startDate,
+        })
+      : undefined
+  ageDivision.value = saved ?? latest?.ageDivision ?? 'unknown'
+  filledIn.value = latest && { from: latest.tournament.name, ageDivision: latest.ageDivision }
+})
+// Said only while the User keeps what was filled in.
+const ageDivisionFrom = computed(() =>
+  filledIn.value?.ageDivision === ageDivision.value ? filledIn.value.from : undefined,
+)
+const ageDivisionOptions = [
+  ...AGE_DIVISIONS.map((value) => ({ value, label: value })),
+  { value: 'unknown' as const, label: 'Not known' },
+]
+/** Their Age Division as the API takes it, only when it differs from what is saved. */
+function changedAgeDivision(): AgeDivision | null | undefined {
+  const choice = ageDivision.value === 'unknown' ? null : ageDivision.value
+  return choice === savedAgeDivisionOf(opponentId.value) ? undefined : choice
+}
+
 function copyOpponentTeam() {
   if (!copyable.value) return
   opponentTeam.value = copyable.value.pokemon.map(toOpponentBuildDraft)
@@ -237,12 +276,13 @@ watch(
 )
 
 const opponentName = computed(() => opponent.value?.displayName ?? 'them')
-// What saving this Round with another Opponent loses: the old Opponent's Team, if no other
-// Round here is against them.
-const losesTeamOf = computed(() => {
+// What saving this Round with another Opponent loses: what is recorded about the old Opponent
+// here, if no other Round here is against them.
+const losesOf = computed(() => {
   const before = r?.opponent
   if (!before || before.id === opponentId.value) return undefined
-  return losesOpponentTeam(props.tournament, r?.id, before.id) ? before.displayName : undefined
+  const lost = lostWithLastRound(props.tournament, r?.id, before.id)
+  return lost && `${before.displayName}’s ${lost}`
 })
 const opponentTeamErrors = computed(() => {
   const errors: Record<string, string> = {}
@@ -324,7 +364,9 @@ function submit() {
     // Sent even with a Bye, so the API says to remove them rather than them vanishing.
     games: recorded,
     // A list replaces their Team, and an empty one deletes it. Left out on a Bye.
-    ...(!bye.value && opponent.value ? { opponentTeam: changedOpponentTeam() } : {}),
+    ...(!bye.value && opponent.value
+      ? { opponentTeam: changedOpponentTeam(), opponentAgeDivision: changedAgeDivision() }
+      : {}),
   })
 }
 
@@ -342,6 +384,7 @@ const draft = () =>
     notes.value,
     games.value,
     opponentTeam.value,
+    ageDivision.value,
   ])
 const startedWith = draft()
 const dirty = computed(() => !props.pending && draft() !== startedWith)
@@ -384,10 +427,27 @@ const { DiscardDialog } = useDiscardGuard(dirty, 'this Round')
         v-model="opponent"
         :error="error('opponent') ?? error('opponentId') ?? error('newOpponentName')"
       />
-      <p v-if="losesTeamOf" class="text-destructive text-sm" data-testid="loses-team">
-        Saving deletes {{ losesTeamOf }}’s Team in this Tournament, as no other Round here is
-        against them.
+      <p v-if="losesOf" class="text-destructive text-sm" data-testid="loses-team">
+        Saving deletes {{ losesOf }} in this Tournament, as no other Round here is against them.
       </p>
+
+      <div v-if="opponent" class="flex flex-col gap-2" data-testid="their-age-division">
+        <ChoiceGroup
+          v-model="ageDivision"
+          :options="ageDivisionOptions"
+          label="Their Age Division"
+          name="age-division"
+        />
+        <p v-if="ageDivisionFrom" class="text-muted-foreground text-sm">
+          Filled in from {{ ageDivisionFrom }}, this Season.
+        </p>
+        <p v-else-if="otherRoundsAgainst(opponentId).length" class="text-muted-foreground text-sm">
+          Shared by every Round against {{ opponentName }} in this Tournament.
+        </p>
+        <p v-if="error('opponentAgeDivision')" class="text-destructive text-sm">
+          {{ error('opponentAgeDivision') }}
+        </p>
+      </div>
 
       <details
         v-if="opponent"

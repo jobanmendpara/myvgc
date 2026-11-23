@@ -1,5 +1,6 @@
 import {
   type EntryFee,
+  type OpponentAgeDivisionView,
   type OpponentTeamView,
   type RoundView,
   type TeamSnapshotView,
@@ -25,6 +26,7 @@ import { team, tournament } from '../db/schema'
 import type { Database } from '../db/types'
 import type { FileStorage } from '../storage'
 import { deleted, escapeLike, idTaken, invalid, isId, notFound, readBody } from './helpers'
+import { loadOpponentAgeDivisions } from './opponent-age-division-data'
 import { loadOpponentTeams } from './opponent-team-data'
 import { loadRounds } from './round-data'
 import { discardFile, toTeamsheetView } from './teamsheet-attachment-data'
@@ -54,6 +56,7 @@ export function toTournamentView(
   row: TournamentRow,
   rounds: RoundView[],
   opponentTeams: OpponentTeamView[],
+  opponentAgeDivisions: OpponentAgeDivisionView[],
   on = today(),
 ): TournamentView {
   const snapshot = toSnapshotView(row)
@@ -79,6 +82,7 @@ export function toTournamentView(
     team: snapshot,
     rounds,
     opponentTeams,
+    opponentAgeDivisions,
     teamsheet: toTeamsheetView(row),
     record: recordOf(rounds),
     warnings: tournamentWarnings({ regulation: row.regulation, team: snapshot }),
@@ -110,6 +114,7 @@ export function tournamentRoutes(db: Database, storage: FileStorage) {
       row,
       (await loadRounds(db, [row.id])).get(row.id)!,
       (await loadOpponentTeams(db, [row.id])).get(row.id)!,
+      (await loadOpponentAgeDivisions(db, [row.id])).get(row.id)!,
     )
 
   return (
@@ -141,9 +146,16 @@ export function tournamentRoutes(db: Database, storage: FileStorage) {
         const ids = rows.map((row) => row.id)
         const rounds = await loadRounds(db, ids)
         const opponentTeams = await loadOpponentTeams(db, ids)
+        const opponentAgeDivisions = await loadOpponentAgeDivisions(db, ids)
         return c.json(
           rows.map((row) =>
-            toTournamentView(row, rounds.get(row.id)!, opponentTeams.get(row.id)!, on),
+            toTournamentView(
+              row,
+              rounds.get(row.id)!,
+              opponentTeams.get(row.id)!,
+              opponentAgeDivisions.get(row.id)!,
+              on,
+            ),
           ),
         )
       })
@@ -165,7 +177,7 @@ export function tournamentRoutes(db: Database, storage: FileStorage) {
           })
           .onConflictDoNothing({ target: tournament.id })
           .returning()
-        if (row) return c.json(toTournamentView(row, [], []), 201)
+        if (row) return c.json(toTournamentView(row, [], [], []), 201)
 
         // A replay: the Tournament is already saved, and the saved version wins.
         const [saved] = await db.select().from(tournament).where(ownTournament(id!, ownerId))
@@ -202,7 +214,9 @@ export function tournamentRoutes(db: Database, storage: FileStorage) {
           .set(toColumns(input.data))
           .where(where)
           .returning()
-        return c.json(toTournamentView(row!, view.rounds, view.opponentTeams))
+        return c.json(
+          toTournamentView(row!, view.rounds, view.opponentTeams, view.opponentAgeDivisions),
+        )
       })
       .put('/:id/team', async (c) => {
         const id = c.req.param('id')

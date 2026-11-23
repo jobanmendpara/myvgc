@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { clientIdSchema } from './client-id'
 import type { NoteEntryView } from './note-entry'
+import type { AgeDivision } from './player-details'
 import type { PokemonBuild } from './build'
 import {
   MAX_OPPONENT_NAME_LENGTH,
@@ -73,14 +74,22 @@ export interface OpponentTeamInTournament {
   pokemon: PokemonBuild[]
 }
 
+/** An Opponent's Age Division in one Tournament, from the Opponent's side. */
+export interface OpponentAgeDivisionInTournament {
+  tournamentId: string
+  ageDivision: AgeDivision
+}
+
 /**
  * An Opponent with every Round against them and their Note entries, each newest first, and the
- * Opponent's Team they brought to each Tournament where one was recorded (ADR 22).
+ * Opponent's Team they brought to each Tournament where one was recorded (ADR 22), and the Age
+ * Division they played in where one was recorded (ADR 30).
  */
 export interface OpponentDetailView extends OpponentView {
   rounds: OpponentRoundView[]
   noteEntries: NoteEntryView[]
   opponentTeams: OpponentTeamInTournament[]
+  opponentAgeDivisions: OpponentAgeDivisionInTournament[]
 }
 
 /** One Tournament the User played an Opponent in, as their page shows it. */
@@ -88,6 +97,8 @@ export interface TournamentAgainstOpponent {
   tournament: OpponentRoundView['tournament']
   /** What they brought there, or null when it wasn't recorded. */
   opponentTeam: PokemonBuild[] | null
+  /** The Age Division they played in there, or null when it wasn't recorded. */
+  ageDivision: AgeDivision | null
   /** The User's results against them there. */
   headToHead: Tally
   /** Its Rounds against them, as they were played. */
@@ -99,7 +110,7 @@ export interface TournamentAgainstOpponent {
  * Opponent's Team they brought there.
  */
 export function groupByTournament(
-  detail: Pick<OpponentDetailView, 'rounds' | 'opponentTeams'>,
+  detail: Pick<OpponentDetailView, 'rounds' | 'opponentTeams' | 'opponentAgeDivisions'>,
 ): TournamentAgainstOpponent[] {
   const groups = new Map<string, TournamentAgainstOpponent>()
   for (const round of detail.rounds) {
@@ -109,6 +120,9 @@ export function groupByTournament(
       group = {
         tournament: round.tournament,
         opponentTeam: team?.pokemon ?? null,
+        ageDivision:
+          detail.opponentAgeDivisions.find((d) => d.tournamentId === round.tournament.id)
+            ?.ageDivision ?? null,
         headToHead: { wins: 0, losses: 0, ties: 0 },
         rounds: [],
       }

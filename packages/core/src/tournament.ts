@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { clientIdSchema } from './client-id'
 import type { RoundView, TournamentRecord } from './round'
+import type { OpponentAgeDivisionView } from './opponent-age-division'
 import type { OpponentTeamView } from './opponent-team'
 import {
   type Legality,
@@ -237,6 +238,8 @@ export interface TournamentView {
   rounds: RoundView[]
   /** The Team each Opponent the User played here brought (ADR 22). */
   opponentTeams: OpponentTeamView[]
+  /** The Age Division each Opponent the User played here played in, where recorded (ADR 30). */
+  opponentAgeDivisions: OpponentAgeDivisionView[]
   /** The Teamsheet PDF the User uploaded here, if any (ADR 27). */
   teamsheet: TeamsheetAttachmentView | null
   record: TournamentRecord

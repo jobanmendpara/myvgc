@@ -120,6 +120,13 @@
       "when": 1795453509707,
       "tag": "0016_event_tier_local",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1795454178585,
+      "tag": "0017_opponent_age_division",
+      "breakpoints": true
     }
   ]
 }

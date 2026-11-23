@@ -4,6 +4,7 @@ import {
   checkPokemon,
   clearOpponentSide,
   newRoundSchema,
+  opponentAgeDivisionOf,
   opponentTeamOf,
   recordOf,
   roundInputSchema,
@@ -29,7 +30,12 @@ import {
   uniqueViolation,
 } from './helpers'
 import { ownOpponent } from './opponents'
-import { deleteOpponentTeam, dropUnplayedTeam, loadOpponentTeams } from './opponent-team-data'
+import {
+  deleteOpponentAgeDivision,
+  loadOpponentAgeDivisions,
+  saveOpponentAgeDivision,
+} from './opponent-age-division-data'
+import { deleteOpponentTeam, dropUnplayed, loadOpponentTeams } from './opponent-team-data'
 import { loadRounds } from './round-data'
 import { ownTournament } from './tournaments'
 
@@ -82,6 +88,7 @@ export function roundRoutes(db: Database) {
       hasOpponent: Boolean(input.opponentId || input.newOpponentName),
       games: input.games.toSorted((a, b) => a.number - b.number),
       hasOpponentTeam: Boolean(input.opponentTeam?.length),
+      hasOpponentAgeDivision: Boolean(input.opponentAgeDivision),
     }
     // The User didn't type the number, so any free one will do.
     const numberIsFree = input.phase === 'swiss' && input.roundNumber == null && !existingId
@@ -186,7 +193,11 @@ export function roundRoutes(db: Database) {
               set: { pokemon: input.opponentTeam, updatedAt: new Date() },
             })
         else if (opponentId && input.opponentTeam) await deleteOpponentTeam(tx, t.id, opponentId)
-        if (changedOpponent) await dropUnplayedTeam(tx, t.id, before!.opponentId!)
+        if (opponentId && input.opponentAgeDivision)
+          await saveOpponentAgeDivision(tx, t.id, opponentId, input.opponentAgeDivision)
+        else if (opponentId && input.opponentAgeDivision === null)
+          await deleteOpponentAgeDivision(tx, t.id, opponentId)
+        if (changedOpponent) await dropUnplayed(tx, t.id, before!.opponentId!)
         return row!.id
       })
     }
@@ -216,16 +227,21 @@ export function roundRoutes(db: Database) {
     return c.json(await standing(t, id))
   }
 
-  /** A Round with its Tournament's Record, its Opponent's Team and, if due, a suggested Placement. */
+  /**
+   * A Round with its Tournament's Record, its Opponent's Team and Age Division and, if due, a
+   * suggested Placement.
+   */
   async function standing(t: typeof tournament.$inferSelect, roundId: string): Promise<SavedRound> {
     const rounds = (await loadRounds(db, [t.id])).get(t.id)!
     const saved = rounds.find((r) => r.id === roundId)!
     const teams = (await loadOpponentTeams(db, [t.id])).get(t.id)!
+    const divisions = (await loadOpponentAgeDivisions(db, [t.id])).get(t.id)!
     return {
       round: saved,
       record: recordOf(rounds),
       suggestedPlacement: t.placement === null ? (suggestedPlacement(rounds) ?? null) : null,
       opponentTeam: opponentTeamOf(teams, saved.opponent?.id) ?? null,
+      opponentAgeDivision: opponentAgeDivisionOf(divisions, saved.opponent?.id),
     }
   }
 
@@ -276,7 +292,7 @@ export function roundRoutes(db: Database) {
             .delete(round)
             .where(and(eq(round.id, roundId), eq(round.tournamentId, t.id)))
             .returning({ opponentId: round.opponentId })
-          if (gone?.opponentId) await dropUnplayedTeam(tx, t.id, gone.opponentId)
+          if (gone?.opponentId) await dropUnplayed(tx, t.id, gone.opponentId)
         })
         const rounds = (await loadRounds(db, [t.id])).get(t.id)!
         return c.json({ record: recordOf(rounds) })

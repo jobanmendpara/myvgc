@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { showdownId } from './build'
 import { clientIdSchema } from './client-id'
 import { type OpponentTeamView, opponentTeamSchema } from './opponent-team'
+import { type AgeDivision, ageDivisionSchema } from './player-details'
 import { MAX_NOTES_LENGTH } from './team'
 import { BEST_OF, type BestOf } from './tournament'
 
@@ -160,6 +161,8 @@ export interface RoundFacts {
   games: GameFacts[]
   /** Whether an Opponent's Team with Pokémon in it was sent with the Round (ADR 22). */
   hasOpponentTeam: boolean
+  /** Whether an Opponent's Age Division was sent with the Round (ADR 30). */
+  hasOpponentAgeDivision: boolean
 }
 
 type Issue = { path: string[]; message: string }
@@ -183,12 +186,16 @@ export function roundIssues(round: RoundFacts): Issue[] {
     if (round.gameScore) add('gameScore', 'A Bye has no Game score.')
     if (round.games.length) add('games', 'A Bye has no Games.')
     if (round.hasOpponentTeam) add('opponentTeam', 'A Bye has no Opponent’s Team.')
+    if (round.hasOpponentAgeDivision)
+      add('opponentAgeDivision', 'A Bye has no Opponent’s Age Division.')
     return issues
   }
 
   if (!round.hasOpponent) add('opponent', 'Choose who you played, or add them.')
   if (!round.hasOpponent && round.hasOpponentTeam)
     add('opponentTeam', 'Choose who you played before their Team.')
+  if (!round.hasOpponent && round.hasOpponentAgeDivision)
+    add('opponentAgeDivision', 'Choose who you played before their Age Division.')
   // Changing best-of never drops recorded Games (ADR 21).
   const beyond = round.games.filter((game) => game.number > round.bestOf).map((g) => g.number)
   if (beyond.length)
@@ -379,6 +386,9 @@ export const roundInputSchema = z.object({
   // The Opponent's Team in this Tournament, shared by every Round against them (ADR 22). Left
   // out, it stays as it is.
   opponentTeam: opponentTeamSchema.optional(),
+  // The Opponent's Age Division in this Tournament, shared the same way (ADR 30). Left out, it
+  // stays as it is; null clears it.
+  opponentAgeDivision: ageDivisionSchema.nullable().optional(),
 })
 
 export type RoundInput = z.input<typeof roundInputSchema>
@@ -415,4 +425,6 @@ export interface SavedRound {
   suggestedPlacement: number | null
   /** The Opponent's Team of the Round's Opponent in this Tournament, if any. */
   opponentTeam: OpponentTeamView | null
+  /** The Age Division of the Round's Opponent in this Tournament, if recorded. */
+  opponentAgeDivision: AgeDivision | null
 }

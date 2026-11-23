@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { DATA_EXPORT_VERSION, readDataExport } from '../src/schema'
-import { current, ids, versionFour, versionOne, versionThree, versionTwo } from './data-export-file'
+import {
+  current,
+  ids,
+  versionFive,
+  versionFour,
+  versionOne,
+  versionThree,
+  versionTwo,
+} from './data-export-file'
 
 describe('Reading a Data export', () => {
   it('reads a file in the current version', () => {
@@ -13,6 +21,7 @@ describe('Reading a Data export', () => {
     expect(read.file.tournaments[0]!.opponentTeams[0]!.opponentId).toBe(ids.opponent)
     expect(read.file.playerDetails.playerId).toBe('1234567')
     expect(read.file.teams[0]!.replicaTeamId).toBe('9TCG84KWXK')
+    expect(read.file.tournaments[0]!.opponentAgeDivisions[0]!.ageDivision).toBe('Junior')
   })
 
   it('upgrades a version 1 file, whose Tournaments have no Opponent’s Teams', () => {
@@ -51,6 +60,13 @@ describe('Reading a Data export', () => {
     if (!read.ok) throw new Error('should read')
     expect(read.file.version).toBe(DATA_EXPORT_VERSION)
     expect(read.file.tournaments[0]!.eventTier).toBe('local')
+  })
+
+  it('upgrades a version 5 file, whose Tournaments have no Opponent’s Age Divisions', () => {
+    const read = readDataExport(versionFive())
+    if (!read.ok) throw new Error('should read')
+    expect(read.file.version).toBe(DATA_EXPORT_VERSION)
+    expect(read.file.tournaments[0]!.opponentAgeDivisions).toEqual([])
   })
 
   it('names Player details as the record a broken Player detail is in', () => {

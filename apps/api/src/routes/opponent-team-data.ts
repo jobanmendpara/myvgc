@@ -2,6 +2,7 @@ import type { OpponentTeamView } from '@myvgc/core'
 import { and, eq, inArray } from 'drizzle-orm'
 import { opponentTeam, round } from '../db/schema'
 import type { Database } from '../db/types'
+import { deleteOpponentAgeDivision } from './opponent-age-division-data'
 
 /** The Opponent's Teams of some Tournaments (ADR 22), each list in the order they were added. */
 export async function loadOpponentTeams(
@@ -34,10 +35,10 @@ export async function deleteOpponentTeam(
 }
 
 /**
- * Deletes an Opponent's Team once no Round in its Tournament is against that Opponent, as it only
- * exists for an Opponent the User played there (ADR 22).
+ * Deletes an Opponent's Team and Age Division once no Round in their Tournament is against that
+ * Opponent, as they only exist for an Opponent the User played there (ADR 22, ADR 30).
  */
-export async function dropUnplayedTeam(
+export async function dropUnplayed(
   tx: Pick<Database, 'select' | 'delete'>,
   tournamentId: string,
   opponentId: string,
@@ -47,5 +48,7 @@ export async function dropUnplayedTeam(
     .from(round)
     .where(and(eq(round.tournamentId, tournamentId), eq(round.opponentId, opponentId)))
     .limit(1)
-  if (!played) await deleteOpponentTeam(tx, tournamentId, opponentId)
+  if (played) return
+  await deleteOpponentTeam(tx, tournamentId, opponentId)
+  await deleteOpponentAgeDivision(tx, tournamentId, opponentId)
 }
