@@ -4,12 +4,14 @@ import {
   type NoteEntryView,
   type OpponentDetailView,
   type OpponentRoundView,
+  newNoteEntrySchema,
   today,
 } from '@myvgc/core/schema'
-import { useMutation, useQueryClient } from '@tanstack/vue-query'
+import { useMutation } from '@tanstack/vue-query'
 import { createReusableTemplate } from '@vueuse/core'
-import { fieldErrorsOf, saveFailureMessage } from '@/lib/api'
+import { checkBeforeSaving, fieldErrorsOf, saveFailureMessage } from '@/lib/api'
 import { formatDates, roundLabel, roundOutcome } from '@/lib/format'
+import { addNoteEntry, deleteNoteEntry, editNoteEntry } from '@/lib/outbox-writes'
 import { roundPath } from '@/lib/paths'
 
 // Everything known about an Opponent, newest first: their Note entries, and the notes from
@@ -58,37 +60,34 @@ function startEditing(entry: NoteEntryView) {
   editingId.value = entry.id
 }
 
-const queryClient = useQueryClient()
-const addUrl = computed(() => `/api/opponents/${props.opponent.id}/note-entries`)
-const refresh = () =>
-  queryClient.invalidateQueries({ queryKey: ['opponents', 'detail', props.opponent.id] })
-
+// Kept on the phone first, so Note entries work with no signal too (ADR 17).
+const outbox = useOutbox()
 const save = useMutation({
+  // Runs with no signal too, as the outbox keeps the change (ADR 17).
+  networkMode: 'always',
   mutationFn: () => {
-    const body = { date: date.value, text: text.value }
-    if (editingId.value === 'new') {
-      const url: string = addUrl.value
-      return $fetch<NoteEntryView>(url, { method: 'POST', body })
-    }
-    const url: string = `/api/note-entries/${editingId.value}`
-    return $fetch<NoteEntryView>(url, { method: 'PATCH', body })
+    const fields = { date: date.value, text: text.value }
+    const editing = props.opponent.noteEntries.find((entry) => entry.id === editingId.value)
+    const write = editing
+      ? editNoteEntry(props.opponent, editing, fields)
+      : addNoteEntry(props.opponent, fields)
+    // Checked here too, as with no signal the server can't say what is wrong with it.
+    checkBeforeSaving(newNoteEntrySchema, write.request.body)
+    return outbox.save(write)
   },
-  onSuccess: async () => {
+  onSuccess: () => {
     editingId.value = null
-    await refresh()
   },
 })
 const fieldErrors = computed(() => fieldErrorsOf(save.error.value))
 
 const deleting = ref<NoteEntryView | null>(null)
 const remove = useMutation({
-  mutationFn: (entry: NoteEntryView) => {
-    const url: string = `/api/note-entries/${entry.id}`
-    return $fetch<null>(url, { method: 'DELETE' })
-  },
-  onSuccess: async () => {
+  // Runs with no signal too, as the outbox keeps the change (ADR 17).
+  networkMode: 'always',
+  mutationFn: (entry: NoteEntryView) => outbox.save(deleteNoteEntry(props.opponent, entry)),
+  onSuccess: () => {
     deleting.value = null
-    await refresh()
   },
 })
 function confirmDelete(entry: NoteEntryView) {

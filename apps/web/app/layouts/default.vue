@@ -40,6 +40,7 @@ const split = computed(() => !!route.meta.listDetail && wide.value)
         </ul>
       </nav>
     </header>
+    <OutboxNotice class="shrink-0" />
     <main class="mx-auto w-full max-w-7xl flex-1" :class="split ? 'min-h-0' : 'p-4'">
       <slot />
     </main>

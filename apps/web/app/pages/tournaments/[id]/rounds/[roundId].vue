@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import type { RoundInput, SavedRound } from '@myvgc/core/schema'
-import { useMutation, useQueryClient } from '@tanstack/vue-query'
+import { useMutation } from '@tanstack/vue-query'
 import { fieldErrorsOf, saveFailureMessage } from '@/lib/api'
 import { lostWithLastRound } from '@/lib/opponent-team'
+import { RejectedChange } from '@/lib/outbox'
+import { deleteRound, editRound, roundProblems } from '@/lib/outbox-writes'
 import { tournamentPath } from '@/lib/paths'
 
 const route = useRoute()
@@ -19,35 +21,32 @@ const loses = computed(
 )
 useHead({ title: 'Edit Round · MyVGC' })
 
-const queryClient = useQueryClient()
-const url = computed((): string => `/api/tournaments/${id.value}/rounds/${roundId.value}`)
-async function refresh() {
-  await queryClient.invalidateQueries({ queryKey: ['tournament', id.value] })
-  await queryClient.invalidateQueries({ queryKey: ['tournaments'] })
-  await queryClient.invalidateQueries({ queryKey: ['opponents'] })
-}
+// Kept on the phone first, so it works with no signal too, and sent when it can be (ADR 17).
+const outbox = useOutbox()
 const save = useMutation({
-  mutationFn: (body: RoundInput) => {
-    const target: string = url.value
-    return $fetch<SavedRound>(target, { method: 'PATCH', body })
+  // Runs with no signal too, as the outbox keeps the change (ADR 17).
+  networkMode: 'always',
+  mutationFn: ({ body, opponentName }: { body: RoundInput; opponentName: string | null }) => {
+    // Checked here too, as with no signal the server can't say what is wrong with it.
+    const problems = roundProblems(tournament.value!, body, roundId.value)
+    if (problems) throw new RejectedChange(400, 'Invalid request', problems)
+    return outbox.save(editRound(tournament.value!, round.value!, body, opponentName))
   },
   onSuccess: async (saved) => {
-    await refresh()
+    const placement = saved.sent ? (saved.body as SavedRound).suggestedPlacement : null
     await navigateTo({
       path: tournamentPath(id.value),
-      query: saved.suggestedPlacement ? { placement: saved.suggestedPlacement } : {},
+      query: placement ? { placement } : {},
     })
   },
 })
 const confirmingDelete = ref(false)
 const remove = useMutation({
-  mutationFn: () => {
-    const target: string = url.value
-    return $fetch<null>(target, { method: 'DELETE' })
-  },
+  // Runs with no signal too, as the outbox keeps the change (ADR 17).
+  networkMode: 'always',
+  mutationFn: () => outbox.save(deleteRound(tournament.value!, round.value!)),
   onSuccess: async () => {
     confirmingDelete.value = false
-    await refresh()
     await navigateTo(tournamentPath(id.value))
   },
 })
@@ -76,7 +75,7 @@ const failure = computed(() =>
         :round="round"
         :field-errors="fieldErrors"
         :pending="save.isPending.value"
-        @submit="save.mutate"
+        @submit="(body, opponentName) => save.mutate({ body, opponentName })"
       >
         <template #problem>
           <Alert v-if="failure" variant="destructive" role="alert">

@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import type { RoundInput, SavedRound } from '@myvgc/core/schema'
-import { useMutation, useQueryClient } from '@tanstack/vue-query'
+import { useMutation } from '@tanstack/vue-query'
 import { fieldErrorsOf, saveFailureMessage } from '@/lib/api'
+import { RejectedChange } from '@/lib/outbox'
+import { logRound, roundProblems } from '@/lib/outbox-writes'
 import { tournamentPath } from '@/lib/paths'
 
 const route = useRoute()
@@ -9,19 +11,22 @@ const id = computed(() => String(route.params.id))
 const { query, tournament } = useTournament(id)
 useHead({ title: 'Log a Round · MyVGC' })
 
-const queryClient = useQueryClient()
+// Kept on the phone first, so it is logged with no signal too, and sent when it can be (ADR 17).
+const outbox = useOutbox()
 const save = useMutation({
-  mutationFn: (body: RoundInput) => {
-    const url: string = `/api/tournaments/${id.value}/rounds`
-    return $fetch<SavedRound>(url, { method: 'POST', body })
+  // Runs with no signal too, as the outbox keeps the change (ADR 17).
+  networkMode: 'always',
+  mutationFn: ({ body, opponentName }: { body: RoundInput; opponentName: string | null }) => {
+    // Checked here too, as with no signal the server can't say what is wrong with it.
+    const problems = roundProblems(tournament.value!, body)
+    if (problems) throw new RejectedChange(400, 'Invalid request', problems)
+    return outbox.save(logRound(tournament.value!, body, opponentName))
   },
   onSuccess: async (saved) => {
-    await queryClient.invalidateQueries({ queryKey: ['tournament', id.value] })
-    await queryClient.invalidateQueries({ queryKey: ['tournaments'] })
-    await queryClient.invalidateQueries({ queryKey: ['opponents'] })
+    const placement = saved.sent ? (saved.body as SavedRound).suggestedPlacement : null
     await navigateTo({
       path: tournamentPath(id.value),
-      query: saved.suggestedPlacement ? { placement: saved.suggestedPlacement } : {},
+      query: placement ? { placement } : {},
     })
   },
 })
@@ -46,7 +51,7 @@ const failure = computed(() =>
       :tournament="tournament"
       :field-errors="fieldErrors"
       :pending="save.isPending.value"
-      @submit="save.mutate"
+      @submit="(body, opponentName) => save.mutate({ body, opponentName })"
     >
       <template #problem>
         <Alert v-if="failure" variant="destructive" role="alert">

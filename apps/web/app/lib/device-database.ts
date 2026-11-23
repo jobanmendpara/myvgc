@@ -1,6 +1,6 @@
 // The app's IndexedDB database on this device (ADR 17). Each kind of data has its own object
-// store, so clearing or versioning one never touches another: the query cache and the last
-// known User live here now, and the outbox of pending writes (DEV-48) gets a store of its own.
+// store, so clearing or versioning one never touches another: the query cache, the last known
+// User and the outbox of pending writes each have their own.
 
 export const DATABASE_NAME = 'myvgc'
 
@@ -14,11 +14,13 @@ export const STORES = {
   'query-cache': {},
   /** The last known User, under the key `last`. */
   user: {},
+  /** Writes not yet sent to the server, one record per write, keyed `[userId, order, id]`. */
+  outbox: {},
 } satisfies Record<string, IDBObjectStoreParameters>
 
 export type StoreName = keyof typeof STORES
 
-export const DATABASE_VERSION = 1
+export const DATABASE_VERSION = 2
 
 let connection: Promise<IDBDatabase> | undefined
 
@@ -79,10 +81,13 @@ export function deviceStore<T>(name: StoreName) {
   return {
     get: (key: IDBValidKey) =>
       run(name, 'readonly', (s) => s.get(key) as IDBRequest<T | undefined>),
+    /** Every value whose key is in `range`, in key order. */
+    getAll: (range?: IDBKeyRange) =>
+      run(name, 'readonly', (s) => s.getAll(range) as IDBRequest<T[]>),
     set: async (key: IDBValidKey, value: T) => {
       await run(name, 'readwrite', (s) => s.put(value, key))
     },
-    delete: async (key: IDBValidKey) => {
+    delete: async (key: IDBValidKey | IDBKeyRange) => {
       await run(name, 'readwrite', (s) => s.delete(key))
     },
     clear: async () => {

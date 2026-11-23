@@ -1,5 +1,6 @@
 import type { TeamView } from '@myvgc/core/schema'
 import { FetchError } from 'ofetch'
+import { RejectedChange } from './outbox'
 
 /** A problem with one line of a paste, as the API reports it. Lines are numbered from 1. */
 export interface PasteIssue {
@@ -38,6 +39,7 @@ export function toCreateTeamError(error: unknown): CreateTeamError {
  * number already logged). Nothing for any other failure.
  */
 export function fieldErrorsOf(error: unknown): Record<string, string> | undefined {
+  if (error instanceof RejectedChange) return error.fields
   return error instanceof FetchError && (error.statusCode === 400 || error.statusCode === 409)
     ? error.data?.fields
     : undefined
@@ -45,6 +47,10 @@ export function fieldErrorsOf(error: unknown): Record<string, string> | undefine
 
 /** A message for a failed save that isn't about a particular field. */
 export function saveFailureMessage(error: unknown, what: string): string {
+  // Saved through the outbox (ADR 17): the server's own message.
+  if (error instanceof RejectedChange && error.statusCode === 401)
+    return `Your session has ended. Log in again to save this ${what}.`
+  if (error instanceof RejectedChange) return error.message
   if (error instanceof FetchError && error.statusCode === 401)
     return `Your session has ended. Log in again to save this ${what}.`
   if (error instanceof FetchError && error.statusCode === 404)
@@ -52,4 +58,25 @@ export function saveFailureMessage(error: unknown, what: string): string {
   if (error instanceof FetchError && error.statusCode === 409 && error.data?.error)
     return error.data.error
   return `Couldn't save the ${what}. Check your connection and try again.`
+}
+
+type Checked =
+  | { success: true }
+  | {
+      success: false
+      error: { issues: readonly { path: readonly PropertyKey[]; message: string }[] }
+    }
+
+/**
+ * Checks a change against its schema before it is kept on the phone (ADR 17), since with no
+ * signal the server can't say what is wrong with it. Throws the first problem for each field, as
+ * the server's 400 would.
+ */
+export function checkBeforeSaving(schema: { safeParse(body: unknown): Checked }, body: unknown) {
+  const checked = schema.safeParse(body)
+  if (checked.success) return
+  const fields: Record<string, string> = {}
+  for (const issue of checked.error.issues)
+    fields[issue.path.map(String).join('.') || 'body'] ??= issue.message
+  throw new RejectedChange(400, 'Invalid request', fields)
 }

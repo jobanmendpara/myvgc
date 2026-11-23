@@ -47,7 +47,8 @@ const props = defineProps<{
   fieldErrors?: Record<string, string>
   pending: boolean
 }>()
-const emit = defineEmits<{ submit: [body: RoundInput] }>()
+// The Opponent's display name comes along, so the Round shows before the server has it (ADR 17).
+const emit = defineEmits<{ submit: [body: RoundInput, opponentName: string | null] }>()
 
 const logged = computed(() => props.tournament.rounds.filter((r) => r.id !== props.round?.id))
 const nextNumber = computed(() => Math.max(0, ...logged.value.map((r) => r.roundNumber ?? 0)) + 1)
@@ -86,6 +87,9 @@ const fromScore = (score: GameScore | null): ScoreChoice => {
 const r = props.round
 const phase = ref<RoundPhase>(r?.phase ?? (logged.value.some((x) => x.stage) ? 'top-cut' : 'swiss'))
 const roundNumber = ref(String(r?.roundNumber ?? nextNumber.value))
+// A new Round whose number the User leaves as offered sends none, so the server gives it the next
+// free one, also when it is sent later and another device logged a Round meanwhile (ADR 17).
+const offeredNumber = r ? undefined : roundNumber.value
 const stage = ref<TopCutStage>(r?.stage ?? nextStage.value)
 const bestOf = ref<BestOf>(r?.bestOf ?? props.tournament.defaultBestOf)
 const bye = ref(r?.bye ?? false)
@@ -349,25 +353,30 @@ function submit() {
   }
   const recorded = games.value.filter((g) => !isEmptyGame(g)).map(copyGame)
   sentNumbers.value = recorded.map((g) => g.number)
-  emit('submit', {
-    phase: phase.value,
-    roundNumber: phase.value === 'swiss' ? number : null,
-    stage: phase.value === 'top-cut' ? stage.value : null,
-    bestOf: bestOf.value,
-    bye: bye.value,
-    result: bye.value || scored.value ? null : (result.value ?? null),
-    gameScore: bye.value || !scored.value ? null : toScore(score.value),
-    opponentId: !bye.value && opponent.value?.kind === 'existing' ? opponent.value.id : null,
-    newOpponentName:
-      !bye.value && opponent.value?.kind === 'new' ? opponent.value.displayName : null,
-    notes: notes.value,
-    // Sent even with a Bye, so the API says to remove them rather than them vanishing.
-    games: recorded,
-    // A list replaces their Team, and an empty one deletes it. Left out on a Bye.
-    ...(!bye.value && opponent.value
-      ? { opponentTeam: changedOpponentTeam(), opponentAgeDivision: changedAgeDivision() }
-      : {}),
-  })
+  const swissNumber = roundNumber.value === offeredNumber ? undefined : number
+  emit(
+    'submit',
+    {
+      phase: phase.value,
+      roundNumber: phase.value === 'swiss' ? swissNumber : null,
+      stage: phase.value === 'top-cut' ? stage.value : null,
+      bestOf: bestOf.value,
+      bye: bye.value,
+      result: bye.value || scored.value ? null : (result.value ?? null),
+      gameScore: bye.value || !scored.value ? null : toScore(score.value),
+      opponentId: !bye.value && opponent.value?.kind === 'existing' ? opponent.value.id : null,
+      newOpponentName:
+        !bye.value && opponent.value?.kind === 'new' ? opponent.value.displayName : null,
+      notes: notes.value,
+      // Sent even with a Bye, so the API says to remove them rather than them vanishing.
+      games: recorded,
+      // A list replaces their Team, and an empty one deletes it. Left out on a Bye.
+      ...(!bye.value && opponent.value
+        ? { opponentTeam: changedOpponentTeam(), opponentAgeDivision: changedAgeDivision() }
+        : {}),
+    },
+    bye.value ? null : (opponent.value?.displayName ?? null),
+  )
 }
 
 // Leaving with unsaved edits asks first, except while saving, when the page moves on by itself.
