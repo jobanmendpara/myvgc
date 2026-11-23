@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { DATA_EXPORT_VERSION, readDataExport } from '../src/schema'
-import { current, ids, versionOne, versionThree, versionTwo } from './data-export-file'
+import { current, ids, versionFour, versionOne, versionThree, versionTwo } from './data-export-file'
 
 describe('Reading a Data export', () => {
   it('reads a file in the current version', () => {
@@ -42,6 +42,15 @@ describe('Reading a Data export', () => {
     if (!read.ok) throw new Error('should read')
     expect(read.file.version).toBe(DATA_EXPORT_VERSION)
     expect(read.file.teams[0]!.replicaTeamId).toBe('')
+  })
+
+  it('upgrades a version 4 file, reading its Grassroots Tournaments as Local', () => {
+    const file = versionFour()
+    file.tournaments[0]!.eventTier = 'grassroots'
+    const read = readDataExport(file)
+    if (!read.ok) throw new Error('should read')
+    expect(read.file.version).toBe(DATA_EXPORT_VERSION)
+    expect(read.file.tournaments[0]!.eventTier).toBe('local')
   })
 
   it('names Player details as the record a broken Player detail is in', () => {

@@ -46,7 +46,7 @@ describe('Tournaments', () => {
     const res = await post(
       t.app,
       '/api/tournaments',
-      { name: 'Locals', startDate: '2026-06-20', eventTier: 'grassroots' },
+      { name: 'Locals', startDate: '2026-06-20', eventTier: 'local' },
       ash,
     )
     expect(await json(res)).toMatchObject({
