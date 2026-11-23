@@ -531,3 +531,42 @@ test('a page visited before opens with no signal, and the API never comes from t
   expect(api).toBe('unreachable')
   await context.setOffline(false)
 })
+
+test('with no signal, the app opens as the last known User with their cached pages', async ({
+  context,
+  page,
+}) => {
+  await signUp(page, 'smoke-offline')
+  const user = (await page.getByTestId('current-user').textContent())?.trim()
+  await createTournament(page, 'Offline Open')
+  await page.goto('/tournaments')
+  await expect(page.getByText('Offline Open').first()).toBeVisible()
+  await page.evaluate(() => navigator.serviceWorker.ready)
+  // The query cache is saved on the device a moment after it changes.
+  const savedCaches = () =>
+    page.evaluate(
+      () =>
+        new Promise<number>((resolve, reject) => {
+          const open = indexedDB.open('myvgc')
+          open.onerror = () => reject(open.error)
+          open.onsuccess = () => {
+            const count = open.result.transaction('query-cache').objectStore('query-cache').count()
+            count.onsuccess = () => {
+              open.result.close()
+              resolve(count.result)
+            }
+          }
+        }),
+    )
+  await expect.poll(savedCaches).toBe(1)
+  await page.close()
+
+  // A cold start with no signal: the session check can't reach the server.
+  await context.setOffline(true)
+  const offline = await context.newPage()
+  await offline.goto('/tournaments')
+  await expect(offline.getByTestId('current-user')).toHaveText(user ?? '')
+  await expect(offline.getByText('Offline Open').first()).toBeVisible()
+  await expect(offline.getByText("Can't reach the server")).toHaveCount(0)
+  await context.setOffline(false)
+})
