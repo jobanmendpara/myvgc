@@ -79,6 +79,27 @@ describe('The saved query cache', () => {
     expect(after.getQueryData(['opponents', 'list'])).toEqual(opponents)
   })
 
+  it('comes back stale, so pages show it at once but ask the server again', async () => {
+    const before = freshClient()
+    await persistCacheFor(before, ash.id)
+    before.setQueryData(['opponents', 'list'], opponents)
+    await saved()
+    stopPersisting()
+
+    // Restarted straight away, well inside any staleTime: the server may still have changed.
+    const after = new QueryClient({
+      defaultOptions: { queries: { gcTime: Infinity, staleTime: 60_000 } },
+    })
+    await persistCacheFor(after, ash.id)
+    expect(after.getQueryData(['opponents', 'list'])).toEqual(opponents)
+    expect(
+      after
+        .getQueryCache()
+        .find({ queryKey: ['opponents', 'list'] })
+        ?.isStale(),
+    ).toBe(true)
+  })
+
   it('is kept per User, so one User never sees another’s data', async () => {
     const client = freshClient()
     await persistCacheFor(client, ash.id)

@@ -113,8 +113,17 @@ export function persistCacheFor(queryClient: QueryClient, userId: string): Promi
     maxAge: CACHE_MAX_AGE,
     dehydrateOptions: { shouldDehydrateQuery: shouldSaveQuery },
   })
-  // A cache that can't be read is thrown away; the app then fetches as usual.
-  const restored = restoring.catch(() => {})
+  const restored = restoring.then(
+    // What comes from the device is a copy that may be out of date, however recently it was
+    // saved: pages show it at once and still ask the server, when it can be reached.
+    () =>
+      queryClient.invalidateQueries({
+        predicate: (query) => shouldSaveQuery(query),
+        refetchType: 'none',
+      }),
+    // A cache that can't be read is thrown away; the app then fetches as usual.
+    () => {},
+  )
   persisting = {
     userId,
     restored,
