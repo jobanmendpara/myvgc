@@ -7,6 +7,7 @@ export const ids = {
   tournament: '00000000-0000-4000-8000-000000000004',
   round: '00000000-0000-4000-8000-000000000005',
   opponentTeam: '00000000-0000-4000-8000-000000000006',
+  opponentAgeDivision: '00000000-0000-4000-8000-000000000007',
 }
 export const pokemon = [
   {
@@ -137,5 +138,26 @@ export const versionFour = () => {
   }
 }
 
-/** A file in the current version, version 5: version 4 with the Grassroots Event tier named Local. */
-export const current = () => ({ ...versionFour(), version: 5 })
+/** A version 5 file: version 4 with the Grassroots Event tier named Local. */
+export const versionFive = () => ({ ...versionFour(), version: 5 })
+
+/** A file in the current version, version 6: version 5 plus Opponent's Age Divisions (ADR 30). */
+export const current = () => {
+  const file = versionFive()
+  return {
+    ...file,
+    version: 6,
+    tournaments: file.tournaments.map((tournament) => ({
+      ...tournament,
+      opponentAgeDivisions: [
+        {
+          id: ids.opponentAgeDivision,
+          opponentId: ids.opponent,
+          ageDivision: 'Junior',
+          createdAt: at,
+          updatedAt: at,
+        },
+      ],
+    })),
+  }
+}

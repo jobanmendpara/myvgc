@@ -27,8 +27,9 @@ function factsOf(round: ImportedRound, defaultBestOf: BestOf): RoundFacts & { ga
     result: round.result,
     gameScore: round.gameScore ?? null,
     hasOpponent: Boolean(round.opponentId),
-    // An imported Round's Opponent's Team is checked with its Tournament instead.
+    // An imported Round's Opponent's Team and Age Division are checked with its Tournament instead.
     hasOpponentTeam: false,
+    hasOpponentAgeDivision: false,
     games: round.games.toSorted((a, b) => a.number - b.number),
   }
 }
@@ -37,7 +38,10 @@ function factsOf(round: ImportedRound, defaultBestOf: BestOf): RoundFacts & { ga
 export function settleImportedRound(
   round: ImportedRound,
   defaultBestOf: BestOf,
-): Omit<RoundFacts, 'result' | 'gameScore' | 'hasOpponent' | 'hasOpponentTeam' | 'games'> & {
+): Omit<
+  RoundFacts,
+  'result' | 'gameScore' | 'hasOpponent' | 'hasOpponentTeam' | 'hasOpponentAgeDivision' | 'games'
+> & {
   result: RoundResult
   gameScore: GameScore | null
   games: Game[]
@@ -156,6 +160,21 @@ export function checkDataExport(file: ReadDataExport, account: ImportAccount): I
       else if (!played.has(team.opponentId))
         add([...path, 'opponentId'], 'No Round in this Tournament is against this Opponent.')
       teamsOf.add(team.opponentId)
+    })
+
+    // So does an Opponent's Age Division (ADR 30).
+    const divisionsOf = new Set<string>()
+    tournament.opponentAgeDivisions.forEach((division, o) => {
+      const path = ['tournaments', t, 'opponentAgeDivisions', o]
+      once('opponentAgeDivision', division.id, path)
+      if (divisionsOf.has(division.opponentId))
+        add(
+          [...path, 'opponentId'],
+          'This Opponent’s Age Division is listed twice in this Tournament.',
+        )
+      else if (!played.has(division.opponentId))
+        add([...path, 'opponentId'], 'No Round in this Tournament is against this Opponent.')
+      divisionsOf.add(division.opponentId)
     })
   })
   return issues

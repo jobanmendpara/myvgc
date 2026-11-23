@@ -90,6 +90,7 @@ describe('roundIssues for an Opponent’s Team', () => {
     hasOpponent: true,
     games: [],
     hasOpponentTeam: true,
+    hasOpponentAgeDivision: false,
   }
   const fields = (facts: RoundFacts) => roundIssues(facts).map((issue) => issue.path.join('.'))
 

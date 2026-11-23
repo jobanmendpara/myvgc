@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { type RoundInput, type SavedRound, losesOpponentTeam } from '@myvgc/core/schema'
+import type { RoundInput, SavedRound } from '@myvgc/core/schema'
 import { useMutation, useQueryClient } from '@tanstack/vue-query'
 import { fieldErrorsOf, saveFailureMessage } from '@/lib/api'
+import { lostWithLastRound } from '@/lib/opponent-team'
 import { tournamentPath } from '@/lib/paths'
 
 const route = useRoute()
@@ -9,11 +10,12 @@ const id = computed(() => String(route.params.id))
 const roundId = computed(() => String(route.params.roundId))
 const { query, tournament } = useTournament(id)
 const round = computed(() => tournament.value?.rounds.find((r) => r.id === roundId.value))
-// Deleting the last Round against an Opponent deletes their Opponent's Team here too (ADR 22).
-const losesTeam = computed(
+// Deleting the last Round against an Opponent deletes their Opponent's Team and Age Division here
+// too (ADR 22, ADR 30).
+const loses = computed(
   () =>
-    !!tournament.value &&
-    losesOpponentTeam(tournament.value, roundId.value, round.value?.opponent?.id),
+    tournament.value &&
+    lostWithLastRound(tournament.value, roundId.value, round.value?.opponent?.id),
 )
 useHead({ title: 'Edit Round · MyVGC' })
 
@@ -91,9 +93,9 @@ const failure = computed(() =>
             <AlertDialogTitle>Delete this Round?</AlertDialogTitle>
             <AlertDialogDescription>
               This removes the Round and its notes. The Opponent stays.
-              <template v-if="losesTeam">
-                Their Team in this Tournament is deleted too, as no other Round here is against
-                them.
+              <template v-if="loses">
+                Their {{ loses }} in this Tournament {{ loses.includes(' and ') ? 'are' : 'is' }}
+                deleted too, as no other Round here is against them.
               </template>
               It can't be undone.
             </AlertDialogDescription>

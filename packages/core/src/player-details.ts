@@ -6,6 +6,11 @@ export const MAX_PLAYER_DETAIL_LENGTH = 100
 export const AGE_DIVISIONS = ['Junior', 'Senior', 'Masters'] as const
 export type AgeDivision = (typeof AGE_DIVISIONS)[number]
 
+export const ageDivisionSchema = z.enum(
+  AGE_DIVISIONS,
+  `Choose ${AGE_DIVISIONS.slice(0, -1).join(', ')} or ${AGE_DIVISIONS.at(-1)}.`,
+)
+
 const dateOfBirth = z.iso.date({ error: 'Enter a Date of Birth such as 2010-01-31.', abort: true })
 
 const detail = z
@@ -26,13 +31,7 @@ export const playerDetailsSchema = z.object({
   switchProfileName: detail,
   playerId: detail,
   supportId: detail,
-  ageDivision: z
-    .enum(
-      AGE_DIVISIONS,
-      `Choose ${AGE_DIVISIONS.slice(0, -1).join(', ')} or ${AGE_DIVISIONS.at(-1)}.`,
-    )
-    .nullable()
-    .default(null),
+  ageDivision: ageDivisionSchema.nullable().default(null),
   dateOfBirth: dateOfBirth.nullable().default(null),
 })
 

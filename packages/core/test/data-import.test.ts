@@ -61,6 +61,25 @@ describe('Checking a Data export before it is imported', () => {
     ])
   })
 
+  it('refuses an Opponent’s Age Division for an Opponent with no Round in that Tournament, or listed twice', () => {
+    const file = current()
+    const [division] = file.tournaments[0]!.opponentAgeDivisions
+    file.tournaments[0]!.opponentAgeDivisions.push(
+      { ...division!, id: '00000000-0000-4000-8000-000000000022' },
+      { ...division!, id: '00000000-0000-4000-8000-000000000023', opponentId: otherId },
+    )
+    expect(check(file).map((issue) => [issue.path.join('.'), issue.message])).toEqual([
+      [
+        'tournaments.0.opponentAgeDivisions.1.opponentId',
+        'This Opponent’s Age Division is listed twice in this Tournament.',
+      ],
+      [
+        'tournaments.0.opponentAgeDivisions.2.opponentId',
+        'No Round in this Tournament is against this Opponent.',
+      ],
+    ])
+  })
+
   it('refuses species, items and moves the install doesn’t know, in Teams and Team snapshots', () => {
     const file = versionOne()
     file.teams[0]!.pokemon = [{ ...pokemon[0]!, item: 'notanitem' }]
@@ -131,7 +150,7 @@ describe('Checking a Data export before it is imported', () => {
     expect(check(file)).toEqual([])
   })
 
-  it('refuses the same id twice for an Opponent’s Team', () => {
+  it('refuses the same id twice for an Opponent’s Team or Age Division', () => {
     const file = current()
     file.tournaments.push({
       ...file.tournaments[0]!,
@@ -142,6 +161,10 @@ describe('Checking a Data export before it is imported', () => {
     expect(check(file)).toEqual([
       expect.objectContaining({
         path: ['tournaments', 1, 'opponentTeams', 0, 'id'],
+        message: 'This ID is used twice in the file.',
+      }),
+      expect.objectContaining({
+        path: ['tournaments', 1, 'opponentAgeDivisions', 0, 'id'],
         message: 'This ID is used twice in the file.',
       }),
     ])

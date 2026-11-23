@@ -17,6 +17,7 @@ import {
   opponent,
   opponentAlias,
   opponentNoteEntry,
+  opponentAgeDivision,
   opponentTeam,
   round,
   tournament,
@@ -177,6 +178,13 @@ export function opponentRoutes(db: Database) {
             .select({ tournamentId: opponentTeam.tournamentId, pokemon: opponentTeam.pokemon })
             .from(opponentTeam)
             .where(eq(opponentTeam.opponentId, id)),
+          opponentAgeDivisions: await db
+            .select({
+              tournamentId: opponentAgeDivision.tournamentId,
+              ageDivision: opponentAgeDivision.ageDivision,
+            })
+            .from(opponentAgeDivision)
+            .where(eq(opponentAgeDivision.opponentId, id)),
         }
         return c.json(detail)
       })
@@ -205,8 +213,8 @@ export function opponentRoutes(db: Database) {
         const [view] = await views([row])
         return c.json(view)
       })
-      // Merges a duplicate Opponent into this one: the duplicate's Rounds, Note entries and
-      // Opponent's Teams move here, its name and Aliases join this one's Aliases, its notes follow
+      // Merges a duplicate Opponent into this one: the duplicate's Rounds, Note entries,
+      // Opponent's Teams and Age Divisions move here, its name and Aliases join this one's Aliases, its notes follow
       // these, and it is deleted.
       .post('/:id/merge', async (c) => {
         const id = c.req.param('id')
@@ -259,6 +267,24 @@ export function opponentRoutes(db: Database) {
               .set({ pokemon: mergeOpponentTeams(kept.pokemon, duplicate.pokemon) })
               .where(eq(opponentTeam.id, kept.id))
             await tx.delete(opponentTeam).where(eq(opponentTeam.id, duplicate.id))
+          }
+          // Their Age Divisions move where the survivor has none; where both have one, the
+          // survivor's is kept (ADR 30).
+          const divisions = await tx
+            .select()
+            .from(opponentAgeDivision)
+            .where(inArray(opponentAgeDivision.opponentId, [id, duplicateId]))
+          for (const duplicate of divisions.filter((d) => d.opponentId === duplicateId)) {
+            const kept = divisions.some(
+              (d) => d.opponentId === id && d.tournamentId === duplicate.tournamentId,
+            )
+            if (kept)
+              await tx.delete(opponentAgeDivision).where(eq(opponentAgeDivision.id, duplicate.id))
+            else
+              await tx
+                .update(opponentAgeDivision)
+                .set({ opponentId: id })
+                .where(eq(opponentAgeDivision.id, duplicate.id))
           }
           await tx
             .update(opponentNoteEntry)

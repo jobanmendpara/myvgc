@@ -109,14 +109,15 @@ const NO_POINTS = { hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0 }
 const mon = (species: string): PokemonBuild => ({ species, moves: [], statPoints: NO_POINTS })
 
 describe('groupByTournament', () => {
-  it('puts the newest Tournament first, each with its Opponent’s Team', () => {
+  it('puts the newest Tournament first, each with its Opponent’s Team and Age Division', () => {
     const groups = groupByTournament({
       rounds: [round(tournaments.toronto), round(tournaments.online)],
       opponentTeams: [{ tournamentId: 't1', pokemon: [mon('incineroar')] }],
+      opponentAgeDivisions: [{ tournamentId: 't1', ageDivision: 'Senior' }],
     })
-    expect(groups.map((g) => [g.tournament.name, g.opponentTeam])).toEqual([
-      ['Online Challenge', null],
-      ['Toronto Regional', [mon('incineroar')]],
+    expect(groups.map((g) => [g.tournament.name, g.opponentTeam, g.ageDivision])).toEqual([
+      ['Online Challenge', null, null],
+      ['Toronto Regional', [mon('incineroar')], 'Senior'],
     ])
   })
 
@@ -133,12 +134,15 @@ describe('groupByTournament', () => {
         round(tournaments.toronto, { roundNumber: 2, result: 'tie' }),
       ],
       opponentTeams: [],
+      opponentAgeDivisions: [],
     })
     expect(group!.rounds.map((r) => r.roundNumber ?? r.stage)).toEqual([2, 6, 'top-8'])
     expect(group!.headToHead).toEqual({ wins: 1, losses: 1, ties: 1 })
   })
 
   it('gives nothing for an Opponent with no Rounds', () => {
-    expect(groupByTournament({ rounds: [], opponentTeams: [] })).toEqual([])
+    expect(groupByTournament({ rounds: [], opponentTeams: [], opponentAgeDivisions: [] })).toEqual(
+      [],
+    )
   })
 })

@@ -1,6 +1,10 @@
 import type { NamedPokemonBuild } from '@myvgc/core/schema'
 import { describe, expect, it } from 'vitest'
-import { readToOpponentTeam, toOpponentTeamInput } from '../app/lib/opponent-team'
+import {
+  lostWithLastRound,
+  readToOpponentTeam,
+  toOpponentTeamInput,
+} from '../app/lib/opponent-team'
 
 const NO_POINTS = { hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0 }
 const named = (species: string, more: Partial<NamedPokemonBuild> = {}): NamedPokemonBuild => ({
@@ -56,5 +60,28 @@ describe('readToOpponentTeam', () => {
     })
 
     expect(toOpponentTeamInput(pokemon)).toEqual([{ species: 'incineroar', moves: ['fakeout'] }])
+  })
+})
+
+describe('lostWithLastRound', () => {
+  const tournament = {
+    rounds: [
+      { id: 'r1', opponent: { id: 'wolfe' } },
+      { id: 'r2', opponent: { id: 'aaron' } },
+    ],
+    opponentTeams: [{ opponentId: 'wolfe', pokemon: [] }],
+    opponentAgeDivisions: [
+      { opponentId: 'wolfe', ageDivision: 'Junior' as const },
+      { opponentId: 'aaron', ageDivision: 'Masters' as const },
+    ],
+  }
+
+  it('names what is recorded about them there', () => {
+    expect(lostWithLastRound(tournament, 'r1', 'wolfe')).toBe('Team and Age Division')
+    expect(lostWithLastRound(tournament, 'r2', 'aaron')).toBe('Age Division')
+  })
+
+  it('is nothing while another Round is against them', () => {
+    expect(lostWithLastRound(tournament, 'r9', 'wolfe')).toBeUndefined()
   })
 })

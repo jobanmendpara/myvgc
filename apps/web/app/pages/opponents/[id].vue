@@ -245,8 +245,13 @@ const roundsMoving = computed(() => {
                   class="font-medium break-words hover:underline"
                   >{{ group.tournament.name }}</NuxtLink
                 >
-                <p class="text-muted-foreground text-xs">
+                <p class="text-muted-foreground flex flex-wrap items-center gap-1.5 text-xs">
                   {{ formatDates(group.tournament.startDate) }} · {{ group.tournament.regulation }}
+                  <AgeDivisionBadge
+                    v-if="group.ageDivision"
+                    :age-division="group.ageDivision"
+                    full
+                  />
                 </p>
               </div>
               <span class="shrink-0 text-sm font-semibold">{{

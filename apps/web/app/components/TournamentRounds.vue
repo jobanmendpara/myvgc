@@ -5,6 +5,7 @@ import {
   type RoundView,
   type TournamentView,
   formatRecord,
+  opponentAgeDivisionOf,
   opponentTeamOf,
 } from '@myvgc/core/schema'
 import { roundLabel } from '@/lib/format'
@@ -39,6 +40,8 @@ const teamLine = (opponentId: string | undefined) =>
   opponentTeamOf(props.tournament.opponentTeams, opponentId)
     ?.pokemon.map((build) => nameOf(build.species))
     .join(', ')
+const ageDivisionOf = (opponentId: string | undefined) =>
+  opponentAgeDivisionOf(props.tournament.opponentAgeDivisions, opponentId)
 const hasTopCut = computed(() => props.tournament.rounds.some((r) => r.phase === 'top-cut'))
 </script>
 
@@ -71,9 +74,15 @@ const hasTopCut = computed(() => props.tournament.rounds.some((r) => r.phase ===
         >
           <span class="text-muted-foreground w-16 shrink-0 text-sm">{{ roundLabel(r) }}</span>
           <span class="flex min-w-0 flex-1 flex-col">
-            <span class="font-medium break-words">{{
-              r.bye ? 'Bye' : (r.opponent?.displayName ?? 'Unknown')
-            }}</span>
+            <span class="flex flex-wrap items-center gap-1.5">
+              <span class="font-medium break-words">{{
+                r.bye ? 'Bye' : (r.opponent?.displayName ?? 'Unknown')
+              }}</span>
+              <AgeDivisionBadge
+                v-if="ageDivisionOf(r.opponent?.id)"
+                :age-division="ageDivisionOf(r.opponent?.id)!"
+              />
+            </span>
             <span
               v-if="teamLine(r.opponent?.id)"
               class="text-muted-foreground text-xs break-words"
