@@ -29,12 +29,13 @@ export default defineNuxtConfig({
       ],
     },
     generateSW: {
-      // The manifest and its icons are added by the module itself.
-      globPatterns: ['**/*.{js,css,html,svg,ico,png,woff2}'],
+      // The manifest and its icons are added by the module itself. Every Sprite is kept too, so one
+      // shows with no signal even on a page never visited before (ADR 29).
+      globPatterns: ['**/*.{js,css,html,svg,ico,png,woff2}', 'sprites/*.webp'],
       // Every page is the same index.html. It must answer 200, never a redirect: iOS rejects a
-      // redirected navigation from a service worker.
+      // redirected navigation from a service worker. A missing Sprite stays a 404, as on the server.
       navigateFallback: '/',
-      navigateFallbackDenylist: [/^\/api(\/|$)/],
+      navigateFallbackDenylist: [/^\/api(\/|$)/, /^\/sprites\//],
       cleanupOutdatedCaches: true,
     },
     // app/plugins/update-checks.client.ts checks for new versions instead.
