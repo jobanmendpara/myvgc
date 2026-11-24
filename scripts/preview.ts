@@ -4,7 +4,8 @@
 // .env, never touches the dev database and never uses ports 3000 or 3001 (see
 // docs/wiki/up-local-shares-dev-db.md).
 //
-//   pnpm preview          start in the background, sign up a User with one Team, print the address
+//   pnpm preview          start in the background with a seeded User, print the address and the
+//                         seeded pages (apps/api/scripts/preview-seed.ts)
 //   pnpm preview status   print the address if it's running
 //   pnpm preview:stop     stop it; the database goes with it
 //
@@ -30,8 +31,10 @@ export interface PreviewState {
   pids: number[]
   email: string
   password: string
-  /** The seeded Team's page, which shows Sprites. */
+  /** The seeded Team's page, which shows Sprites: what `pnpm screenshots` shoots by default. */
   teamPath: string
+  /** Every seeded page, as apps/api/scripts/preview-seed.ts lists them. */
+  pages: { label: string; path: string }[]
 }
 
 export const previewDir = (root = ROOT) => join(root, '.preview')
@@ -148,34 +151,12 @@ async function waitFor(url: string, deadline: number, log: string) {
   throw new Error(`${url} didn't answer within ${READY_TIMEOUT_MS / 1000} s; see ${log}.`)
 }
 
-/** Signs up the preview User and gives them one Team, through the API like the web app. */
-async function seed(root: string, url: string, apiPort: number) {
-  const api = `http://localhost:${apiPort}`
-  const email = 'preview@example.com'
-  const password = 'preview-password'
-  const signUp = await fetch(`${api}/api/auth/sign-up/email`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', origin: url },
-    body: JSON.stringify({ email, password, name: 'Preview' }),
-  })
-  if (!signUp.ok) throw new Error(`Signing up the preview User failed: ${signUp.status}`)
-  const cookie = signUp.headers
-    .getSetCookie()
-    .map((c) => c.split(';')[0])
-    .join('; ')
-  // The 2026 World Championships winner's team list, as in the smoke test.
-  const paste = readFileSync(
-    join(root, 'packages/core/test/fixtures/worlds-2026-yamazaki-ots.txt'),
-    'utf8',
-  )
-  const team = await fetch(`${api}/api/teams`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', origin: url, cookie },
-    body: JSON.stringify({ name: 'Preview Team', regulation: 'M-B', paste }),
-  })
-  if (!team.ok) throw new Error(`Creating the preview Team failed: ${team.status}`)
-  const { team: created } = (await team.json()) as { team: { id: string } }
-  return { email, password, teamPath: `/teams/${created.id}` }
+/** What preview-server.ts seeded, which it writes to SEED_FILE before it listens. */
+function readSeed(seedFile: string): Pick<PreviewState, 'email' | 'password' | 'pages'> {
+  return JSON.parse(readFileSync(seedFile, 'utf8')) as Pick<
+    PreviewState,
+    'email' | 'password' | 'pages'
+  >
 }
 
 export async function start(root = ROOT): Promise<PreviewState> {
@@ -187,12 +168,14 @@ export async function start(root = ROOT): Promise<PreviewState> {
   const url = `http://localhost:${webPort}`
   const apiLog = join(previewDir(root), 'api.log')
   const webLog = join(previewDir(root), 'web.log')
+  const seedFile = join(previewDir(root), 'seed.json')
+  rmSync(seedFile, { force: true })
 
   const pids = [
     startServer(
       ['pnpm', '--filter', '@myvgc/api', 'exec', 'tsx', 'scripts/preview-server.ts'],
       root,
-      { PORT: String(apiPort), APP_URL: url },
+      { PORT: String(apiPort), APP_URL: url, SEED_FILE: seedFile },
       apiLog,
     ),
     startServer(
@@ -204,14 +187,15 @@ export async function start(root = ROOT): Promise<PreviewState> {
     ),
   ]
   // Written now, so `pnpm preview:stop` can clean up even if starting fails.
-  const partial = { url, apiPort, webPort, pids, email: '', password: '', teamPath: '' }
+  const partial = { url, apiPort, webPort, pids, email: '', password: '', teamPath: '', pages: [] }
   writeFileSync(statePath(root), JSON.stringify(partial, null, 2))
 
   try {
     const deadline = Date.now() + READY_TIMEOUT_MS
     await waitFor(`http://localhost:${apiPort}/api/health`, deadline, apiLog)
     await waitFor(url, deadline, webLog)
-    const state: PreviewState = { ...partial, ...(await seed(root, url, apiPort)) }
+    const seed = readSeed(seedFile)
+    const state: PreviewState = { ...partial, ...seed, teamPath: seed.pages[0]?.path ?? '' }
     writeFileSync(statePath(root), JSON.stringify(state, null, 2))
     return state
   } catch (error) {
@@ -223,7 +207,8 @@ export async function start(root = ROOT): Promise<PreviewState> {
 function summary(state: PreviewState) {
   return [
     `Preview running at ${state.url} (API on ${state.apiPort}), with a throwaway database.`,
-    `Log in as ${state.email} / ${state.password}. Their Team: ${state.url}${state.teamPath}`,
+    `Log in as ${state.email} / ${state.password}. Seeded pages:`,
+    ...(state.pages ?? []).map(({ label, path }) => `  ${path}  ${label}`),
     'Screenshots: pnpm screenshots [path] [--click <text>]...   Stop: pnpm preview:stop',
   ].join('\n')
 }
