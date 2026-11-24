@@ -48,13 +48,17 @@ const ariaSort = (column: Column) =>
 const id = useId()
 // A Lead pair's key has a space in it, which an id can't.
 const panelId = (key: string) => `${id}-${key.replace(/\s+/g, '-')}`
+// A number never wraps, so a record such as 1-0-0 stays on one line and the species column gives
+// way instead; the padding keeps neighbouring numbers apart (DEV-190). Headings may still wrap
+// between words ("Win / rate"), but not at W-L-T's dashes.
+const NUMBER = 'pl-2 text-right whitespace-nowrap'
 const columns = computed(() => {
   const { headings, unit } = props.table
   return [
     { column: 'name', label: headings.name, align: 'text-left' },
-    { column: 'played', label: unit, align: 'text-right' },
-    { column: 'outcome', label: headings.outcome, align: 'text-right' },
-    { column: 'rate', label: headings.rate, align: 'text-right' },
+    { column: 'played', label: unit, align: 'pl-2 text-right' },
+    { column: 'outcome', label: headings.outcome, align: NUMBER },
+    { column: 'rate', label: headings.rate, align: 'pl-2 text-right' },
   ] satisfies { column: Column; label: string; align: string }[]
 })
 
@@ -134,11 +138,14 @@ const slotWidth = computed(() =>
                   {{ row.name }}
                 </button>
               </td>
-              <td class="py-2 text-right tabular-nums">{{ row.played }}</td>
-              <td class="py-2 text-right tabular-nums">{{ row.outcomeLabel }}</td>
+              <td class="py-2 tabular-nums" :class="NUMBER">{{ row.played }}</td>
+              <td class="py-2 tabular-nums" :class="NUMBER">{{ row.outcomeLabel }}</td>
               <td
-                class="py-2 text-right font-semibold tabular-nums"
-                :class="{ 'text-muted-foreground font-normal': row.played < SMALL_SAMPLE }"
+                class="py-2 font-semibold tabular-nums"
+                :class="[
+                  NUMBER,
+                  { 'text-muted-foreground font-normal': row.played < SMALL_SAMPLE },
+                ]"
                 :title="
                   row.played < SMALL_SAMPLE ? `Fewer than ${SMALL_SAMPLE} ${table.unit}` : undefined
                 "
