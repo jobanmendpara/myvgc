@@ -7,8 +7,7 @@
   "scripts": {
     "smoke": "playwright test",
     "typecheck": "tsc --noEmit",
-    "reading-fixtures": "node scripts/make-reading-fixtures.ts",
-    "screenshots": "node scripts/screenshots.ts"
+    "reading-fixtures": "node scripts/make-reading-fixtures.ts"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0",

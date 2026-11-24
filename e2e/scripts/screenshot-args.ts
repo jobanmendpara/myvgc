@@ -1,26 +1,40 @@
-// Reads `pnpm screenshots`'s arguments into shots (DEV-186). Kept apart from screenshots.ts so it
-// can be tested without a browser or a running preview.
+// Reads `pnpm screenshots`'s arguments into shots (DEV-186, DEV-198), and names their files. Kept
+// apart from screenshots.ts so it can be tested without a browser or a running preview.
+import { createHash } from 'node:crypto'
+import {
+  SPRITE_STYLES,
+  SPRITE_STYLES_KEY,
+  type SpriteStyle,
+  spritePageOf,
+} from '../../apps/web/app/lib/sprites.ts'
 
-/** One screenshot: a page, and what to click on it, in order, before the shot. */
+/** One screenshot: a page, how the device is set up before it loads, and what to click first. */
 export interface Shot {
   /** The page's path, such as `/teams`; undefined for the preview User's Team. */
   path?: string
-  /** Each element's visible text or accessible name, such as `Sprite style`. */
+  /** Each element's visible text or accessible name, such as `Sprite style`, in order. */
   clicks: string[]
+  /** The Sprite style stored for the shot's page before it loads, as a deep link would find it. */
+  spriteStyle?: SpriteStyle
 }
 
 export const USAGE = [
-  'Usage: pnpm screenshots [path] [--click <text>]... [path [--click <text>]...]...',
-  '  path            a page, such as /teams; with none before it, the preview User’s Team',
-  '  --click <text>  click the element with that exact text or accessible name before the shot,',
-  '                  such as --click "Sprite style" --click "Stacked tiles"',
+  'Usage: pnpm screenshots [path] [--sprite-style <style>] [--click <text>]... [path ...]...',
+  '  path                    a page, such as /teams; with none before it, the preview User’s Team',
+  '  --click <text>          click the element with that exact text or accessible name before the',
+  '                          shot, such as --click "Sprite style" --click "Stacked tiles"',
+  `  --sprite-style <style>  store this Sprite style for the page before it loads: ${SPRITE_STYLES.join(', ')}`,
 ].join('\n')
 
 /** Reads the arguments, or throws an Error whose message says what's wrong. */
 export function parseShots(args: string[]): Shot[] {
   const shots: Shot[] = []
-  // Clicks given before any path are for the Team.
+  // Options given before any path are for the Team.
   let current: Shot | undefined
+  const shot = () => {
+    if (!current) shots.push((current = { clicks: [] }))
+    return current
+  }
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]!
     if (arg === '--') continue
@@ -28,8 +42,17 @@ export function parseShots(args: string[]): Shot[] {
       const target = args[++i]
       if (target === undefined || target.startsWith('--') || target.trim() === '')
         throw new Error('--click needs the text of what to click, such as --click "Sprite style".')
-      if (!current) shots.push((current = { clicks: [] }))
-      current.clicks.push(target)
+      shot().clicks.push(target)
+    } else if (arg === '--sprite-style') {
+      const style = args[++i]
+      if (!SPRITE_STYLES.some((known) => known === style))
+        throw new Error(`--sprite-style needs one of ${SPRITE_STYLES.join(', ')}.`)
+      const page = shot()
+      if (page.path && !spritePageOf(page.path))
+        throw new Error(`${page.path} shows no Sprites, so --sprite-style has nothing to set.`)
+      if (page.spriteStyle)
+        throw new Error(`${page.path ?? 'The Team'} has two --sprite-style options; give one.`)
+      page.spriteStyle = style as SpriteStyle
     } else if (arg.startsWith('-')) {
       throw new Error(`Unknown option ${arg}.`)
     } else if (arg.startsWith('/')) {
@@ -41,12 +64,34 @@ export function parseShots(args: string[]): Shot[] {
   return shots.length ? shots : [{ clicks: [] }]
 }
 
-/** The file name for a shot at a width: ("/teams/abc", ["Sprite style"], "phone") is "teams-abc-sprite-style-phone". */
-export function shotName(path: string, clicks: string[], width: string): string {
+/** What to put in the page's localStorage before it loads, for a shot of `path`. */
+export function shotStorage(shot: Shot, path: string): Record<string, string> {
+  const page = spritePageOf(path)
+  if (!shot.spriteStyle || !page) return {}
+  return { [SPRITE_STYLES_KEY]: JSON.stringify({ [page]: shot.spriteStyle }) }
+}
+
+/** Longest file name before the width, past which the name is cut and a hash added. */
+const MAX_NAME = 100
+
+/**
+ * The file name for a shot of `path` at a width, without `.png`: the page, then its Sprite style,
+ * then each click, then the width, such as `teams-abc-sprite-stacked-tiles-sprite-style-phone`.
+ * A name too long to keep whole is cut and ends in a hash of the whole shot, so shots never share
+ * a file.
+ */
+export function shotName(shot: Shot, path: string, width: string): string {
   const slug = (text: string) => text.replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '')
   const parts = [
-    slug(path).slice(0, 80) || 'home',
-    ...clicks.map((click) => slug(click.toLowerCase()).slice(0, 40)),
+    slug(path) || 'home',
+    shot.spriteStyle && `sprite-${shot.spriteStyle}`,
+    ...shot.clicks.map((click) => slug(click.toLowerCase())),
   ]
-  return [...parts.filter(Boolean), width].join('-')
+  const name = parts.filter(Boolean).join('-')
+  if (name.length <= MAX_NAME) return `${name}-${width}`
+  const hash = createHash('sha256')
+    .update(JSON.stringify([path, shot.spriteStyle, shot.clicks]))
+    .digest('hex')
+    .slice(0, 8)
+  return `${name.slice(0, MAX_NAME - 9).replace(/-$/, '')}-${hash}-${width}`
 }
