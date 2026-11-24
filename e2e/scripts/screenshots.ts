@@ -1,15 +1,17 @@
-// `pnpm screenshots [path] [--click <text>]...`: screenshots of pages of the running
-// `pnpm preview` (DEV-184), at phone width (375 px) and desktop width (1280 px), logged in as the
-// preview User. Each path can be followed by clicks to make first, such as opening a dialog
-// (DEV-186); clicks before any path, or no arguments at all, are for the preview User's Team.
-// Each shot starts afresh, so one shot's clicks never carry over to the next. A shot holds the
-// whole page, including any pane that scrolls on its own. Writes
-// .preview/screenshots/<page>[-<click>...]-<width>.png and prints each path.
-import { mkdirSync, readFileSync } from 'node:fs'
+// `pnpm screenshots [path] [--sprite-style <style>] [--click <text>]...`: screenshots of pages of
+// the running `pnpm preview` (DEV-184), at phone width (375 px) and desktop width (1280 px),
+// logged in as the preview User. Each path can be followed by a Sprite style to store before the
+// page loads (DEV-198) and clicks to make first, such as opening a dialog (DEV-186); options
+// before any path, or no arguments at all, are for the preview User's Team. Each shot starts
+// afresh, so nothing carries over to the next. A shot holds the whole page, including any pane
+// that scrolls on its own, once its images have loaded or failed. Writes
+// .preview/screenshots/<page>[-sprite-<style>][-<click>...]-<width>.png, plus <name>.partN.png
+// slices of a shot taller than SLICE px, and prints each path.
+import { mkdirSync, readFileSync, readdirSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { type Locator, type Page, chromium } from '@playwright/test'
-import { USAGE, parseShots, shotName } from './screenshot-args.ts'
+import { USAGE, parseShots, shotName, shotStorage } from './screenshot-args.ts'
 
 const root = fileURLToPath(new URL('../..', import.meta.url))
 const outDir = join(root, '.preview/screenshots')
@@ -41,6 +43,29 @@ if (!state.teamPath) {
   process.exit(1)
 }
 
+/** Shots taller than this, in px, are also saved as slices this tall, which read without shrinking. */
+const SLICE = 1600
+
+// Saves the shot, and slices of it if it's tall, and prints each path. Slices from an earlier,
+// taller shot of the same name are removed first.
+async function save(page: Page, name: string, fullPage: boolean) {
+  const file = join(outDir, `${name}.png`)
+  for (const old of readdirSync(outDir))
+    if (old.startsWith(`${name}.part`)) rmSync(join(outDir, old))
+  const shot = await page.screenshot({ path: file, fullPage, animations: 'disabled' })
+  console.log(file)
+  // A PNG's height is the big-endian number at byte 20.
+  const height = shot.readUInt32BE(20)
+  if (height <= SLICE) return
+  const width = shot.readUInt32BE(16)
+  for (let y = 0, part = 1; y < height; y += SLICE, part++) {
+    const slice = join(outDir, `${name}.part${part}.png`)
+    const clip = { x: 0, y, width, height: Math.min(SLICE, height - y) }
+    await page.screenshot({ path: slice, fullPage: true, clip, animations: 'disabled' })
+    console.log(slice)
+  }
+}
+
 const WIDTHS = { phone: { width: 375, height: 800 }, desktop: { width: 1280, height: 800 } }
 
 // The one visible element with this exact text or accessible name: a button, link, form field,
@@ -48,6 +73,8 @@ const WIDTHS = { phone: { width: 375, height: 800 }, desktop: { width: 1280, hei
 async function target(page: Page, text: string): Promise<Locator> {
   const kinds = [
     page.getByRole('button', { name: text, exact: true }),
+    page.getByRole('radio', { name: text, exact: true }),
+    page.getByRole('checkbox', { name: text, exact: true }),
     page.getByRole('link', { name: text, exact: true }),
     page.getByLabel(text, { exact: true }),
     page.getByText(text, { exact: true }),
@@ -63,6 +90,45 @@ async function target(page: Page, text: string): Promise<Locator> {
     await page.waitForTimeout(200)
   }
   throw new Error(`Nothing on ${page.url()} has the text or name "${text}".`)
+}
+
+// Clicks the element. A radio or checkbox inside a label is clicked through its label, as a User
+// would: the input itself may be visually hidden, as each List style's is behind its icon.
+async function click(page: Page, text: string) {
+  const element = await target(page, text)
+  const checkable = await element.evaluate(
+    (node) =>
+      node instanceof HTMLInputElement && (node.type === 'radio' || node.type === 'checkbox'),
+  )
+  const label = page.locator('label').filter({ has: element })
+  try {
+    if (checkable && (await label.count()) === 1) await label.click()
+    else await element.click()
+  } catch (error) {
+    // Playwright's message goes on to a long call log; its first line says what went wrong.
+    const reason = (error as Error).message.split('\n')[0]
+    throw new Error(`Clicking "${text}" on ${page.url()} failed: ${reason}`, { cause: error })
+  }
+  await page.waitForLoadState('networkidle')
+}
+
+// Loads every image now, even lazy ones below the fold, and waits until each has loaded or
+// failed, and a failed Sprite has become its dashed gap.
+async function settleImages(page: Page) {
+  await page.evaluate(() => {
+    for (const image of Array.from(document.images)) image.loading = 'eager'
+  })
+  try {
+    await page.waitForFunction(() => Array.from(document.images).every((image) => image.complete), {
+      timeout: 15_000,
+    })
+  } catch {
+    console.error(`Some images on ${page.url()} were still loading after 15 s.`)
+  }
+  // A failed image swaps for its gap on the next render.
+  await page.evaluate(
+    () => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))),
+  )
 }
 
 // On wide screens some pages scroll inside a pane rather than the window, so a full-page shot
@@ -102,20 +168,23 @@ try {
         headers: { origin: state.url },
       })
       if (!login.ok()) throw new Error(`Logging in as ${state.email} failed: ${login.status()}`)
+      const storage = shotStorage(shot, path)
+      // Set once, before the first page loads: a later page keeps whatever the clicks changed.
+      if (Object.keys(storage).length)
+        await context.addInitScript((items) => {
+          for (const [key, value] of Object.entries(items))
+            if (localStorage.getItem(key) === null) localStorage.setItem(key, value)
+        }, storage)
       const page = await context.newPage()
       // The first visit to a page compiles it under `nuxt dev`, which can take a while.
       await page.goto(path, { waitUntil: 'networkidle', timeout: 120_000 })
-      for (const click of shot.clicks) {
-        await (await target(page, click)).click()
-        await page.waitForLoadState('networkidle')
-      }
+      for (const text of shot.clicks) await click(page, text)
       // An open dialog sits over the window, so show the window as the User sees it; a
       // full-page shot would leave a bottom sheet floating partway down the page.
       const dialogOpen = await page.getByRole('dialog').filter({ visible: true }).count()
       if (!dialogOpen) await fitScrollingPanes(page, viewport)
-      const file = join(outDir, `${shotName(path, shot.clicks, width)}.png`)
-      await page.screenshot({ path: file, fullPage: !dialogOpen, animations: 'disabled' })
-      console.log(file)
+      await settleImages(page)
+      await save(page, shotName(shot, path, width), !dialogOpen)
       await context.close()
     }
   }
