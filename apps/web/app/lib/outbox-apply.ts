@@ -1,5 +1,9 @@
 import {
+  type AppliedFilters,
   compareRounds,
+  type DashboardView,
+  isUpcoming,
+  type NewTournament,
   type NoteEntryView,
   type OpponentDetailView,
   type OpponentView,
@@ -8,13 +12,20 @@ import {
   roundInputSchema,
   roundResult,
   type RoundView,
+  regulationOn,
   settleRound,
+  summarize,
+  type SummaryTournament,
+  type TeamSnapshotView,
+  today,
   type TournamentView,
+  tournamentWarnings,
 } from '@myvgc/core/schema'
 import type { OutboxWrite } from './outbox-rules'
 
 // What pending writes change on the pages before the server has them (ADR 17): the Tournament,
-// its Rounds and Record, the Tournaments list, the Opponents list and an Opponent's Note entries.
+// its details, Team snapshot, Rounds and Record, the Tournaments list, the dashboard, the
+// Opponents list and an Opponent's Note entries.
 // Applying a write twice changes nothing more, so pending writes are applied again over each
 // answer from the server until they are sent. The server's answer replaces it all once they are.
 
@@ -140,35 +151,261 @@ function applyToTournament(tournament: TournamentView, write: OutboxWrite): Tour
 export const isRoundWrite = (write: OutboxWrite) =>
   write.kind === 'log-round' || write.kind === 'edit-round' || write.kind === 'delete-round'
 
+/** A write on a Tournament itself: creating, changing or deleting it, or its Team. */
+export const isTournamentWrite = (write: OutboxWrite) =>
+  write.kind === 'add-tournament' ||
+  write.kind === 'edit-tournament' ||
+  write.kind === 'delete-tournament' ||
+  write.kind === 'link-tournament-team' ||
+  write.kind === 'unlink-tournament-team'
+
+/** Blank text is "not given", as the server reads it. */
+const text = (value: unknown) =>
+  typeof value === 'string' ? value.trim() || null : (value as string | null | undefined)
+
+type SentFields = Partial<NewTournament>
+
+/** A Tournament with its Team snapshot, and what follows from it and the dates. */
+const withTeam = (tournament: TournamentView, team: TeamSnapshotView | null): TournamentView => ({
+  ...tournament,
+  team,
+  upcoming: isUpcoming(tournament.startDate, today()),
+  warnings: tournamentWarnings({ regulation: tournament.regulation, team }),
+})
+
+/**
+ * A Tournament with fields as a write sends them, as the server would save them: blank text is
+ * "not given", and Upcoming and the warnings follow from the result.
+ */
+function withFields(tournament: TournamentView, fields: SentFields): TournamentView {
+  const after: TournamentView = { ...tournament }
+  const set = <K extends keyof TournamentView>(key: K, value: unknown) => {
+    if (value !== undefined) after[key] = value as TournamentView[K]
+  }
+  set('name', typeof fields.name === 'string' ? fields.name.trim() : undefined)
+  set('startDate', fields.startDate)
+  set('endDate', fields.endDate)
+  set('eventTier', fields.eventTier)
+  set('online', fields.online)
+  set('regulation', fields.regulation)
+  set('defaultBestOf', fields.defaultBestOf)
+  set('location', text(fields.location))
+  set('organizer', text(fields.organizer))
+  set('entryFee', fields.entryFee)
+  set('championshipPoints', fields.championshipPoints)
+  set('playerCount', fields.playerCount)
+  set('link', text(fields.link))
+  set('placement', fields.placement)
+  set('dropped', fields.dropped)
+  set('notes', fields.notes)
+  return withTeam(after, after.team)
+}
+
+const isDate = (value: unknown): value is string =>
+  typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)
+
+/** The Tournament a write creates, as the pages show it before the server has it. */
+export function addedTournament(write: OutboxWrite): TournamentView | undefined {
+  const id = write.subject.tournamentId
+  if (write.kind !== 'add-tournament' || !id) return undefined
+  const body = (write.request.body ?? {}) as SentFields
+  const startDate = isDate(body.startDate) ? body.startDate : write.createdAt.slice(0, 10)
+  const blank: TournamentView = {
+    id,
+    name: '',
+    startDate,
+    endDate: null,
+    eventTier: 'other',
+    online: false,
+    regulation: regulationOn(startDate),
+    defaultBestOf: 1,
+    location: null,
+    organizer: null,
+    entryFee: null,
+    championshipPoints: null,
+    playerCount: null,
+    link: null,
+    placement: null,
+    dropped: false,
+    notes: '',
+    upcoming: false,
+    team: null,
+    rounds: [],
+    opponentTeams: [],
+    opponentAgeDivisions: [],
+    teamsheet: null,
+    record: recordOf([]),
+    warnings: [],
+    createdAt: write.createdAt,
+    updatedAt: write.createdAt,
+  }
+  return withFields(blank, body)
+}
+
+/** A Tournament with one write on it or its Rounds applied. */
+function applyOne(tournament: TournamentView, write: OutboxWrite): TournamentView {
+  if (isRoundWrite(write)) return applyToTournament(tournament, write)
+  switch (write.kind) {
+    // A new Tournament fixed after the server refused it shows as fixed.
+    case 'add-tournament':
+    case 'edit-tournament':
+      return withFields(tournament, (write.request.body ?? {}) as SentFields)
+    case 'link-tournament-team':
+      return write.subject.after
+        ? withTeam(tournament, write.subject.after as TeamSnapshotView)
+        : tournament
+    case 'unlink-tournament-team':
+      return withTeam(tournament, null)
+    default:
+      return tournament
+  }
+}
+
+/** Whether a write changes this Tournament as its page shows it. */
+const changesTournament = (write: OutboxWrite, id: string) =>
+  write.subject.tournamentId === id && (isRoundWrite(write) || isTournamentWrite(write))
+
 /**
  * A Tournament as it would be with one write applied, whatever its state: a rejected Round
- * shown in the list, or opened to be fixed.
+ * shown in the list, or a rejected change opened to be fixed.
  */
 export function withWrite(tournament: TournamentView, write: OutboxWrite): TournamentView {
   if (!Array.isArray(tournament.rounds) || write.subject.tournamentId !== tournament.id)
     return tournament
-  return isRoundWrite(write) ? applyToTournament(tournament, write) : tournament
+  return applyOne(tournament, write)
 }
 
-/** A Tournament with the pending writes on its Rounds applied. */
+/** A Tournament with the pending writes on it and its Rounds applied. */
 export function applyToTournamentView(
   tournament: TournamentView,
   writes: readonly OutboxWrite[],
 ): TournamentView {
   if (!Array.isArray(tournament.rounds)) return tournament
   return writes
-    .filter((w) => isPending(w) && isRoundWrite(w) && w.subject.tournamentId === tournament.id)
-    .reduce(applyToTournament, tournament)
+    .filter((w) => isPending(w) && changesTournament(w, tournament.id))
+    .reduce(applyOne, tournament)
+}
+
+/**
+ * A Tournament's page with the pending writes on it. With no page cached yet, a Tournament
+ * created on this device gets one, also while its create is refused, so it can still be opened,
+ * have Rounds logged in it, and be fixed.
+ */
+export function applyToTournamentDetail(
+  tournament: TournamentView | undefined,
+  id: string,
+  writes: readonly OutboxWrite[],
+): TournamentView | undefined {
+  const start =
+    tournament ?? writes.map(addedTournament).find((t): t is TournamentView => t?.id === id)
+  return start ? applyToTournamentView(start, writes) : undefined
+}
+
+/** Newest first, as the server lists them. */
+const byStart = (a: TournamentView, b: TournamentView) =>
+  b.startDate.localeCompare(a.startDate) || b.createdAt.localeCompare(a.createdAt)
+
+/** The Tournaments list with the pending writes: new ones in, deleted ones out, the rest changed. */
+export function applyToTournamentList(
+  tournaments: TournamentView[],
+  writes: readonly OutboxWrite[],
+): TournamentView[] {
+  const pending = writes.filter(isPending)
+  const added = pending
+    .map(addedTournament)
+    .filter((t): t is TournamentView => !!t && !tournaments.some((x) => x.id === t.id))
+  const deleted = new Set(
+    pending.filter((w) => w.kind === 'delete-tournament').map((w) => w.subject.tournamentId),
+  )
+  const after = [...tournaments, ...added]
+    .filter((t) => !deleted.has(t.id))
+    .map((t) => applyToTournamentView(t, pending))
+  if (added.length || deleted.size) return after.sort(byStart)
+  return sameIfUnchanged(tournaments, after)
 }
 
 /** A Tournament with a write that won't be sent taken back out, as far as it can be. */
 function revertInTournament(tournament: TournamentView, write: OutboxWrite): TournamentView {
-  if (!isRoundWrite(write) || write.subject.tournamentId !== tournament.id) return tournament
-  if (!Array.isArray(tournament.rounds)) return tournament
+  if (write.subject.tournamentId !== tournament.id || !Array.isArray(tournament.rounds))
+    return tournament
+  if (write.kind === 'edit-tournament') {
+    const before = write.subject.before as TournamentView | undefined
+    if (!before) return tournament
+    // Only the details go back: the Rounds, Team and Teamsheet are kept as they are now.
+    const details = { ...before } as Partial<TournamentView>
+    for (const key of [
+      'rounds',
+      'opponentTeams',
+      'opponentAgeDivisions',
+      'record',
+      'team',
+      'teamsheet',
+    ] as const)
+      delete details[key]
+    return withTeam({ ...tournament, ...details }, tournament.team)
+  }
+  if (write.kind === 'link-tournament-team' || write.kind === 'unlink-tournament-team')
+    return withTeam(tournament, (write.subject.before as TeamSnapshotView | null) ?? null)
+  if (!isRoundWrite(write)) return tournament
   const id = write.subject.roundId
   const before = write.subject.before as RoundView | undefined
   const others = tournament.rounds.filter((r) => r.id !== id)
   return standing(tournament, before ? [...others, before] : others)
+}
+
+/** The Tournaments list with a write that won't be sent taken back out. */
+function revertInTournamentList(list: TournamentView[], write: OutboxWrite): TournamentView[] {
+  const id = write.subject.tournamentId
+  if (write.kind === 'add-tournament')
+    return list.some((t) => t.id === id) ? list.filter((t) => t.id !== id) : list
+  if (write.kind === 'delete-tournament') {
+    const before = write.subject.before as TournamentView | undefined
+    return before && !list.some((t) => t.id === id) ? [...list, before].sort(byStart) : list
+  }
+  return sameIfUnchanged(
+    list,
+    list.map((t) => revertInTournament(t, write)),
+  )
+}
+
+/** A Tournament as the dashboard counts it. */
+const toSummary = (t: TournamentView): SummaryTournament => ({
+  id: t.id,
+  name: t.name,
+  startDate: t.startDate,
+  createdAt: t.createdAt,
+  playerCount: t.playerCount,
+  placement: t.placement,
+  championshipPoints: t.championshipPoints,
+  entryFee: t.entryFee,
+  team: t.team ? { teamId: t.team.teamId, name: t.team.name } : null,
+  rounds: t.rounds,
+})
+
+/** Whether the dashboard's filters keep a Tournament, as the server applies them. */
+const filteredIn = (t: TournamentView, filters: AppliedFilters) =>
+  (filters.regulation === 'all' || t.regulation === filters.regulation) &&
+  (!filters.from || t.startDate >= filters.from) &&
+  (!filters.to || t.startDate <= filters.to) &&
+  (!filters.eventTier.length || filters.eventTier.includes(t.eventTier)) &&
+  (!filters.setting || t.online === (filters.setting === 'online'))
+
+/**
+ * The dashboard as it will be once the pending writes on Tournaments and Rounds are sent, worked
+ * out from the cached Tournaments list. Without that list, or with nothing pending on them, it
+ * stays as the server sent it.
+ */
+export function applyToDashboard(
+  view: DashboardView,
+  tournaments: TournamentView[] | undefined,
+  writes: readonly OutboxWrite[],
+): DashboardView {
+  const pending = writes.filter((w) => isPending(w) && (isRoundWrite(w) || isTournamentWrite(w)))
+  if (!pending.length || !Array.isArray(tournaments) || !view.filters) return view
+  const counted = applyToTournamentList(tournaments, pending).filter((t) =>
+    filteredIn(t, view.filters),
+  )
+  return { ...view, summary: summarize(counted.map(toSummary)) }
 }
 
 /** A new Opponent, as the Opponents list shows one the server doesn't have yet. */
@@ -274,6 +511,7 @@ function revertInOpponent(detail: OpponentDetailView, write: OutboxWrite): Oppon
 /** The cached queries the outbox changes, by their key. */
 type Target =
   | { kind: 'tournament'; id: string }
+  | { kind: 'dashboard' }
   | { kind: 'tournaments' }
   | { kind: 'opponents' }
   | { kind: 'opponent'; id: string }
@@ -282,6 +520,7 @@ function targetOf(key: readonly unknown[]): Target | undefined {
   if (key[0] === 'tournament' && typeof key[1] === 'string' && key.length === 2)
     return { kind: 'tournament', id: key[1] }
   if (key[0] === 'tournaments' && key.length === 1) return { kind: 'tournaments' }
+  if (key[0] === 'dashboard') return { kind: 'dashboard' }
   if (key[0] === 'opponents' && key[1] === 'list' && key.length === 2) return { kind: 'opponents' }
   if (key[0] === 'opponents' && key[1] === 'detail' && typeof key[2] === 'string')
     return { kind: 'opponent', id: key[2] }
@@ -295,6 +534,11 @@ export const isOutboxTarget = (key: readonly unknown[]) => targetOf(key) !== und
 const sameIfUnchanged = <T>(before: T[], after: T[]) =>
   after.every((item, index) => item === before[index]) ? before : after
 
+/** Other cached data a query's data is worked out from: the dashboard needs the Tournaments list. */
+export interface ApplyContext {
+  tournaments?: unknown
+}
+
 /**
  * A cached query's data with every pending write applied. The same data comes back when no
  * pending write changes it.
@@ -303,17 +547,21 @@ export function applyPending(
   key: readonly unknown[],
   data: unknown,
   writes: readonly OutboxWrite[],
+  context: ApplyContext = {},
 ): unknown {
   const target = targetOf(key)
   if (!target) return data
   switch (target.kind) {
     case 'tournament':
-      return data ? applyToTournamentView(data as TournamentView, writes) : data
+      return applyToTournamentDetail(data as TournamentView | undefined, target.id, writes)
     case 'tournaments':
-      return Array.isArray(data)
-        ? sameIfUnchanged(
-            data as TournamentView[],
-            (data as TournamentView[]).map((t) => applyToTournamentView(t, writes)),
+      return Array.isArray(data) ? applyToTournamentList(data as TournamentView[], writes) : data
+    case 'dashboard':
+      return data
+        ? applyToDashboard(
+            data as DashboardView,
+            context.tournaments as TournamentView[] | undefined,
+            writes,
           )
         : data
     case 'opponents':
@@ -331,12 +579,10 @@ export function revertWrite(key: readonly unknown[], data: unknown, write: Outbo
     case 'tournament':
       return revertInTournament(data as TournamentView, write)
     case 'tournaments':
-      return Array.isArray(data)
-        ? sameIfUnchanged(
-            data as TournamentView[],
-            (data as TournamentView[]).map((t) => revertInTournament(t, write)),
-          )
-        : data
+      return Array.isArray(data) ? revertInTournamentList(data as TournamentView[], write) : data
+    case 'dashboard':
+      // Worked out again from the Tournaments list, then asked of the server again.
+      return data
     case 'opponents': {
       const added = addedOpponent(write)
       return added && Array.isArray(data)

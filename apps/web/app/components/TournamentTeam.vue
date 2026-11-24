@@ -1,14 +1,17 @@
 <script setup lang="ts">
 import type { TeamView, TournamentView } from '@myvgc/core/schema'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
+import { useMutation, useQuery } from '@tanstack/vue-query'
 import { saveFailureMessage } from '@/lib/api'
+import { RejectedChange } from '@/lib/outbox'
+import { linkTournamentTeam, unlinkTournamentTeam } from '@/lib/outbox-writes'
 import { teamPath } from '@/lib/paths'
 
 // The Team snapshot on a Tournament (ADR 9): link one of the User's Teams, replace or refresh
 // it, or unlink it. Refreshing it from the same Team only works until the Tournament is over.
+// Each change is kept on the phone first, so it works with no signal too (ADR 17, DEV-204); the
+// snapshot shows the Team as this phone has it until the server makes its own.
 const props = defineProps<{ tournament: TournamentView; canRefresh: boolean }>()
 
-const queryClient = useQueryClient()
 const teams = useQuery({ queryKey: ['teams'], queryFn: () => $fetch<TeamView[]>('/api/teams') })
 const { style: spriteStyle } = useSpriteStyle()
 
@@ -16,26 +19,21 @@ const choosing = ref(false)
 const chosenTeamId = ref('')
 const showBuilds = ref(false)
 
-const url = computed(() => `/api/tournaments/${props.tournament.id}/team`)
-const onSaved = (saved: TournamentView) => {
-  queryClient.setQueryData(['tournament', saved.id], (old: TournamentView | undefined) =>
-    old ? { ...old, ...saved } : saved,
-  )
-  choosing.value = false
-}
+const outbox = useOutbox()
 const link = useMutation({
+  // Runs with no signal too, as the outbox keeps the change (ADR 17).
+  networkMode: 'always',
   mutationFn: (teamId: string) => {
-    const target: string = url.value
-    return $fetch<TournamentView>(target, { method: 'PUT', body: { teamId } })
+    const team = teams.data.value?.find((t) => t.id === teamId)
+    if (!team)
+      throw new RejectedChange(404, "Your Teams aren't on this phone yet. Try again with a signal.")
+    return outbox.save(linkTournamentTeam(props.tournament, team))
   },
-  onSuccess: onSaved,
+  onSuccess: () => (choosing.value = false),
 })
 const unlink = useMutation({
-  mutationFn: () => {
-    const target: string = url.value
-    return $fetch<TournamentView>(target, { method: 'DELETE' })
-  },
-  onSuccess: onSaved,
+  networkMode: 'always',
+  mutationFn: () => outbox.save(unlinkTournamentTeam(props.tournament)),
 })
 
 function startChoosing() {
@@ -156,7 +154,15 @@ const snapshotDate = computed(() =>
     </div>
 
     <div v-else-if="choosing" class="flex flex-col gap-3 rounded-lg border p-4">
-      <p v-if="teams.isPending.value" class="text-muted-foreground text-sm">Loading your Teams…</p>
+      <p
+        v-if="teams.isPending.value && teams.fetchStatus.value === 'paused'"
+        class="text-muted-foreground text-sm"
+      >
+        Your Teams aren't on this phone yet. Open them once with a signal.
+      </p>
+      <p v-else-if="teams.isPending.value" class="text-muted-foreground text-sm">
+        Loading your Teams…
+      </p>
       <p v-else-if="!teams.data.value?.length" class="text-sm">
         You have no Teams yet.
         <NuxtLink to="/teams/new" class="text-primary underline">Add one</NuxtLink> first.

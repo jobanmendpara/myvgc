@@ -20,10 +20,15 @@ export type WriteKind =
   | 'add-note-entry'
   | 'edit-note-entry'
   | 'delete-note-entry'
+  | 'add-tournament'
+  | 'edit-tournament'
+  | 'delete-tournament'
+  | 'link-tournament-team'
+  | 'unlink-tournament-team'
 
 /** The request a write sends, to one of the API's existing routes. */
 export interface WriteRequest {
-  method: 'POST' | 'PATCH' | 'DELETE'
+  method: 'POST' | 'PUT' | 'PATCH' | 'DELETE'
   url: string
   body?: unknown
 }
@@ -50,6 +55,12 @@ export interface OutboxWrite {
    * earlier pending write that shares one of its series.
    */
   series: string[]
+  /**
+   * The series of the record it creates, such as `tournament:<id>` for a new Tournament. The
+   * writes in that series wait for it even once it is refused, and go with it when it is
+   * discarded, since the server never has what they change.
+   */
+  creates?: string
   /** The records it is about, so the page knows what to update. */
   subject: WriteSubject
   /** What the change is, in a few words, such as "Round 3 in Worlds 2026". */
@@ -64,8 +75,12 @@ export interface WriteSubject {
   /** The Opponent's display name, for a Round shown before the server has it. */
   opponentName?: string
   noteEntryId?: string
+  /** The Team a write links to a Tournament, which may itself be waiting to be created. */
+  teamId?: string
   /** The record as it was before the change, so discarding the change can put it back. */
   before?: unknown
+  /** What the change makes, where the request alone can't show it, such as a Team snapshot. */
+  after?: unknown
 }
 
 /** The server's answer to a write, or none at all. */
@@ -126,12 +141,24 @@ export function nextWrite(
 ): OutboxWrite | undefined {
   const waiting = new Set<string>()
   for (const write of inOrder(writes)) {
+    // A refused create still holds back what is waiting for its record.
+    if (!isPending(write) && write.creates) waiting.add(write.creates)
     if (!isPending(write)) continue
     const blocked = write.series.some((key) => waiting.has(key))
     for (const key of write.series) waiting.add(key)
     if (!blocked && !skip.has(write.id)) return write
   }
   return undefined
+}
+
+/**
+ * The writes that go when this one is discarded: itself and, for a create, every other write on
+ * the record it creates, which the server would never have.
+ */
+export function discardedWith(writes: readonly OutboxWrite[], write: OutboxWrite): OutboxWrite[] {
+  const { creates } = write
+  if (!creates) return [write]
+  return inOrder([write, ...writes.filter((w) => w.id !== write.id && w.series.includes(creates))])
 }
 
 /** Writes in the order they were made. */

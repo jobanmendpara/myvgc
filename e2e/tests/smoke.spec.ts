@@ -671,3 +671,55 @@ test('with no signal, the Round form suggests Opponents from the cached list', a
   await expect(page.getByRole('option', { name: 'Cached Rival', exact: true })).toBeVisible()
   await context.setOffline(false)
 })
+
+test('a Tournament created with no signal, and a Round logged in it, are sent when the signal returns', async ({
+  context,
+  page,
+}) => {
+  await signUp(page, 'smoke-outbox-tournament')
+  // Opened once with a signal, so the forms have what they need offline.
+  await createTournament(page, 'Online Open')
+  await page.getByRole('link', { name: 'Log Round' }).click()
+  await expect(page.getByRole('heading', { name: 'Log a Round' })).toBeVisible()
+  // In the app, not by reloading: the cache reaches the device a moment after it loads.
+  await page
+    .getByRole('navigation', { name: 'Main' })
+    .getByRole('link', { name: 'Tournaments' })
+    .click()
+  await expect(page.getByRole('heading', { name: 'Your Tournaments' })).toBeVisible()
+
+  await context.setOffline(true)
+  await page.getByRole('link', { name: /^New( Tournament)?$/ }).click()
+  await submitNewTournament(page, 'Venue Open')
+
+  // Its page opens at once, marked until the server has it, and a Round can be logged in it.
+  await expect(page.getByTestId('sync-mark').first()).toHaveText('Not synced')
+  await page.getByRole('link', { name: 'Log Round' }).click()
+  await expect(page.getByRole('heading', { name: 'Log a Round' })).toBeVisible()
+  await page.getByRole('combobox', { name: 'Opponent' }).fill('Venue Opponent')
+  await page.getByRole('option', { name: /Add “Venue Opponent”/ }).click()
+  await page.getByText('Win', { exact: true }).click()
+  await page.getByRole('button', { name: 'Log Round' }).click()
+  await expect(page.getByTestId('record')).toContainText('Swiss 1-0-0')
+  await expect(page.getByTestId('round').getByTestId('sync-mark')).toHaveText('Not synced')
+  await expect(page.getByTestId('sync-bar')).toContainText('2 changes saved on this phone')
+
+  // The Tournaments list shows it, marked Not synced.
+  await page
+    .getByRole('navigation', { name: 'Main' })
+    .getByRole('link', { name: 'Tournaments' })
+    .click()
+  const row = page.getByTestId('tournaments-list').getByRole('link', { name: /Venue Open/ })
+  await expect(row.getByTestId('sync-mark')).toHaveText('Not synced')
+
+  // Back online, the Tournament is sent first, then the Round waiting on it.
+  await context.setOffline(false)
+  await expect(page.getByTestId('sync-bar')).toContainText('All 2 changes sent')
+  await expect(row.getByTestId('sync-mark')).toHaveCount(0)
+  await page.reload()
+  await row.click()
+  await expect(page.getByTestId('tournament-name')).toHaveText('Venue Open')
+  await expect(page.getByTestId('record')).toContainText('Swiss 1-0-0')
+  await expect(page.getByTestId('round')).toContainText('Venue Opponent')
+  await expect(page.getByTestId('sync-mark')).toHaveCount(0)
+})

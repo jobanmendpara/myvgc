@@ -1,6 +1,6 @@
 import type { Query, QueryClient } from '@tanstack/vue-query'
 import { acrossTabs, deviceOutboxStore, Outbox, sendRequest } from '@/lib/outbox'
-import { applyPending, isOutboxTarget, revertWrite } from '@/lib/outbox-apply'
+import { addedTournament, applyPending, isOutboxTarget, revertWrite } from '@/lib/outbox-apply'
 import { type OutboxWrite, worthTrying } from '@/lib/outbox-rules'
 import { watchOutboxTriggers } from '@/lib/outbox-triggers'
 
@@ -15,7 +15,19 @@ function staleAfter(write: OutboxWrite): unknown[][] {
     case 'log-round':
     case 'edit-round':
     case 'delete-round':
-      return [['tournament', tournamentId], ['tournaments'], ['opponents']]
+    case 'delete-tournament':
+      return [
+        ['tournament', tournamentId],
+        ['tournaments'],
+        ['opponents'],
+        ['dashboard'],
+        ['statistics'],
+      ]
+    case 'add-tournament':
+    case 'edit-tournament':
+    case 'link-tournament-team':
+    case 'unlink-tournament-team':
+      return [['tournament', tournamentId], ['tournaments'], ['dashboard'], ['statistics']]
     case 'add-opponent':
       return [['opponents']]
     default:
@@ -34,9 +46,15 @@ function addedOpponentIds(writes: readonly OutboxWrite[]) {
   })
 }
 
+/** Every Tournament created on this device, whose page is needed before the server has it. */
+const addedTournamentIds = (writes: readonly OutboxWrite[]) =>
+  writes.flatMap((write) => addedTournament(write)?.id ?? [])
+
 function connect(outbox: Outbox, queryClient: QueryClient) {
   const cache = queryClient.getQueryCache()
   const targets = () => cache.getAll().filter((query) => isOutboxTarget(query.queryKey))
+  // The dashboard is worked out again from the Tournaments list while writes on them wait.
+  const context = () => ({ tournaments: queryClient.getQueryData(['tournaments']) })
 
   /** Sets a query's data, keeping it marked for asking the server again if it was. */
   function replace(query: Query, data: unknown) {
@@ -55,13 +73,15 @@ function connect(outbox: Outbox, queryClient: QueryClient) {
     const writes = outbox.writes
     for (const query of targets()) {
       if (query.state.data === undefined) continue
-      replace(query, applyPending(query.queryKey, query.state.data, writes))
+      replace(query, applyPending(query.queryKey, query.state.data, writes, context()))
     }
-    for (const id of addedOpponentIds(writes)) {
-      const key = ['opponents', 'detail', id]
+    const seeded = [
+      ...addedOpponentIds(writes).map((id) => ['opponents', 'detail', id]),
+      ...addedTournamentIds(writes).map((id) => ['tournament', id]),
+    ]
+    for (const key of seeded)
       if (queryClient.getQueryData(key) === undefined)
         queryClient.setQueryData(key, applyPending(key, undefined, writes))
-    }
   }
 
   function refetch(write: OutboxWrite) {
@@ -80,6 +100,10 @@ function connect(outbox: Outbox, queryClient: QueryClient) {
         }
       }
       applyAll()
+      // A new Tournament discarded from this phone never existed: its page goes too.
+      const kept = new Set(addedTournamentIds(outbox.writes))
+      for (const id of addedTournamentIds(event.writes))
+        if (!kept.has(id)) queryClient.removeQueries({ queryKey: ['tournament', id], exact: true })
       for (const write of event.writes) refetch(write)
     }
   })
@@ -89,7 +113,10 @@ function connect(outbox: Outbox, queryClient: QueryClient) {
     if (event.type !== 'updated' || event.action.type !== 'success' || event.action.manual) return
     const { queryKey } = event.query
     if (!isOutboxTarget(queryKey) || !outbox.state.pending.length) return
-    queryClient.setQueryData(queryKey, applyPending(queryKey, event.action.data, outbox.writes))
+    queryClient.setQueryData(
+      queryKey,
+      applyPending(queryKey, event.action.data, outbox.writes, context()),
+    )
   })
 }
 

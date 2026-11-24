@@ -227,11 +227,10 @@ export function tournamentRoutes(db: Database, storage: FileStorage) {
         const where = ownTournament(id, ownerId)
         const [saved] = await db.select().from(tournament).where(where)
         if (!saved) return notFound(c)
+        // Once the Tournament is over, linking the same Team again keeps the snapshot as it is.
+        // Answered as done, so a link sent again from a phone's outbox isn't refused (ADR 17).
         if (saved.teamId === input.data.teamId && !canRefreshSnapshot(saved, today()))
-          return c.json(
-            { error: 'This Tournament is over, so its Team snapshot stays as it is.' },
-            409,
-          )
+          return c.json(await viewWithRounds(saved))
 
         const [source] = await db
           .select()

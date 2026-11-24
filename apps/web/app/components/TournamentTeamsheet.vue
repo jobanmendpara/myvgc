@@ -10,10 +10,16 @@ import { useOnline } from '@vueuse/core'
 import { FetchError } from 'ofetch'
 
 // The Teamsheet PDF the User uploaded to a Tournament, kept as uploaded for reference (ADR 27).
-// The file lives on the server only, so everything here is online only (ADR 17).
-const props = defineProps<{ tournament: TournamentView }>()
+// The file lives on the server only, so everything here is online only (ADR 17), and waits for a
+// Tournament created on this phone to reach the server first (DEV-204).
+const props = defineProps<{
+  tournament: TournamentView
+  /** The server doesn't have the Tournament yet. */
+  unsynced?: boolean
+}>()
 
-const online = useOnline()
+const isOnline = useOnline()
+const online = computed(() => isOnline.value && !props.unsynced)
 const queryClient = useQueryClient()
 const fileInput = ref<HTMLInputElement | null>(null)
 const confirmingDelete = ref(false)
@@ -153,7 +159,10 @@ const details = computed(() => {
       </Button>
     </div>
 
-    <p v-if="!online" class="text-muted-foreground text-sm" role="status">
+    <p v-if="unsynced" class="text-muted-foreground text-sm" role="status">
+      You can add the Teamsheet PDF once this Tournament is synced.
+    </p>
+    <p v-else-if="!online" class="text-muted-foreground text-sm" role="status">
       The Teamsheet PDF needs a connection.
     </p>
     <Alert v-if="failure" variant="destructive" role="alert">

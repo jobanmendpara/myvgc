@@ -10,9 +10,10 @@ import {
   type BestOf,
   type EventTier,
   type Regulation,
+  type TournamentView,
   regulationOn,
 } from '@myvgc/core/schema'
-import { useQuery } from '@tanstack/vue-query'
+import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import { refDebounced } from '@vueuse/core'
 import { type TournamentBody, formToBody } from '@/lib/tournament-form'
 
@@ -71,6 +72,17 @@ const organizers = useQuery({
   queryFn: () =>
     $fetch<string[]>('/api/tournaments/organizers', { query: { q: organizerSearch.value.trim() } }),
   placeholderData: (previous) => previous,
+})
+// With no signal, the Organizers of the Tournaments already on this phone (ADR 17).
+const queryClient = useQueryClient()
+const organizerSuggestions = computed(() => {
+  if (organizers.fetchStatus.value !== 'paused') return organizers.data.value ?? []
+  const q = organizerSearch.value.trim().toLowerCase()
+  const cached = queryClient.getQueryData<TournamentView[]>(['tournaments']) ?? []
+  const names = cached
+    .map((t) => t.organizer)
+    .filter((name): name is string => !!name && name.toLowerCase().includes(q))
+  return [...new Set(names)].sort((a, b) => a.localeCompare(b)).slice(0, 10)
 })
 
 // The Regulation follows the start date until the User picks one themselves.
@@ -204,7 +216,7 @@ const error = (field: string) => localErrors.value[field] ?? props.fieldErrors?.
         placeholder="Store, league or community"
       />
       <datalist id="organizer-suggestions">
-        <option v-for="name in organizers.data.value ?? []" :key="name" :value="name" />
+        <option v-for="name in organizerSuggestions" :key="name" :value="name" />
       </datalist>
     </div>
 

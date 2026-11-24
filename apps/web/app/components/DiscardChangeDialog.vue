@@ -2,13 +2,17 @@
 import type { OutboxWrite } from '@/lib/outbox-rules'
 import { discardText } from '@/lib/outbox-view'
 
-// Asks before discarding a change kept on this phone (DEV-167). A new Round, Opponent or Note
-// entry never reached the account, so it goes from the phone; for an edit or a delete, the
-// server keeps its version.
+// Asks before discarding a change kept on this phone (DEV-167). A new Tournament, Round, Opponent
+// or Note entry never reached the account, so it goes from the phone, and a new Tournament takes
+// the Rounds waiting on it along (DEV-204); for an edit or a delete, the server keeps its version.
 const write = defineModel<OutboxWrite | null>({ required: true })
 const emit = defineEmits<{ discarded: [] }>()
-const { discard } = useOutbox()
-const text = computed(() => (write.value ? discardText(write.value) : undefined))
+const { discard, state } = useOutbox()
+const text = computed(() =>
+  write.value
+    ? discardText(write.value, [...state.value.pending, ...state.value.rejected])
+    : undefined,
+)
 const open = computed({
   get: () => write.value !== null,
   set: (value) => {
