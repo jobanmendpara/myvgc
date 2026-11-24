@@ -120,7 +120,7 @@ const failure = computed(() =>
       </Button>
       <DiscardChangeDialog v-model="discarding" @discarded="navigateTo(leaveTo)" />
     </template>
-    <Alert v-else-if="query.isError.value" variant="destructive" role="alert">
+    <Alert v-else-if="query.isError.value && !tournament" variant="destructive" role="alert">
       <AlertDescription>Couldn't load this Tournament.</AlertDescription>
     </Alert>
   </div>

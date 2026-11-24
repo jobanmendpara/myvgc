@@ -25,7 +25,7 @@ const { query, searching, results, noMatches } = useListSearch(
         search-placeholder="Find by name or Pokémon"
         :wide="wide"
         :pending="teams.isPending.value"
-        :load-failed="teams.isError.value"
+        :load-failed="teams.isError.value && !teams.data.value"
         :empty="teams.data.value?.length === 0"
         :no-matches="noMatches"
       >

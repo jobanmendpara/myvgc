@@ -43,7 +43,7 @@ const failure = computed(() =>
       <p v-if="tournament" class="text-muted-foreground text-sm">{{ tournament.name }}</p>
     </div>
     <p v-if="query.isPending.value" class="text-muted-foreground">Loading…</p>
-    <Alert v-else-if="query.isError.value" variant="destructive" role="alert">
+    <Alert v-else-if="query.isError.value && !tournament" variant="destructive" role="alert">
       <AlertDescription>Couldn't load this Tournament.</AlertDescription>
     </Alert>
     <RoundForm

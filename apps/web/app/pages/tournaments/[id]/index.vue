@@ -225,7 +225,7 @@ useHead({
       </AlertDialog>
     </template>
 
-    <Alert v-else-if="query.isError.value" variant="destructive" role="alert">
+    <Alert v-else-if="query.isError.value && !tournament" variant="destructive" role="alert">
       <AlertDescription
         >Couldn't load this Tournament. Check your connection and try again.</AlertDescription
       >

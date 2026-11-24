@@ -62,7 +62,7 @@ const addError = computed(
         :wide="wide"
         :class="{ 'mx-auto w-full max-w-3xl': !wide }"
         :pending="opponents.isPending.value"
-        :load-failed="opponents.isError.value"
+        :load-failed="opponents.isError.value && !opponents.data.value"
         :empty="opponents.data.value?.length === 0"
         :no-matches="noMatches"
       >

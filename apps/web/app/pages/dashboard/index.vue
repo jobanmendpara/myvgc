@@ -27,7 +27,11 @@ const playedNothing = computed(
     <DashboardFilters :query="query" :applied="filters" @change="setFilters" />
 
     <p v-if="dashboard.isPending.value" class="text-muted-foreground">Loading…</p>
-    <Alert v-else-if="dashboard.isError.value" variant="destructive" role="alert">
+    <Alert
+      v-else-if="dashboard.isError.value && !dashboard.data.value"
+      variant="destructive"
+      role="alert"
+    >
       <AlertDescription
         >Couldn't load the dashboard. Check your connection and try again.</AlertDescription
       >
