@@ -7,7 +7,8 @@ import {
   TOP_CUT_STAGE_LABELS,
   type TournamentView,
 } from '@myvgc/core/schema'
-import type { WriteDraft } from './outbox'
+import type { WriteDraft, WriteFix } from './outbox'
+import type { OutboxWrite } from './outbox-rules'
 
 // The writes the outbox sends (ADR 17): new, changed and deleted Rounds, new Opponents, and new,
 // changed and deleted Note entries. Every other write stays online-only. A new record gets its ID
@@ -203,5 +204,61 @@ export function deleteNoteEntry(opponent: OpponentRef, entry: NoteEntryView): Wr
     series: [opponentSeries(opponent.id)],
     subject: { opponentId: opponent.id, noteEntryId: entry.id, before: entry },
     label: `Deleting a Note entry on ${opponent.displayName}`,
+  }
+}
+
+type SentRound = RoundInput & { id?: string }
+
+/**
+ * A rejected Round write as the User fixed it in the Round form, to send again in its place. It
+ * keeps the Round's ID. The form starts from the Round as the write had it, so what it leaves out
+ * as unchanged (the Opponent's Team and Age Division) is the write's own, and a new Opponent the
+ * write was to add, which the server never got, is still added.
+ */
+export function reviseRound(
+  write: OutboxWrite,
+  tournament: TournamentRef,
+  input: RoundInput,
+  opponentName: string | null,
+): WriteFix {
+  const sent = (write.request.body ?? {}) as SentRound
+  const roundId = write.subject.roundId!
+  const toAdd = sent.newOpponentId && input.opponentId === sent.newOpponentId
+  const before = sent.newOpponentId ?? sent.opponentId ?? null
+  const after = toAdd ? sent.newOpponentId : (input.opponentId ?? input.newOpponentId ?? null)
+  const sameOpponent = !input.newOpponentName && before === after
+  const body: SentRound = {
+    ...input,
+    ...(toAdd
+      ? {
+          opponentId: null,
+          newOpponentName: sent.newOpponentName,
+          newOpponentId: sent.newOpponentId,
+        }
+      : {}),
+    ...(sameOpponent && input.opponentTeam === undefined && sent.opponentTeam !== undefined
+      ? { opponentTeam: sent.opponentTeam }
+      : {}),
+    ...(sameOpponent &&
+    input.opponentAgeDivision === undefined &&
+    sent.opponentAgeDivision !== undefined
+      ? { opponentAgeDivision: sent.opponentAgeDivision }
+      : {}),
+  }
+  if (body.newOpponentName && !body.newOpponentId) body.newOpponentId = newId()
+  const kind = write.kind === 'log-round' ? 'log-round' : 'edit-round'
+  const draft = roundWrite(
+    kind,
+    tournament,
+    roundId,
+    kind === 'log-round' ? { ...body, id: roundId } : body,
+    opponentName,
+    write.subject.before as RoundView | undefined,
+  )
+  return {
+    request: draft.request,
+    label: draft.label,
+    series: draft.series,
+    subject: draft.subject,
   }
 }

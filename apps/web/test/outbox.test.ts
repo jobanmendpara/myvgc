@@ -178,6 +178,19 @@ describe('The outbox', () => {
     expect(later.state.pending.map((w) => w.label)).toEqual([`w${count}`])
   })
 
+  it('keeps a write made from a page’s reactive data, such as the Round being deleted', async () => {
+    const outbox = newOutbox()
+    server.answerAll({ status: 'unreachable' })
+    await open(outbox, ASH)
+    // A page's data is a Proxy, which the device's database can't keep as it is.
+    const before = new Proxy({ id: 'r2', roundNumber: 2 }, {})
+    await outbox.add({ ...draft('t1', 'DELETE'), subject: { roundId: 'r2', before } })
+
+    const later = newOutbox()
+    await open(later, ASH)
+    expect(later.state.pending[0]?.subject.before).toEqual({ id: 'r2', roundNumber: 2 })
+  })
+
   it('sends writes on one Tournament in series, in the order they were made', async () => {
     const outbox = newOutbox()
     await open(outbox, ASH)
@@ -350,7 +363,72 @@ describe('The outbox', () => {
     server.answerAll({ status: 400, body: { error: 'Invalid request', fields: { x: 'Bad.' } } })
     await outbox.add(draft('t1'))
     await outbox.flush()
-    expect(events).toEqual(['changed', 'attempted', 'changed', 'withdrawn'])
+    expect(events).toEqual(['changed', 'progress', 'attempted', 'changed', 'withdrawn'])
+  })
+
+  it('tells the page which write is on its way, and which a page is still saving', async () => {
+    let answer: (value: Answer) => void = () => {}
+    const outbox = new Outbox({
+      store: deviceOutboxStore(),
+      send: () => new Promise((resolve) => (answer = resolve)),
+    })
+    await outbox.open(ASH)
+    const write = draft('t1')
+    const saving = outbox.addAndSend(write, 1_000)
+    await vi.waitFor(() => expect(outbox.state.sending).toBe(write.id))
+    expect(outbox.state.saving).toEqual([write.id])
+
+    answer({ status: 201 })
+    await saving
+    expect(outbox.state.sending).toBeUndefined()
+    expect(outbox.state.saving).toBeUndefined()
+  })
+
+  it('stops counting a write as being saved once the page stops waiting for it', async () => {
+    const outbox = new Outbox({ store: deviceOutboxStore(), send: () => new Promise(() => {}) })
+    await outbox.open(ASH)
+    await outbox.addAndSend(draft('t1'), 20)
+    expect(outbox.state.saving).toBeUndefined()
+    expect(outbox.state.pending).toHaveLength(1)
+  })
+
+  it('sends a rejected write again with the fix made to it, keeping its place', async () => {
+    const outbox = newOutbox()
+    await open(outbox, ASH)
+    server.answerAll({ status: 409, body: { error: 'Round 4 is already logged.' } })
+    const write = await outbox.add(draft('t1'))
+    await outbox.flush()
+    expect(outbox.state.rejected).toHaveLength(1)
+
+    server.answerAll({ status: 201 })
+    const fixed = { ...write.request, body: { id: write.id, roundNumber: 5 } }
+    const settlement = await outbox.resend(
+      write.id,
+      { request: { ...fixed, url: '/api/fixed' }, label: 'Round 5 in Worlds' },
+      1_000,
+    )
+    expect(settlement).toMatchObject({ outcome: 'done' })
+    expect(server.sent.at(-1)).toBe('/api/fixed')
+    expect(outbox.state).toMatchObject({ pending: [], rejected: [] })
+  })
+
+  it('keeps a fixed write rejected, with the new message, when the server refuses it again', async () => {
+    const outbox = newOutbox()
+    await open(outbox, ASH)
+    server.answerAll({ status: 409, body: { error: 'Round 4 is already logged.' } })
+    const write = await outbox.add(draft('t1'))
+    await outbox.flush()
+
+    server.answerAll({ status: 409, body: { error: 'Round 5 is already logged.' } })
+    const settlement = await outbox.resend(write.id, { label: 'Round 5 in Worlds' }, 1_000)
+    expect(settlement).toMatchObject({ outcome: 'rejected' })
+    expect(outbox.state.rejected).toMatchObject([
+      {
+        id: write.id,
+        label: 'Round 5 in Worlds',
+        state: { message: 'Round 5 is already logged.' },
+      },
+    ])
   })
 })
 

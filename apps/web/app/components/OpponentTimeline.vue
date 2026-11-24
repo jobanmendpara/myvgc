@@ -11,6 +11,7 @@ import { useMutation } from '@tanstack/vue-query'
 import { createReusableTemplate } from '@vueuse/core'
 import { checkBeforeSaving, fieldErrorsOf, saveFailureMessage } from '@/lib/api'
 import { formatDates, roundLabel, roundOutcome } from '@/lib/format'
+import { type ItemMark, noteEntryRows, syncEdge } from '@/lib/outbox-view'
 import { addNoteEntry, deleteNoteEntry, editNoteEntry } from '@/lib/outbox-writes'
 import { roundPath } from '@/lib/paths'
 
@@ -18,18 +19,32 @@ import { roundPath } from '@/lib/paths'
 // every Round against them, dated by the Tournament's start date.
 const props = defineProps<{ opponent: OpponentDetailView }>()
 
+// Note entries not yet synced are marked (DEV-167); one deleted on this phone stays, struck
+// through, and a new one the server refused stays too, until the server has them.
+const { state } = useOutbox()
+const sheet = useChangesSheet()
 type Item =
-  | { kind: 'entry'; key: string; date: string; createdAt: string; entry: NoteEntryView }
+  | {
+      kind: 'entry'
+      key: string
+      date: string
+      createdAt: string
+      entry: NoteEntryView
+      mark?: ItemMark
+    }
   | { kind: 'round'; key: string; date: string; createdAt: string; round: OpponentRoundView }
 const items = computed<Item[]>(() =>
   [
-    ...props.opponent.noteEntries.map((entry) => ({
-      kind: 'entry' as const,
-      key: `entry-${entry.id}`,
-      date: entry.date,
-      createdAt: entry.createdAt,
-      entry,
-    })),
+    ...noteEntryRows(props.opponent.noteEntries, props.opponent.id, state.value).map(
+      ({ entry, mark }) => ({
+        kind: 'entry' as const,
+        key: `entry-${entry.id}`,
+        date: entry.date,
+        createdAt: entry.createdAt,
+        entry,
+        mark,
+      }),
+    ),
     ...props.opponent.rounds
       .filter((round) => round.notes)
       .map((round) => ({
@@ -147,13 +162,22 @@ function confirmDelete(entry: NoteEntryView) {
       >
         No notes yet. Add a Note entry, or write notes on a Round against them.
       </li>
-      <li v-for="item in items" :key="item.key" class="flex flex-col gap-1 p-3">
+      <li
+        v-for="item in items"
+        :key="item.key"
+        class="flex flex-col gap-1 p-3"
+        :class="item.kind === 'entry' && syncEdge(item.mark)"
+        data-testid="timeline-item"
+      >
         <template v-if="item.kind === 'entry'">
           <ReuseForm v-if="editingId === item.entry.id" />
           <template v-else>
             <div class="flex items-start justify-between gap-3">
               <p class="text-muted-foreground text-xs">{{ formatDates(item.date) }} · Note entry</p>
-              <div class="flex shrink-0 gap-1">
+              <div v-if="item.mark?.status === 'rejected'" class="flex shrink-0 gap-1">
+                <Button variant="ghost" size="sm" @click="sheet = true">Fix or discard</Button>
+              </div>
+              <div v-else-if="item.mark?.status !== 'deleting'" class="flex shrink-0 gap-1">
                 <Button variant="ghost" size="sm" @click="startEditing(item.entry)">Edit</Button>
                 <Button
                   variant="ghost"
@@ -164,7 +188,13 @@ function confirmDelete(entry: NoteEntryView) {
                 >
               </div>
             </div>
-            <p class="max-w-prose text-sm whitespace-pre-wrap">{{ item.entry.text }}</p>
+            <p
+              class="max-w-prose text-sm whitespace-pre-wrap"
+              :class="{ 'line-through opacity-70': item.mark?.status === 'deleting' }"
+            >
+              {{ item.entry.text }}
+            </p>
+            <SyncMark v-if="item.mark" :mark="item.mark" />
           </template>
         </template>
         <template v-else>

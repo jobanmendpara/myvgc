@@ -104,13 +104,14 @@ export default defineNuxtPlugin({
     })
     const outboxState = shallowRef(outbox.state)
     outbox.subscribe((event) => {
-      if (event.type === 'changed') outboxState.value = event.state
+      if (event.type === 'changed' || event.type === 'progress') outboxState.value = event.state
     })
     connect(outbox, nuxtApp.$queryClient)
     watchOutboxTriggers({
       tryNow: () => void outbox.flush(),
       hasPending: () => worthTrying(outbox.state),
     })
-    return { provide: { outbox, outboxState: readonly(outboxState) } }
+    // Read-only for the page: only the outbox changes it.
+    return { provide: { outbox, outboxState: computed(() => outboxState.value) } }
   },
 })
