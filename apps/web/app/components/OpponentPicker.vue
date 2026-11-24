@@ -37,6 +37,8 @@ const matches = useQuery({
     ),
   enabled: computed(() => open.value),
   placeholderData: (previous) => previous,
+  // Runs with no signal too, so the cached list is searched; paused, it would suggest no one.
+  networkMode: 'always',
 })
 
 const typed = computed(() => text.value.trim())

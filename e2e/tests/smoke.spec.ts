@@ -641,3 +641,33 @@ test('a Round logged with no signal is kept on the phone and sent when the signa
   await expect(page.getByTestId('record')).toContainText('Swiss 1-0-0')
   await expect(page.getByTestId('round')).toContainText('Offline Opponent')
 })
+
+test('with no signal, the Round form suggests Opponents from the cached list', async ({
+  context,
+  page,
+}) => {
+  await signUp(page, 'smoke-picker')
+  await createTournament(page, 'Picker Open')
+  await page.getByRole('link', { name: 'Log Round' }).click()
+  await page.getByRole('combobox', { name: 'Opponent' }).fill('Cached Rival')
+  await page.getByRole('option', { name: /Add “Cached Rival”/ }).click()
+  await page.getByText('Win', { exact: true }).click()
+  await page.getByRole('button', { name: 'Log Round' }).click()
+  await expect(page.getByTestId('round')).toContainText('Cached Rival')
+  // Opening the Opponents list caches it on the device.
+  await page
+    .getByRole('navigation', { name: 'Main' })
+    .getByRole('link', { name: 'Opponents' })
+    .click()
+  await expect(page.getByTestId('opponents-list')).toContainText('Cached Rival')
+  await page.goBack()
+  await expect(page.getByTestId('tournament-name')).toHaveText('Picker Open')
+
+  // Offline, navigator.onLine is false: the picker still searches, and finds them (DEV-201).
+  await context.setOffline(true)
+  await page.getByRole('link', { name: 'Log Round' }).click()
+  await expect(page.getByRole('heading', { name: 'Log a Round' })).toBeVisible()
+  await page.getByRole('combobox', { name: 'Opponent' }).fill('Cached')
+  await expect(page.getByRole('option', { name: 'Cached Rival', exact: true })).toBeVisible()
+  await context.setOffline(false)
+})
