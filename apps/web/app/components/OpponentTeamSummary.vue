@@ -11,7 +11,13 @@ const { style: spriteStyle } = useSpriteStyle()
 </script>
 
 <template>
-  <ul class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3" aria-label="Opponent's Team">
+  <!-- Stacked tiles sit three a row at every width, as on the other Stacked tiles surfaces
+       (DEV-193); the other styles take one row each on a phone. -->
+  <ul
+    class="grid gap-2"
+    :class="spriteStyle === 'stacked-tiles' ? 'grid-cols-3' : 'sm:grid-cols-2 lg:grid-cols-3'"
+    aria-label="Opponent's Team"
+  >
     <li
       v-for="build in pokemon"
       :key="build.species"
