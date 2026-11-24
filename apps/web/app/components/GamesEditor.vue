@@ -99,7 +99,9 @@ const sideError = (game: Game, side: Side) =>
   )?.[1]
 
 // Inline and Leading slot: the Sprite inside the button. Stacked tiles: tiles with the Sprite
-// over the name, three a row on a phone and six on a wider screen.
+// over the name, three a row on a phone and six on a wider screen. A Lead button is filled with
+// the primary colour, which is near black in the light theme, so its Sprite sits on a white
+// backing: Sprites are drawn for a light background, and dark ones vanish on black (DEV-188).
 const { style: spriteStyle } = useSpriteStyle()
 const tiles = computed(() => spriteStyle.value === 'stacked-tiles')
 </script>
@@ -136,13 +138,15 @@ const tiles = computed(() => spriteStyle.value === 'stacked-tiles')
             :disabled="
               stateOf(game, side, species) === 'none' && game[side.brought].length >= MAX_BROUGHT
             "
-            class="focus-visible:ring-ring/50 data-[state=brought]:border-primary data-[state=lead]:border-primary data-[state=lead]:bg-primary data-[state=lead]:text-primary-foreground data-[state=brought]:bg-primary/10 flex min-h-11 items-center gap-1 rounded-md border text-sm font-medium outline-none focus-visible:ring-3 disabled:opacity-50"
+            class="group focus-visible:ring-ring/50 data-[state=brought]:border-primary data-[state=lead]:border-primary data-[state=lead]:bg-primary data-[state=lead]:text-primary-foreground data-[state=brought]:bg-primary/10 flex min-h-11 items-center gap-1 rounded-md border text-sm font-medium outline-none focus-visible:ring-3 disabled:opacity-50"
             :class="
               tiles ? 'min-w-0 flex-col justify-center px-1 py-1.5 text-center' : 'pr-3 pl-1.5'
             "
             @click="tap(game, side, species)"
           >
-            <Sprite :species="species" surface="games-button" />
+            <span class="flex shrink-0 rounded-md group-data-[state=lead]:bg-white">
+              <Sprite :species="species" surface="games-button" />
+            </span>
             <span :class="{ 'w-full text-xs break-words': tiles }">{{ nameOf(species) }}</span>
             <span v-if="stateOf(game, side, species) !== 'none'" class="text-xs font-normal">
               <template v-if="!tiles">· </template
