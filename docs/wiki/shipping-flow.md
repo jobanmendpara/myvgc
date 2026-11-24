@@ -77,7 +77,8 @@ From the implementers' reports and the chief-of-staff, 2026-11-24. See [sprites 
 
 - Agents wrote "Related to" in PR bodies for the issue the PR finished, following the 2026-11-18 rule above too widely, so Linear didn't close those issues on merge. DEV-184, DEV-187, DEV-193, DEV-194 and DEV-198 were moved to Done by hand.
 - From 2026-11-24 the chief-of-staff's briefs say "Closes DEV-N" for the issue the PR finishes, and "Related to" only for issues it doesn't. DEV-199's PR #323 (`jobanmendpara/myvgc@a49030d`) used it, and DEV-199 closed on merge.
-- On 2026-11-24 a change to CLAUDE.md's wording, to say this outright, was proposed to the maintainer. As of 2026-11-24 it is not decided.
+- On 2026-11-24 a change to CLAUDE.md's wording, to say this outright, was proposed to the maintainer. As of 2026-11-24 it is not decided. (Superseded 2026-11-24, see the next line.)
+- On 2026-11-24 the maintainer approved the change. CLAUDE.md's "Tracking" bullet now says both halves: write "Closes DEV-N" in the PR body for the issue the PR finishes, and "Related to" or "Part of" before any issue it doesn't. It landed in PR #334. The `pr` skill and the repo (no PR template) had no rule of their own to align.
 - `scripts/wait-for-checks.sh` returns after about 125 seconds, while CI's `check` takes 7 to 8 minutes, so each PR needed 3 to 4 calls (2026-11-24), as on 2026-11-18 above.
 - Now and then `gh pr merge --auto` and `scripts/wait-for-checks.sh` (exit 3) failed with a GitHub GraphQL error (2026-11-24). Running the command again fixed it.
 - As of 2026-11-24 [DEV-181](https://linear.app/mendpara/issue/DEV-181) (report a `DIRTY` PR, see "Sprites round" above) is still in Backlog.
