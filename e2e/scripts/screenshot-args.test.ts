@@ -1,7 +1,7 @@
-// Tests how `pnpm screenshots` reads its arguments and names its files (DEV-186, DEV-198). Taking
+// Tests how `pnpm screenshots` reads its arguments and names its files (DEV-186, DEV-198, DEV-199). Taking
 // real shots needs a running preview; DEV-186's and DEV-198's PRs show it run end to end. Run with `pnpm test:scripts`.
 import { describe, expect, test } from 'vitest'
-import { parseShots, shotName, shotStorage } from './screenshot-args.ts'
+import { HELP, parseShots, shotName, shotStorage } from './screenshot-args.ts'
 
 describe('parseShots', () => {
   test('with no arguments, takes the Team as it loads', () => {
@@ -38,7 +38,22 @@ describe('parseShots', () => {
     ])
   })
 
+  test('gives the dark theme and 2× pixel ratio to the shot they follow', () => {
+    expect(parseShots(['--dark', '/statistics', '--2x', '/teams', '--2x', '--dark'])).toEqual([
+      { clicks: [], dark: true },
+      { path: '/statistics', clicks: [], double: true },
+      { path: '/teams', clicks: [], dark: true, double: true },
+    ])
+  })
+
+  test('asks for the usage with --help, whatever else is given', () => {
+    expect(parseShots(['--help'])).toBe(HELP)
+    expect(parseShots(['/teams', '--bogus', '-h'])).toBe(HELP)
+  })
+
   test.each([
+    [['/teams', '--dark', '--dark'], /\/teams has --dark twice/],
+    [['--2x', '--2x'], /The Team has --2x twice/],
     [['--sprite-style'], /--sprite-style needs one of inline, leading-slot, stacked-tiles/],
     [['--sprite-style', 'Stacked tiles'], /--sprite-style needs one of/],
     [['/settings', '--sprite-style', 'inline'], /\/settings shows no Sprites/],
@@ -60,6 +75,10 @@ describe('shotStorage', () => {
     })
     expect(shotStorage({ clicks: [] }, '/opponents/x')).toEqual({})
   })
+
+  test('stores the dark theme as the theme Device setting does', () => {
+    expect(shotStorage({ clicks: [], dark: true }, '/settings')).toEqual({ 'myvgc-mode': 'dark' })
+  })
 })
 
 describe('shotName', () => {
@@ -73,6 +92,9 @@ describe('shotName', () => {
       ),
     ).toBe('teams-aBc1-sprite-inline-sprite-style-stacked-tiles-desktop')
     expect(shotName({ clicks: [] }, '/', 'phone')).toBe('home-phone')
+    expect(shotName({ clicks: ['Games'], dark: true, double: true }, '/statistics', 'phone')).toBe(
+      'statistics-dark-2x-games-phone',
+    )
   })
 
   test('cuts a long name and adds a hash of the whole shot, so long shots never share a file', () => {

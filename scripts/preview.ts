@@ -210,7 +210,8 @@ function summary(state: PreviewState) {
     `Log in as ${state.email} / ${state.password}. Seeded pages:`,
     ...(state.pages ?? []).map(({ label, path }) => `  ${path}  ${label}`),
     'Screenshots: pnpm screenshots [path] [--sprite-style <inline|leading-slot|stacked-tiles>]',
-    '             [--click <text>]...   Stop: pnpm preview:stop',
+    '             [--dark] [--2x] [--click <text>]...   (--help for more)',
+    'Stop: pnpm preview:stop',
   ].join('\n')
 }
 

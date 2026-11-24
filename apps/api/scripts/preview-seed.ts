@@ -1,6 +1,7 @@
 // What `pnpm preview` puts in its throwaway database (DEV-184, DEV-197): a User with Teams, a
 // Tournament with Rounds, Games and Opponents, and the awkward cases a UI change should be looked at
-// with (long species names, a species with no Sprite file). It goes through the app's own routes,
+// with (long species names, a species with no Sprite file, as a Team's and as a Lead (DEV-199), and
+// an Opponent's Team with items, abilities and moves). It goes through the app's own routes,
 // as the web app would, so whatever the routes check is checked here too. Tested by
 // test/preview-seed.test.ts.
 import { readFileSync } from 'node:fs'
@@ -14,6 +15,7 @@ import {
   type TeamView,
   type TournamentView,
   currentRegulation,
+  readPaste,
 } from '@myvgc/core'
 import type { Hono } from 'hono'
 import type { AppEnv } from '../src/app'
@@ -57,6 +59,64 @@ const LONG_NAMES_PASTE = [
 const NO_SPRITE_PASTE = [WORLDS_PASTE.split('\n\n')[0], 'Cramorant-Gulping\n- Protect\n'].join(
   '\n\n',
 )
+
+// An Opponent's Team with an item, ability, Nature and four moves on each Pokémon, so its rows run
+// to several lines (DEV-199). Cramorant-Gulping, with no Sprite file, is one of their Leads. Legal
+// in Champions: test/preview-seed.test.ts judges it.
+const FULL_OPPONENT_PASTE = `Incineroar @ Sitrus Berry
+Ability: Intimidate
+Careful Nature
+- Fake Out
+- Flare Blitz
+- Parting Shot
+- Will-O-Wisp
+
+Cramorant-Gulping @ Shell Bell
+Ability: Gulp Missile
+Modest Nature
+- Surf
+- Hurricane
+- Ice Beam
+- Protect
+
+Whimsicott @ Focus Sash
+Ability: Prankster
+Timid Nature
+- Tailwind
+- Moonblast
+- Encore
+- Protect
+
+Archaludon @ Leftovers
+Ability: Stamina
+Modest Nature
+- Electro Shot
+- Flash Cannon
+- Draco Meteor
+- Protect
+
+Pelipper @ Mystic Water
+Ability: Drizzle
+Modest Nature
+- Weather Ball
+- Hurricane
+- Tailwind
+- Protect
+
+Farigiraf @ Lum Berry
+Ability: Armor Tail
+Quiet Nature
+- Psychic
+- Hyper Voice
+- Trick Room
+- Helping Hand
+`
+
+function buildsOf(paste: string) {
+  const read = readPaste(paste)
+  if (!read.ok) throw new Error(`A seeded paste doesn't read: ${read.errors[0]?.message}`)
+  return read.pokemon
+}
 
 /** A Game as the Round form sends it. */
 const game = (
@@ -233,6 +293,42 @@ export async function seedPreview(
     ],
   })
 
+  // Cramorant-Gulping, with no Sprite file, leads in both Games, so Statistics has a Lead pair
+  // with no Sprite (DEV-199).
+  const full = await logRound({
+    newOpponentName: 'Riley Park',
+    bestOf: 3,
+    result: 'win',
+    gameScore: { won: 2, lost: 0 },
+    opponentTeam: buildsOf(FULL_OPPONENT_PASTE),
+    games: [
+      game(
+        1,
+        'win',
+        [
+          ['floetteeternal', 'basculegion', 'kingambit', 'dragonite'],
+          ['floetteeternal', 'kingambit'],
+        ],
+        [
+          ['incineroar', 'cramorantgulping', 'whimsicott', 'archaludon'],
+          ['cramorantgulping', 'incineroar'],
+        ],
+      ),
+      game(
+        2,
+        'win',
+        [
+          ['floetteeternal', 'basculegion', 'kingambit', 'garchomp'],
+          ['floetteeternal', 'basculegion'],
+        ],
+        [
+          ['incineroar', 'cramorantgulping', 'pelipper', 'farigiraf'],
+          ['cramorantgulping', 'pelipper'],
+        ],
+      ),
+    ],
+  })
+
   await logRound({ bye: true })
 
   const opponentPath = (saved: SavedRound) => `/opponents/${saved.round.opponent!.id}`
@@ -246,6 +342,14 @@ export async function seedPreview(
       { label: 'Tournament', path: `/tournaments/${tournament.id}` },
       { label: 'Opponent with a long name and long species names', path: opponentPath(first) },
       { label: 'Opponent', path: opponentPath(second) },
+      {
+        label: 'Opponent with a full Opponent’s Team and a Lead with no Sprite',
+        path: opponentPath(full),
+      },
+      {
+        label: 'Round with Games and a full Opponent’s Team',
+        path: `/tournaments/${tournament.id}/rounds/${full.round.id}`,
+      },
       { label: 'Opponents', path: '/opponents' },
       { label: 'Statistics', path: '/statistics' },
     ],
