@@ -71,6 +71,17 @@ From the implementers' reports, 2026-11-23. See [sprites rollout](sprites-rollou
 - On 2026-11-23 DEV-46's PR #283 merged (`jobanmendpara/myvgc@f209c7a`) while DEV-177's PR #284 waited on CI, and #284 went `DIRTY` (conflicting). Auto-merge stays queued on a conflicting PR without saying so, and `scripts/wait-for-checks.sh` only reported "auto-merge still pending". Filed as [DEV-181](https://linear.app/mendpara/issue/DEV-181).
 - The same day the chief-of-staff started the agents for blocked issues early: DEV-178 (blocked by DEV-177) and DEV-179 (blocked by DEV-46, and needing DEV-177's Sprite files to build). Each was told to build, then wait for the blocker's PR to merge and rebase before opening its own. It worked for both: DEV-178 waited about 45 minutes and rebased cleanly, and DEV-179 rebased twice with no conflict. Name the blocker's PR number or branch in the brief, since `gh pr list --search DEV-177` also matched old wiki PRs.
 
+## Sprite Bugs (2026-11-23 to 2026-11-24)
+
+From the implementers' reports and the chief-of-staff, 2026-11-24. See [sprites rollout](sprites-rollout.md) and [preview](preview.md).
+
+- Agents wrote "Related to" in PR bodies for the issue the PR finished, following the 2026-11-18 rule above too widely, so Linear didn't close those issues on merge. DEV-184, DEV-187, DEV-193, DEV-194 and DEV-198 were moved to Done by hand.
+- From 2026-11-24 the chief-of-staff's briefs say "Closes DEV-N" for the issue the PR finishes, and "Related to" only for issues it doesn't. DEV-199's PR #323 (`jobanmendpara/myvgc@a49030d`) used it, and DEV-199 closed on merge.
+- On 2026-11-24 a change to CLAUDE.md's wording, to say this outright, was proposed to the maintainer. As of 2026-11-24 it is not decided.
+- `scripts/wait-for-checks.sh` returns after about 125 seconds, while CI's `check` takes 7 to 8 minutes, so each PR needed 3 to 4 calls (2026-11-24), as on 2026-11-18 above.
+- Now and then `gh pr merge --auto` and `scripts/wait-for-checks.sh` (exit 3) failed with a GitHub GraphQL error (2026-11-24). Running the command again fixed it.
+- As of 2026-11-24 [DEV-181](https://linear.app/mendpara/issue/DEV-181) (report a `DIRTY` PR, see "Sprites round" above) is still in Backlog.
+
 ## Releases
 
 - On 2026-11-19 v0.2.0 was released from `jobanmendpara/myvgc@8e8a992` (tag `v0.2.0`, published 16:25 UTC, [release notes](https://github.com/jobanmendpara/myvgc/releases/tag/v0.2.0)). The "Release" workflow on the tag passed, so the smoke test ran on code that has both DEV-148 and DEV-149. This closes, for that combination, the 2026-11-18 gap noted above. The notes carried DEV-151's `S3_REGION` note (see the [2026-11-17 Refactor round](refactor-round-2026-11-17.md)). The only earlier release was v0.1.0, a pre-release, on 2026-11-03.
