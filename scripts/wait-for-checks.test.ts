@@ -49,7 +49,7 @@ beforeAll(() => {
   for (const [name, body] of [
     ['gh', GH_STUB],
     ['sleep', SLEEP_STUB],
-  ]) {
+  ] as const) {
     writeFileSync(join(stub, name), body)
     chmodSync(join(stub, name), 0o755)
   }
