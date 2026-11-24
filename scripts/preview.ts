@@ -224,7 +224,7 @@ function summary(state: PreviewState) {
   return [
     `Preview running at ${state.url} (API on ${state.apiPort}), with a throwaway database.`,
     `Log in as ${state.email} / ${state.password}. Their Team: ${state.url}${state.teamPath}`,
-    'Screenshots: pnpm screenshots [path...]   Stop: pnpm preview:stop',
+    'Screenshots: pnpm screenshots [path] [--click <text>]...   Stop: pnpm preview:stop',
   ].join('\n')
 }
 
