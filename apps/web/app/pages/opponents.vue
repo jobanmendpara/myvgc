@@ -3,6 +3,7 @@ import { newOpponentSchema, type OpponentView } from '@myvgc/core/schema'
 import { searchOpponents } from '@myvgc/core/search'
 import { useMutation, useQuery } from '@tanstack/vue-query'
 import { checkBeforeSaving, fieldErrorsOf, saveFailureMessage } from '@/lib/api'
+import { opponentRows } from '@/lib/outbox-view'
 import { addOpponent } from '@/lib/outbox-writes'
 import { fetchEveryOpponent } from '@/lib/opponent-list'
 import { opponentPath } from '@/lib/paths'
@@ -16,16 +17,20 @@ const opponents = useQuery({
   queryKey: ['opponents', 'list'],
   queryFn: () => fetchEveryOpponent(),
 })
+// Kept on the phone first, so an Opponent can be added, changed or deleted with no signal too
+// (ADR 17). One deleted on this phone stays in the list, struck through, until the server has it.
+const outbox = useOutbox()
+const shown = computed(() =>
+  opponents.data.value ? opponentRows(opponents.data.value, outbox.state.value) : undefined,
+)
 const { query, searching, results, noMatches } = useListSearch(
   'opponents',
-  () => opponents.data.value,
+  () => shown.value,
   (items: OpponentView[], q: string) => searchOpponents(items, q),
 )
 
 const adding = ref(false)
 const newName = ref('')
-// Kept on the phone first, so an Opponent can be added with no signal too (ADR 17).
-const outbox = useOutbox()
 const add = useMutation({
   // Runs with no signal too, as the outbox keeps the change (ADR 17).
   networkMode: 'always',

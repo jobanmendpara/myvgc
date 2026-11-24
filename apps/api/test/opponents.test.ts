@@ -144,6 +144,19 @@ describe('Opponents', () => {
     expect((await json(res)).error).toMatch(/Rename/)
   })
 
+  it("answers a delete as done when the Opponent is already gone or another User's (ADR 17)", async () => {
+    await setUp()
+    const misty = (await signUp(t.app, 'misty@example.com')).cookie
+    const typo = await json(await post(t.app, '/api/opponents', { displayName: 'Typo' }, ash))
+    expect((await del(t.app, `/api/opponents/${typo.id}`, ash)).status).toBe(204)
+    // Sent again from the outbox.
+    expect((await del(t.app, `/api/opponents/${typo.id}`, ash)).status).toBe(204)
+
+    const kept = await json(await post(t.app, '/api/opponents', { displayName: 'Kept' }, ash))
+    expect((await del(t.app, `/api/opponents/${kept.id}`, misty)).status).toBe(204)
+    expect((await get(t.app, `/api/opponents/${kept.id}`, ash)).status).toBe(200)
+  })
+
   describe('merging', () => {
     const merge = (survivorId: string, duplicateId: unknown, cookie = ash) =>
       post(t.app, `/api/opponents/${survivorId}/merge`, { duplicateId }, cookie)

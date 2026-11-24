@@ -1,6 +1,7 @@
 import {
   compareRounds,
   type NoteEntryView,
+  type OpponentView,
   type RoundView,
   type TournamentView,
 } from '@myvgc/core/schema'
@@ -225,12 +226,62 @@ function noteEntryOf(id: string, write: OutboxWrite): NoteEntryView {
   }
 }
 
-/** The Opponents added on this phone and not yet synced, on their own or with a Round. */
+/** A write on an Opponent themselves: adding, changing or deleting them. */
+const isOpponentWrite = (write: OutboxWrite) =>
+  write.kind === 'add-opponent' ||
+  write.kind === 'edit-opponent' ||
+  write.kind === 'delete-opponent'
+
+/**
+ * The Opponents added, changed or deleted on this phone and not yet synced. An Opponent added
+ * with a Round is marked while that Round waits; a refused Round is marked on the Round.
+ */
 export function opponentMarks(state: OutboxState): Map<string, ItemMark> {
   return marksBy(state, (write) =>
-    write.state.status === 'pending' ? addedOpponent(write)?.id : undefined,
+    isOpponentWrite(write)
+      ? write.subject.opponentId
+      : write.state.status === 'pending'
+        ? addedOpponent(write)?.id
+        : undefined,
   )
 }
+
+/**
+ * The Opponents list as it shows: the Opponents a waiting delete still shows, struck through,
+ * and the new Opponents the server refused, so nothing disappears before the server has it.
+ */
+export function opponentRows(list: OpponentView[], state: OutboxState): OpponentView[] {
+  const extra: OpponentView[] = []
+  for (const [id, mark] of opponentMarks(state)) {
+    if (list.some((o) => o.id === id)) continue
+    const opponent =
+      mark.status === 'deleting'
+        ? (mark.write.subject.before as OpponentView | undefined)
+        : mark.status === 'rejected' && mark.write.kind === 'add-opponent'
+          ? addedOpponent(mark.write)
+          : undefined
+    if (opponent) extra.push(opponent)
+  }
+  if (!extra.length) return list
+  return [...list, ...extra].sort(
+    (a, b) =>
+      a.displayName.toLowerCase().localeCompare(b.displayName.toLowerCase()) ||
+      a.id.localeCompare(b.id),
+  )
+}
+
+/** The rejected new or changed Opponent to fix on their page, if there is one. */
+export function rejectedOpponent(state: OutboxState, opponentId: string): OutboxWrite | undefined {
+  return state.rejected.findLast(
+    (write) =>
+      (write.kind === 'add-opponent' || write.kind === 'edit-opponent') &&
+      write.subject.opponentId === opponentId,
+  )
+}
+
+/** The rejected save of the Player details to fix in their form, if there is one. */
+export const rejectedPlayerDetails = (state: OutboxState) =>
+  state.rejected.findLast((write) => write.kind === 'save-player-details')
 
 /** The Tournaments created, changed or deleted on this phone and not yet synced. */
 export function tournamentMarks(state: OutboxState): Map<string, ItemMark> {
@@ -341,6 +392,11 @@ export function discardText(
   writes: readonly OutboxWrite[] = [],
 ): { title: string; body: string } {
   const title = `Discard ${changeTitle(write).replace(/^(A new|New) /, 'the new ')}?`
+  // The other changes waiting on a new Opponent go with them (DEV-205).
+  const alongWith = (create: OutboxWrite) => {
+    const along = discardedWith(writes, create).filter((w) => w.id !== create.id).length
+    return along ? [`${counted(along, 'other change', 'other changes')} to them`] : []
+  }
   const never = (what: string[]) =>
     `It was never saved to your account, so ${listOf(what)} ${what.length > 1 ? 'go' : 'goes'} from this phone.`
   switch (write.kind) {
@@ -352,12 +408,18 @@ export function discardText(
           'the Round',
           ...(games ? ['its Games'] : []),
           ...(team ? ['the Opponent’s Team'] : []),
-          ...(newOpponent ? [`the new Opponent ${newOpponent}`] : []),
+          ...(newOpponent ? [`the new Opponent ${newOpponent}`, ...alongWith(write)] : []),
         ]),
       }
     }
     case 'add-opponent':
-      return { title, body: never([`the new Opponent ${write.subject.opponentName ?? ''}`.trim()]) }
+      return {
+        title,
+        body: never([
+          `the new Opponent ${write.subject.opponentName ?? ''}`.trim(),
+          ...alongWith(write),
+        ]),
+      }
     case 'add-note-entry':
       return { title, body: never(['the Note entry']) }
     case 'add-tournament': {

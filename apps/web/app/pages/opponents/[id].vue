@@ -1,17 +1,27 @@
 <script setup lang="ts">
+import { CircleAlertIcon } from '@lucide/vue'
 import {
   MAX_NOTES_LENGTH,
   type OpponentDetailView,
   type OpponentView,
   formatRecord,
   groupByTournament,
+  newOpponentSchema,
+  opponentChangesSchema,
 } from '@myvgc/core/schema'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 import { useOnline } from '@vueuse/core'
 import { FetchError } from 'ofetch'
-import { fieldErrorsOf, saveFailureMessage } from '@/lib/api'
+import { checkBeforeSaving, fieldErrorsOf, saveFailureMessage } from '@/lib/api'
 import { formatDates, roundLabel, roundOutcome } from '@/lib/format'
-import { opponentMarks } from '@/lib/outbox-view'
+import type { OutboxWrite } from '@/lib/outbox-rules'
+import { opponentMarks, rejectedOpponent } from '@/lib/outbox-view'
+import {
+  deleteOpponent,
+  editOpponent,
+  type OpponentFields,
+  reviseOpponent,
+} from '@/lib/outbox-writes'
 import { roundPath, tournamentPath } from '@/lib/paths'
 import type { OpponentChoice } from '@/components/OpponentPicker.vue'
 
@@ -25,9 +35,22 @@ const query = useQuery({
 const opponent = query.data
 // Their Rounds by Tournament, each with the Opponent's Team they brought there (ADR 22).
 const tournaments = computed(() => (opponent.value ? groupByTournament(opponent.value) : []))
-// An Opponent added on this phone is marked until the server has them (DEV-167).
-const { state } = useOutbox()
+// An Opponent added, changed or deleted on this phone is marked until the server has them
+// (DEV-167, DEV-205).
+const outbox = useOutbox()
+const { state } = outbox
 const mark = computed(() => opponentMarks(state.value).get(id.value))
+// A new or changed Opponent the server refused: the form opens with the Opponent as that change
+// had them, the server's message, and the message next to the field it names. Saving sends the
+// fixed change in its place; Discard drops it.
+const rejected = computed(() => rejectedOpponent(state.value, id.value))
+const rejectedMessage = computed(() =>
+  rejected.value?.state.status === 'rejected' ? rejected.value.state.message : '',
+)
+const rejectedFields = computed(() =>
+  rejected.value?.state.status === 'rejected' ? rejected.value.state.fields : undefined,
+)
+const discarding = ref<OutboxWrite | null>(null)
 const notFound = computed(
   () => query.error.value instanceof FetchError && query.error.value.statusCode === 404,
 )
@@ -42,37 +65,76 @@ const editing = ref(false)
 const displayName = ref('')
 const aliasText = ref('')
 const notes = ref('')
+/** The Opponent as the form starts: as a refused change had them, or as they are. */
+const formStart = computed(() => {
+  const body = (rejected.value?.request.body ?? {}) as Partial<OpponentFields>
+  const now = opponent.value
+  return {
+    displayName: body.displayName ?? now?.displayName ?? '',
+    aliases: body.aliases ?? now?.aliases ?? [],
+    notes: body.notes ?? now?.notes ?? '',
+  }
+})
 function startEditing() {
   if (!opponent.value) return
-  displayName.value = opponent.value.displayName
-  aliasText.value = opponent.value.aliases.join('\n')
-  notes.value = opponent.value.notes
+  save.reset()
+  displayName.value = formStart.value.displayName
+  aliasText.value = formStart.value.aliases.join('\n')
+  notes.value = formStart.value.notes
   editing.value = true
 }
-
 const queryClient = useQueryClient()
+// Kept on the phone first, so it works with no signal too, and sent when it can be (ADR 17).
 const save = useMutation({
-  mutationFn: () => {
-    const url: string = `/api/opponents/${id.value}`
-    return $fetch<unknown>(url, {
-      method: 'PATCH',
-      body: {
-        displayName: displayName.value,
-        aliases: aliasText.value
-          .split('\n')
-          .map((a) => a.trim())
-          .filter(Boolean),
-        notes: notes.value,
-      },
-    })
+  // Runs with no signal too, as the outbox keeps the change (ADR 17).
+  networkMode: 'always',
+  mutationFn: async () => {
+    const fields: OpponentFields = {
+      displayName: displayName.value,
+      aliases: aliasText.value
+        .split('\n')
+        .map((a) => a.trim())
+        .filter(Boolean),
+      notes: notes.value,
+    }
+    const fixing = rejected.value
+    // Checked here too, as with no signal the server can't say what is wrong with it.
+    if (fixing?.kind === 'add-opponent')
+      checkBeforeSaving(newOpponentSchema, { ...fields, id: id.value })
+    else checkBeforeSaving(opponentChangesSchema, fields)
+    if (!fixing) {
+      await outbox.save(editOpponent(opponent.value!, fields))
+      return true
+    }
+    const settlement = await outbox.resend(fixing.id, reviseOpponent(fixing, fields))
+    // Refused again: the form shows the server's new message.
+    return settlement?.outcome !== 'rejected'
   },
-  onSuccess: async () => {
-    editing.value = false
-    await queryClient.invalidateQueries({ queryKey: ['opponents'] })
-    await queryClient.invalidateQueries({ queryKey: ['tournament'] })
+  onSuccess: (done) => {
+    if (done) editing.value = false
   },
 })
-const fieldErrors = computed(() => fieldErrorsOf(save.error.value))
+const fieldErrors = computed(() => fieldErrorsOf(save.error.value) ?? rejectedFields.value)
+// Fix in "Changes on this phone" opens the form on the refused change.
+watch(
+  [() => route.query.fix, opponent, rejected],
+  ([fix]) => {
+    if (fix === undefined || !opponent.value) return
+    if (rejected.value) startEditing()
+    void navigateTo({ path: route.path, query: {} }, { replace: true })
+  },
+  { immediate: true },
+)
+// Discarding a new Opponent leaves nothing to go back to.
+const leaveAfterDiscard = ref(false)
+function startDiscarding(write: OutboxWrite) {
+  leaveAfterDiscard.value = write.kind === 'add-opponent'
+  discarding.value = write
+}
+async function discarded() {
+  editing.value = false
+  if (leaveAfterDiscard.value) await navigateTo('/opponents')
+}
 
 // Leaving with unsaved edits, such as by clicking another row in the list column, asks first,
 // except while saving.
@@ -89,15 +151,13 @@ const { DiscardDialog } = useDiscardGuard(dirty, 'this Opponent')
 
 const confirmingDelete = ref(false)
 const remove = useMutation({
-  mutationFn: () => {
-    const url: string = `/api/opponents/${id.value}`
-    return $fetch<null>(url, { method: 'DELETE' })
-  },
+  // Runs with no signal too, as the outbox keeps the change (ADR 17). Sent, the outbox asks the
+  // server for the Opponents again; until then the list shows them struck through.
+  networkMode: 'always',
+  mutationFn: () => outbox.save(deleteOpponent(opponent.value!)),
   onSuccess: async () => {
     confirmingDelete.value = false
-    // Leave first, so the pane doesn't refetch this Opponent and flash "not found".
     await navigateTo('/opponents')
-    await queryClient.invalidateQueries({ queryKey: ['opponents'] })
   },
 })
 
@@ -123,6 +183,8 @@ function startMerging() {
   merging.value = true
 }
 const merge = useMutation({
+  // Fails at once with no signal rather than pausing; the button is off then anyway.
+  networkMode: 'always',
   mutationFn: () => {
     const url: string = `/api/opponents/${id.value}/merge`
     return $fetch<OpponentView>(url, { method: 'POST', body: { duplicateId: duplicateId.value } })
@@ -159,12 +221,36 @@ const roundsMoving = computed(() => {
     </Alert>
 
     <template v-else-if="opponent">
+      <Alert
+        v-if="rejected && !editing"
+        variant="destructive"
+        class="max-w-3xl"
+        data-testid="rejected-banner"
+      >
+        <CircleAlertIcon aria-hidden="true" />
+        <AlertTitle>This change wasn't saved</AlertTitle>
+        <AlertDescription>
+          <span>The server said: {{ rejectedMessage }}</span>
+          <span class="mt-2 flex gap-2">
+            <Button size="sm" @click="startEditing">Fix</Button>
+            <Button size="sm" variant="outline" @click="startDiscarding(rejected)">Discard</Button>
+          </span>
+        </AlertDescription>
+      </Alert>
       <form
         v-if="editing"
         class="flex max-w-3xl flex-col gap-4"
         novalidate
         @submit.prevent="save.mutate()"
       >
+        <Alert v-if="rejected" variant="destructive" data-testid="rejected-banner">
+          <CircleAlertIcon aria-hidden="true" />
+          <AlertTitle>This change wasn't saved</AlertTitle>
+          <AlertDescription>
+            The server said: {{ rejectedMessage }} Change the field below and save, or discard the
+            change.
+          </AlertDescription>
+        </Alert>
         <div class="flex flex-col gap-2">
           <Label for="display-name">Display name</Label>
           <Input id="display-name" v-model="displayName" autocomplete="off" />
@@ -200,6 +286,14 @@ const roundsMoving = computed(() => {
             save.isPending.value ? 'Saving…' : 'Save'
           }}</Button>
           <Button type="button" variant="ghost" @click="editing = false">Cancel</Button>
+          <Button
+            v-if="rejected"
+            type="button"
+            variant="ghost"
+            class="text-destructive ml-auto"
+            @click="startDiscarding(rejected)"
+            >Discard change</Button
+          >
         </div>
 
         <DiscardDialog />
@@ -207,7 +301,11 @@ const roundsMoving = computed(() => {
 
       <header v-else class="flex flex-col gap-2">
         <div class="flex items-start justify-between gap-3">
-          <h1 class="min-w-0 text-2xl font-semibold break-words" data-testid="opponent-name">
+          <h1
+            class="min-w-0 text-2xl font-semibold break-words"
+            :class="{ 'line-through opacity-70': mark?.status === 'deleting' }"
+            data-testid="opponent-name"
+          >
             {{ opponent.displayName }}
           </h1>
           <Button variant="outline" size="sm" @click="startEditing">Edit</Button>
@@ -291,10 +389,15 @@ const roundsMoving = computed(() => {
           >Merge another Opponent into this one…</Button
         >
         <p v-if="!online" class="text-muted-foreground text-xs">Merging needs a connection.</p>
-        <Button variant="ghost" class="text-destructive" @click="confirmingDelete = true"
+        <Button
+          v-if="mark?.status !== 'deleting'"
+          variant="ghost"
+          class="text-destructive"
+          @click="confirmingDelete = true"
           >Delete Opponent</Button
         >
       </div>
+      <DiscardChangeDialog v-model="discarding" @discarded="discarded" />
       <AlertDialog v-model:open="merging">
         <AlertDialogContent>
           <AlertDialogHeader>

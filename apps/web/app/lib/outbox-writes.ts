@@ -1,6 +1,9 @@
 import {
+  type ListStyles,
   type NewTournament,
   type NoteEntryView,
+  type OpponentView,
+  type PlayerDetails,
   type RoundInput,
   roundInputSchema,
   roundIssues,
@@ -17,9 +20,9 @@ import type { WriteDraft, WriteFix } from './outbox'
 import type { OutboxWrite } from './outbox-rules'
 
 // The writes the outbox sends (ADR 17): new, changed and deleted Tournaments and their Team, new,
-// changed and deleted Rounds, new Opponents, and new, changed and deleted Note entries. Every
-// other write stays online-only. A new record gets its ID
-// here, so sending it again is recognised as the same record.
+// changed and deleted Rounds, new, changed and deleted Opponents and Note entries, and the
+// User's Player details and List styles. Every other write stays online-only. A new record gets
+// its ID here, so sending it again is recognised as the same record.
 
 /** A new random UUID, also where `crypto.randomUUID` is missing (a page not served over HTTPS). */
 export function newId(): string {
@@ -39,7 +42,9 @@ type OpponentRef = { id: string; displayName: string }
  * Note entries, and on one Team.
  */
 export const tournamentSeries = (id: string) => `tournament:${id}`
-const opponentSeries = (id: string) => `opponent:${id}`
+export const opponentSeries = (id: string) => `opponent:${id}`
+/** Each account setting is replaced whole, so its saves go in series too. */
+const settingSeries = (name: string) => `account:${name}`
 export const teamSeries = (id: string) => `team:${id}`
 
 function roundName(input: Pick<RoundInput, 'phase' | 'roundNumber' | 'stage'>) {
@@ -56,10 +61,13 @@ function roundWrite(
   before?: RoundView,
 ): WriteDraft {
   const opponentId = body.bye ? undefined : (body.opponentId ?? body.newOpponentId ?? undefined)
+  // A Round that adds a new Opponent creates them: what is waiting for them waits for it.
+  const adds = !body.bye && body.newOpponentName && body.newOpponentId
   const rounds = `/api/tournaments/${tournament.id}/rounds`
   return {
     id: newId(),
     kind,
+    ...(adds ? { creates: opponentSeries(body.newOpponentId!) } : {}),
     request:
       kind === 'log-round'
         ? { method: 'POST', url: rounds, body }
@@ -166,8 +174,109 @@ export function addOpponent(displayName: string): WriteDraft {
     kind: 'add-opponent',
     request: { method: 'POST', url: '/api/opponents', body: { id, displayName } },
     series: [opponentSeries(id)],
+    creates: opponentSeries(id),
     subject: { opponentId: id, opponentName: displayName },
     label: `New Opponent ${displayName}`,
+  }
+}
+
+/** An Opponent's fields as the Opponent's page edits them. */
+export interface OpponentFields {
+  displayName: string
+  aliases: string[]
+  notes: string
+}
+
+/** The fields of an Opponent as they are now, to put back should a change be discarded. */
+const opponentBefore = (opponent: OpponentView): OpponentView => ({
+  id: opponent.id,
+  displayName: opponent.displayName,
+  aliases: opponent.aliases,
+  notes: opponent.notes,
+  headToHead: opponent.headToHead,
+  roundCount: opponent.roundCount,
+  createdAt: opponent.createdAt,
+  updatedAt: opponent.updatedAt,
+})
+
+/**
+ * Changes an Opponent's display name, Aliases and notes. It runs in the Opponent's series, so it
+ * waits for their create when they were added on this phone.
+ */
+export function editOpponent(opponent: OpponentView, fields: OpponentFields): WriteDraft {
+  const name = fields.displayName.trim() || opponent.displayName
+  return {
+    id: newId(),
+    kind: 'edit-opponent',
+    request: { method: 'PATCH', url: `/api/opponents/${opponent.id}`, body: fields },
+    series: [opponentSeries(opponent.id)],
+    subject: { opponentId: opponent.id, opponentName: name, before: opponentBefore(opponent) },
+    label: `Changes to ${name}`,
+  }
+}
+
+export function deleteOpponent(opponent: OpponentView): WriteDraft {
+  return {
+    id: newId(),
+    kind: 'delete-opponent',
+    request: { method: 'DELETE', url: `/api/opponents/${opponent.id}` },
+    series: [opponentSeries(opponent.id)],
+    subject: {
+      opponentId: opponent.id,
+      opponentName: opponent.displayName,
+      before: opponentBefore(opponent),
+    },
+    label: `Deleting ${opponent.displayName}`,
+  }
+}
+
+/**
+ * A rejected new or changed Opponent as the User fixed it on the Opponent's page, to send again
+ * in its place. A new Opponent keeps their ID, so what waits for them still belongs to them.
+ */
+export function reviseOpponent(write: OutboxWrite, fields: OpponentFields): WriteFix {
+  const id = write.subject.opponentId!
+  const before = write.subject.before as OpponentView | undefined
+  const name = fields.displayName.trim() || before?.displayName || ''
+  if (write.kind === 'add-opponent')
+    return {
+      request: { ...write.request, body: { ...fields, id } },
+      subject: { ...write.subject, opponentName: name },
+      label: `New Opponent ${name}`,
+    }
+  return {
+    request: { ...write.request, body: fields },
+    subject: { ...write.subject, opponentName: name },
+    label: `Changes to ${name}`,
+  }
+}
+
+/** Saves the User's Player details, replacing them whole, as the API does. */
+export function savePlayerDetails(details: PlayerDetails, before?: PlayerDetails): WriteDraft {
+  return {
+    id: newId(),
+    kind: 'save-player-details',
+    request: { method: 'PUT', url: '/api/account/player-details', body: details },
+    series: [settingSeries('player-details')],
+    subject: before ? { before } : {},
+    label: 'Your Player details',
+  }
+}
+
+/** A rejected save of the Player details as the User fixed it in the form. */
+export const revisePlayerDetails = (write: OutboxWrite, details: PlayerDetails): WriteFix => ({
+  request: { ...write.request, body: details },
+})
+
+/** Saves the User's List styles, replacing them whole, as the API does. */
+export function saveListStyles(styles: ListStyles, before?: ListStyles): WriteDraft {
+  return {
+    id: newId(),
+    kind: 'save-list-styles',
+    request: { method: 'PUT', url: '/api/account/list-styles', body: styles },
+    series: [settingSeries('list-styles')],
+    subject: before ? { before } : {},
+    label: 'Your List styles',
   }
 }
 
@@ -271,6 +380,7 @@ export function reviseRound(
     label: draft.label,
     series: draft.series,
     subject: draft.subject,
+    creates: draft.creates,
   }
 }
 

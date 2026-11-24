@@ -17,6 +17,8 @@ export type WriteKind =
   | 'edit-round'
   | 'delete-round'
   | 'add-opponent'
+  | 'edit-opponent'
+  | 'delete-opponent'
   | 'add-note-entry'
   | 'edit-note-entry'
   | 'delete-note-entry'
@@ -25,6 +27,8 @@ export type WriteKind =
   | 'delete-tournament'
   | 'link-tournament-team'
   | 'unlink-tournament-team'
+  | 'save-player-details'
+  | 'save-list-styles'
 
 /** The request a write sends, to one of the API's existing routes. */
 export interface WriteRequest {
@@ -56,7 +60,8 @@ export interface OutboxWrite {
    */
   series: string[]
   /**
-   * The series of the record it creates, such as `tournament:<id>` for a new Tournament. The
+   * The series of the record it creates, such as `tournament:<id>` for a new Tournament, or
+   * `opponent:<id>` for a new Opponent, added on their own or with a Round. The
    * writes in that series wait for it even once it is refused, and go with it when it is
    * discarded, since the server never has what they change.
    */

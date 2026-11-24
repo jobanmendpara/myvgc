@@ -1,13 +1,13 @@
 import { DEFAULT_LIST_STYLES, type ListStyle, type ListStyles } from '@myvgc/core/schema'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
-import { useOnline } from '@vueuse/core'
+import { saveListStyles } from '@/lib/outbox-writes'
 
 const QUERY_KEY = ['account', 'list-styles']
 
 /**
- * The List style of one list, an Account setting (DEV-80). Offline the cached style still
- * applies, but changing it needs a connection, like the Player details (ADR 17): nothing is
- * queued.
+ * The List style of one list, an Account setting (DEV-80). A change is kept on the phone first
+ * and sent when it can be (ADR 17, DEV-205), so it also works with no signal: the outbox restyles
+ * the list at once.
  */
 export function useListStyle(list: keyof ListStyles) {
   const query = useQuery({
@@ -25,36 +25,25 @@ export function useListStyle(list: keyof ListStyles) {
         : undefined,
   )
 
-  const online = useOnline()
+  const outbox = useOutbox()
   const queryClient = useQueryClient()
   const save = useMutation({
-    mutationFn: (body: ListStyles) =>
-      $fetch<ListStyles>('/api/account/list-styles', { method: 'PUT', body }),
-    // Online only: say so now, rather than saving whenever a signal returns.
+    // Runs with no signal too, as the outbox keeps the change (ADR 17).
     networkMode: 'always',
-    // Restyle at once; go back to what was saved if the server refuses.
-    onMutate: (body) => {
-      const previous = queryClient.getQueryData<ListStyles>(QUERY_KEY)
-      queryClient.setQueryData(QUERY_KEY, body)
-      return { previous }
-    },
-    onError: (_error, _body, context) => {
-      if (context?.previous) queryClient.setQueryData(QUERY_KEY, context.previous)
-    },
-    onSuccess: (saved) => queryClient.setQueryData(QUERY_KEY, saved),
+    mutationFn: ({ styles, before }: { styles: ListStyles; before: ListStyles }) =>
+      outbox.save(saveListStyles(styles, before)),
   })
 
   function setStyle(value: ListStyle | undefined) {
     const current = queryClient.getQueryData<ListStyles>(QUERY_KEY)
-    if (!value || !online.value || !current || current[list] === value) return
-    save.mutate({ ...current, [list]: value })
+    if (!value || !current || current[list] === value) return
+    save.mutate({ styles: { ...current, [list]: value }, before: current })
   }
 
   return {
     style,
-    /** Whether the User can change the style now: online, with the saved styles loaded. */
-    changeable: computed(() => online.value && Boolean(query.data.value)),
-    online,
+    /** Whether the User can change the style now: with the saved styles loaded. */
+    changeable: computed(() => Boolean(query.data.value)),
     failed: computed(() => Boolean(save.error.value)),
     setStyle,
   }

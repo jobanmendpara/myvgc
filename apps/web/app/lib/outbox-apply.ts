@@ -7,6 +7,7 @@ import {
   type NoteEntryView,
   type OpponentDetailView,
   type OpponentView,
+  opponentChangesSchema,
   type PokemonBuild,
   recordOf,
   roundInputSchema,
@@ -25,7 +26,8 @@ import type { OutboxWrite } from './outbox-rules'
 
 // What pending writes change on the pages before the server has them (ADR 17): the Tournament,
 // its details, Team snapshot, Rounds and Record, the Tournaments list, the dashboard, the
-// Opponents list and an Opponent's Note entries.
+// Opponents list, the Round form's Opponent suggestions, an Opponent's page and Note entries, and
+// the User's Player details and List styles.
 // Applying a write twice changes nothing more, so pending writes are applied again over each
 // answer from the server until they are sent. The server's answer replaces it all once they are.
 
@@ -431,8 +433,9 @@ export function addedOpponent(write: OutboxWrite): OpponentView | undefined {
     newOpponentName?: string | null
     bye?: boolean
   }
+  // A new Opponent fixed after the server refused them may have Aliases and notes too.
   if (write.kind === 'add-opponent' && body.id && body.displayName)
-    return newOpponent(body.id, body.displayName.trim(), write.createdAt)
+    return editedOpponent(newOpponent(body.id, body.displayName.trim(), write.createdAt), write)
   if (isRoundWrite(write) && !body.bye && body.newOpponentId && body.newOpponentName)
     return newOpponent(body.newOpponentId, body.newOpponentName.trim(), write.createdAt)
   return undefined
@@ -441,16 +444,75 @@ export function addedOpponent(write: OutboxWrite): OpponentView | undefined {
 const byName = (a: OpponentView, b: OpponentView) =>
   a.displayName.toLowerCase().localeCompare(b.displayName.toLowerCase()) || a.id.localeCompare(b.id)
 
-/** The Opponents list with the Opponents that pending writes add. */
+/** The fields an Opponent edit sends, as the server would save them, or nothing it can't read. */
+function editedFields(write: OutboxWrite): Partial<OpponentView> | undefined {
+  if (write.kind !== 'edit-opponent' && write.kind !== 'add-opponent') return undefined
+  const parsed = opponentChangesSchema.safeParse(write.request.body)
+  if (!parsed.success) return undefined
+  const { displayName, aliases, notes } = parsed.data
+  return {
+    ...(displayName !== undefined ? { displayName } : {}),
+    ...(aliases !== undefined ? { aliases } : {}),
+    ...(notes !== undefined ? { notes } : {}),
+  }
+}
+
+/** An Opponent with a write that changes them applied: an edit, or a fixed create. */
+function editedOpponent<T extends OpponentView>(opponent: T, write: OutboxWrite): T {
+  if (write.subject.opponentId !== opponent.id) return opponent
+  const fields = editedFields(write)
+  return fields ? { ...opponent, ...fields } : opponent
+}
+
+const isOpponentEdit = (write: OutboxWrite) => write.kind === 'edit-opponent'
+
+/** The IDs of the Opponents that pending writes delete. */
+const deletedOpponents = (writes: readonly OutboxWrite[]) =>
+  new Set(
+    writes
+      .filter((w) => isPending(w) && w.kind === 'delete-opponent')
+      .map((w) => w.subject.opponentId),
+  )
+
+/**
+ * The Opponents list with the pending writes: the Opponents they add in, the ones they delete
+ * out, and the rest changed.
+ */
 export function applyToOpponentList(
   opponents: OpponentView[],
   writes: readonly OutboxWrite[],
 ): OpponentView[] {
-  const added = writes
-    .filter(isPending)
+  const pending = writes.filter(isPending)
+  const added = pending
     .map(addedOpponent)
     .filter((o): o is OpponentView => !!o && !opponents.some((x) => x.id === o.id))
-  return added.length ? [...opponents, ...added].sort(byName) : opponents
+  const deleted = deletedOpponents(pending)
+  const edits = pending.filter(isOpponentEdit)
+  const after = [...opponents, ...added]
+    .filter((o) => !deleted.has(o.id))
+    .map((o) => edits.reduce(editedOpponent, o))
+  if (after.length === opponents.length && sameIfUnchanged(opponents, after) === opponents)
+    return opponents
+  return after.toSorted(byName)
+}
+
+/**
+ * The Round form's Opponent suggestions with the pending writes: an Opponent changed shows as
+ * changed, and one deleted isn't suggested. A new Opponent only shows once searched for again,
+ * as the suggestions are a search.
+ */
+export function applyToSuggestions(
+  opponents: OpponentView[],
+  writes: readonly OutboxWrite[],
+): OpponentView[] {
+  const pending = writes.filter(isPending)
+  const deleted = deletedOpponents(pending)
+  const edits = pending.filter(isOpponentEdit)
+  if (!deleted.size && !edits.length) return opponents
+  const after = opponents
+    .filter((o) => !deleted.has(o.id))
+    .map((o) => edits.reduce(editedOpponent, o))
+  return after.length === opponents.length ? sameIfUnchanged(opponents, after) : after
 }
 
 function sortEntries(entries: NoteEntryView[]) {
@@ -480,8 +542,9 @@ function applyToOpponent(detail: OpponentDetailView, write: OutboxWrite): Oppone
 const isNoteEntryWrite = (write: OutboxWrite) => write.kind.endsWith('note-entry')
 
 /**
- * An Opponent's page with the pending changes to their Note entries. With no page cached yet,
- * an Opponent added on this device gets one, so it can open before the server has them.
+ * An Opponent's page with the pending changes to them and their Note entries. With no page
+ * cached yet, an Opponent added on this device gets one, also while their create is refused, so
+ * it can open before the server has them, and be fixed.
  */
 export function applyToOpponentDetail(
   detail: OpponentDetailView | undefined,
@@ -491,16 +554,61 @@ export function applyToOpponentDetail(
   const pending = writes.filter(isPending)
   let start = detail
   if (!start) {
-    const added = pending.map(addedOpponent).find((o) => o?.id === opponentId)
+    const added = writes
+      .filter((w) => isPending(w) || w.kind === 'add-opponent')
+      .map(addedOpponent)
+      .find((o) => o?.id === opponentId)
     if (!added) return undefined
     start = { ...added, rounds: [], noteEntries: [], opponentTeams: [], opponentAgeDivisions: [] }
   }
   return pending
-    .filter((w) => isNoteEntryWrite(w) && w.subject.opponentId === opponentId)
-    .reduce(applyToOpponent, start)
+    .filter((w) => w.subject.opponentId === opponentId)
+    .reduce(
+      (page, write) =>
+        isNoteEntryWrite(write)
+          ? applyToOpponent(page, write)
+          : isOpponentEdit(write)
+            ? editedOpponent(page, write)
+            : page,
+      start,
+    )
+}
+
+/** An Opponent with a change that won't be sent put back as it was. */
+function revertOpponentFields<T extends OpponentView>(opponent: T, write: OutboxWrite): T {
+  const before = write.subject.before as OpponentView | undefined
+  if (!isOpponentEdit(write) || write.subject.opponentId !== opponent.id || !before) return opponent
+  const { displayName, aliases, notes } = before
+  return { ...opponent, displayName, aliases, notes }
+}
+
+/** The Opponents list with a write that won't be sent taken back out. */
+function revertInOpponentList(list: OpponentView[], write: OutboxWrite): OpponentView[] {
+  const added = addedOpponent(write)
+  if (added)
+    return list.some((o) => o.id === added.id) ? list.filter((o) => o.id !== added.id) : list
+  if (write.kind === 'delete-opponent') {
+    const before = write.subject.before as OpponentView | undefined
+    return before && !list.some((o) => o.id === before.id)
+      ? [...list, before].toSorted(byName)
+      : list
+  }
+  return sameIfUnchanged(
+    list,
+    list.map((o) => revertOpponentFields(o, write)),
+  )
+}
+
+/** An account setting, replaced whole, as the last pending save of it makes it. */
+function applySetting(data: unknown, kind: OutboxWrite['kind'], writes: readonly OutboxWrite[]) {
+  const last = writes.findLast((w) => isPending(w) && w.kind === kind)
+  return last?.request.body && typeof last.request.body === 'object'
+    ? { ...(data as object), ...last.request.body }
+    : data
 }
 
 function revertInOpponent(detail: OpponentDetailView, write: OutboxWrite): OpponentDetailView {
+  if (isOpponentEdit(write)) return revertOpponentFields(detail, write)
   if (!isNoteEntryWrite(write) || write.subject.opponentId !== detail.id) return detail
   const id = write.subject.noteEntryId
   const before = write.subject.before as NoteEntryView | undefined
@@ -514,7 +622,9 @@ type Target =
   | { kind: 'dashboard' }
   | { kind: 'tournaments' }
   | { kind: 'opponents' }
+  | { kind: 'suggestions' }
   | { kind: 'opponent'; id: string }
+  | { kind: 'setting'; write: 'save-player-details' | 'save-list-styles' }
 
 function targetOf(key: readonly unknown[]): Target | undefined {
   if (key[0] === 'tournament' && typeof key[1] === 'string' && key.length === 2)
@@ -522,8 +632,13 @@ function targetOf(key: readonly unknown[]): Target | undefined {
   if (key[0] === 'tournaments' && key.length === 1) return { kind: 'tournaments' }
   if (key[0] === 'dashboard') return { kind: 'dashboard' }
   if (key[0] === 'opponents' && key[1] === 'list' && key.length === 2) return { kind: 'opponents' }
+  if (key[0] === 'opponents' && key[1] === 'suggestions') return { kind: 'suggestions' }
   if (key[0] === 'opponents' && key[1] === 'detail' && typeof key[2] === 'string')
     return { kind: 'opponent', id: key[2] }
+  if (key[0] === 'account' && key[1] === 'player-details' && key.length === 2)
+    return { kind: 'setting', write: 'save-player-details' }
+  if (key[0] === 'account' && key[1] === 'list-styles' && key.length === 2)
+    return { kind: 'setting', write: 'save-list-styles' }
   return undefined
 }
 
@@ -566,8 +681,12 @@ export function applyPending(
         : data
     case 'opponents':
       return Array.isArray(data) ? applyToOpponentList(data as OpponentView[], writes) : data
+    case 'suggestions':
+      return Array.isArray(data) ? applyToSuggestions(data as OpponentView[], writes) : data
     case 'opponent':
       return applyToOpponentDetail(data as OpponentDetailView | undefined, target.id, writes)
+    case 'setting':
+      return data === undefined ? data : applySetting(data, target.write, writes)
   }
 }
 
@@ -583,13 +702,19 @@ export function revertWrite(key: readonly unknown[], data: unknown, write: Outbo
     case 'dashboard':
       // Worked out again from the Tournaments list, then asked of the server again.
       return data
-    case 'opponents': {
-      const added = addedOpponent(write)
-      return added && Array.isArray(data)
-        ? (data as OpponentView[]).filter((o) => o.id !== added.id)
+    case 'opponents':
+      return Array.isArray(data) ? revertInOpponentList(data as OpponentView[], write) : data
+    case 'suggestions':
+      // Then asked of the server again.
+      return Array.isArray(data)
+        ? sameIfUnchanged(
+            data as OpponentView[],
+            (data as OpponentView[]).map((o) => revertOpponentFields(o, write)),
+          )
         : data
-    }
     case 'opponent':
       return revertInOpponent(data as OpponentDetailView, write)
+    case 'setting':
+      return write.kind === target.write && write.subject.before ? write.subject.before : data
   }
 }
