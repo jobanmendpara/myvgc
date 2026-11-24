@@ -603,6 +603,105 @@ test('with no signal, the app opens as the last known User with their cached pag
   await context.setOffline(false)
 })
 
+// The query keys in the User's query cache saved on the device.
+const savedQueryKeys = (page: Page) =>
+  page.evaluate(
+    () =>
+      new Promise<string[]>((resolve, reject) => {
+        const open = indexedDB.open('myvgc')
+        open.onerror = () => reject(open.error)
+        open.onsuccess = () => {
+          const all = open.result.transaction('query-cache').objectStore('query-cache').getAll()
+          all.onsuccess = () => {
+            open.result.close()
+            const caches = all.result as { clientState: { queries: { queryHash: string }[] } }[]
+            resolve(caches.flatMap((cache) => cache.clientState.queries.map((q) => q.queryHash)))
+          }
+        }
+      }),
+  )
+
+test('a cold start with no signal shows the saved Tournaments and Opponents, also after a reload', async ({
+  context,
+  page,
+}) => {
+  await signUp(page, 'smoke-cold')
+  await createTournament(page, 'Cold Open')
+  await page.getByRole('link', { name: 'Log Round' }).click()
+  await page.getByRole('combobox', { name: 'Opponent' }).fill('Cold Rival')
+  await page.getByRole('option', { name: /Add “Cold Rival”/ }).click()
+  await page.getByText('Win', { exact: true }).click()
+  await page.getByRole('button', { name: 'Log Round' }).click()
+  await expect(page.getByTestId('round')).toContainText('Cold Rival')
+  const nav = page.getByRole('navigation', { name: 'Main' })
+  await nav.getByRole('link', { name: 'Tournaments' }).click()
+  await expect(page.getByText('Cold Open').first()).toBeVisible()
+  await nav.getByRole('link', { name: 'Opponents' }).click()
+  await expect(page.getByTestId('opponents-list')).toContainText('Cold Rival')
+  await page.evaluate(() => navigator.serviceWorker.ready)
+  await expect
+    .poll(() => savedQueryKeys(page))
+    .toEqual(expect.arrayContaining(['["tournaments"]', '["opponents","list"]']))
+  await page.close()
+
+  // Offline before the app opens, as when it is launched in Airplane mode (DEV-209). Each list
+  // must still show once a fetch would have failed and been retried, which takes over a second.
+  await context.setOffline(true)
+  const offline = await context.newPage()
+  const failed = offline.getByText(/Couldn't load your/)
+  await offline.goto('/tournaments')
+  await expect(offline.getByText('Cold Open').first()).toBeVisible()
+  await offline.waitForTimeout(3000)
+  await expect(offline.getByText('Cold Open').first()).toBeVisible()
+  await expect(failed).toHaveCount(0)
+
+  await offline
+    .getByRole('navigation', { name: 'Main' })
+    .getByRole('link', { name: 'Opponents' })
+    .click()
+  await expect(offline.getByTestId('opponents-list')).toContainText('Cold Rival')
+  await offline.waitForTimeout(3000)
+  await expect(offline.getByTestId('opponents-list')).toContainText('Cold Rival')
+  await expect(failed).toHaveCount(0)
+
+  // Nothing was forgotten: a reload with no signal still shows both lists.
+  await offline.reload()
+  await expect(offline.getByTestId('opponents-list')).toContainText('Cold Rival')
+  await offline.goto('/tournaments')
+  await expect(offline.getByText('Cold Open').first()).toBeVisible()
+  await expect(failed).toHaveCount(0)
+  await context.setOffline(false)
+})
+
+test('when the server can’t be reached on a connected phone, the saved lists stay and are kept', async ({
+  context,
+  page,
+}) => {
+  await signUp(page, 'smoke-venue')
+  await createTournament(page, 'Venue Open')
+  await page.goto('/tournaments')
+  await expect(page.getByText('Venue Open').first()).toBeVisible()
+  await page.evaluate(() => navigator.serviceWorker.ready)
+  await expect.poll(() => savedQueryKeys(page)).toContain('["tournaments"]')
+  await page.close()
+
+  // Venue Wi-Fi with no internet: the phone says it is online, but every API request fails, so
+  // the Tournaments list refetches and fails (DEV-209).
+  await context.route('**/api/**', (route) => route.abort('internetdisconnected'))
+  const venue = await context.newPage()
+  await venue.goto('/tournaments')
+  await expect(venue.getByText('Venue Open').first()).toBeVisible()
+  await venue.waitForTimeout(3000)
+  await expect(venue.getByText('Venue Open').first()).toBeVisible()
+  await expect(venue.getByText(/Couldn't load your/)).toHaveCount(0)
+
+  // The failed refetch didn't drop the list from the device: it shows again after a reload.
+  await venue.waitForTimeout(1500)
+  await venue.reload()
+  await expect(venue.getByText('Venue Open').first()).toBeVisible()
+  await context.unroute('**/api/**')
+})
+
 test('a Round logged with no signal is kept on the phone and sent when the signal returns', async ({
   context,
   page,

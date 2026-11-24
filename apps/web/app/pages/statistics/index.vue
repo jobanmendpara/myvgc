@@ -49,7 +49,7 @@ const tables = computed(() => stats.value && statisticsTables(stats.value, speci
     </DashboardFilters>
 
     <p v-if="view.isPending.value" class="text-muted-foreground">Loading…</p>
-    <Alert v-else-if="view.isError.value" variant="destructive" role="alert">
+    <Alert v-else-if="view.isError.value && !view.data.value" variant="destructive" role="alert">
       <AlertDescription
         >Couldn't load your Statistics. Check your connection and try again.</AlertDescription
       >

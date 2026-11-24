@@ -34,7 +34,7 @@ const { query, searching, results, noMatches } = useListSearch(
         search-placeholder="Find by name, Organizer or location"
         :wide="wide"
         :pending="tournaments.isPending.value"
-        :load-failed="tournaments.isError.value"
+        :load-failed="tournaments.isError.value && !tournaments.data.value"
         :empty="shown?.length === 0"
         :no-matches="noMatches"
       >

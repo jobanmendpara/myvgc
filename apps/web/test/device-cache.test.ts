@@ -1,5 +1,6 @@
 import { QueryClient } from '@tanstack/vue-query'
 import { IDBFactory } from 'fake-indexeddb'
+import { $fetch, FetchError } from 'ofetch'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   CACHE_MAX_AGE,
@@ -167,6 +168,54 @@ describe('The saved query cache', () => {
     const after = freshClient()
     await persistCacheFor(after, ash.id)
     expect(after.getQueryData(['names'])).toBeUndefined()
+  })
+
+  it('keeps a list whose refetch failed, and shows its data after a restart (DEV-209)', async () => {
+    const before = freshClient()
+    await persistCacheFor(before, ash.id)
+    before.setQueryData(['opponents', 'list'], opponents)
+    await before
+      .fetchQuery({
+        queryKey: ['opponents', 'list'],
+        queryFn: () => $fetch('http://localhost:1/api/opponents'),
+        staleTime: 0,
+      })
+      .catch(() => {})
+    const failed = before.getQueryCache().find({ queryKey: ['opponents', 'list'] })
+    expect(failed?.state.status).toBe('error')
+    expect(failed?.state.error).toBeInstanceOf(FetchError)
+    await saved()
+    stopPersisting()
+
+    const after = freshClient()
+    await persistCacheFor(after, ash.id)
+    expect(after.getQueryData(['opponents', 'list'])).toEqual(opponents)
+    // Saved again as restored, failed fetch and all: it is still there on the next launch.
+    after.setQueryData(['tournaments'], [])
+    await saved()
+    stopPersisting()
+
+    const again = freshClient()
+    await persistCacheFor(again, ash.id)
+    expect(again.getQueryData(['opponents', 'list'])).toEqual(opponents)
+  })
+
+  it('leaves out a query that failed before it ever had data', async () => {
+    const before = freshClient()
+    await persistCacheFor(before, ash.id)
+    before.setQueryData(['opponents', 'list'], opponents)
+    await before
+      .fetchQuery({
+        queryKey: ['tournaments'],
+        queryFn: () => Promise.reject(new Error('offline')),
+      })
+      .catch(() => {})
+    await saved()
+    stopPersisting()
+
+    const after = freshClient()
+    await persistCacheFor(after, ash.id)
+    expect(after.getQueryCache().find({ queryKey: ['tournaments'] })).toBeUndefined()
   })
 
   it('is removed, and stays removed, when the device’s data is cleared', async () => {

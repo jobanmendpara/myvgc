@@ -154,7 +154,7 @@ const roundsMoving = computed(() => {
         <CardDescription>They may have been deleted.</CardDescription>
       </CardHeader>
     </Card>
-    <Alert v-else-if="query.isError.value" variant="destructive" role="alert">
+    <Alert v-else-if="query.isError.value && !opponent" variant="destructive" role="alert">
       <AlertDescription>Couldn't load this Opponent.</AlertDescription>
     </Alert>
 

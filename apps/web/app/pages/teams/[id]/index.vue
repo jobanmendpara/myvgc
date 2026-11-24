@@ -108,7 +108,7 @@ const remove = useMutation({
       </CardFooter>
     </Card>
 
-    <Alert v-else-if="teamQuery.isError.value" variant="destructive" role="alert">
+    <Alert v-else-if="teamQuery.isError.value && !team" variant="destructive" role="alert">
       <AlertDescription
         >Couldn't load this Team. Check your connection and try again.</AlertDescription
       >

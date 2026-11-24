@@ -3,7 +3,7 @@ import {
   type Persister,
   persistQueryClient,
 } from '@tanstack/query-persist-client-core'
-import { defaultShouldDehydrateQuery, type QueryClient } from '@tanstack/vue-query'
+import type { Query, QueryClient } from '@tanstack/vue-query'
 import { deviceStore } from './device-database'
 
 // What the app keeps on this device so it can open with no connection (ADR 17): the last known
@@ -88,9 +88,15 @@ function cachePersister(userId: string) {
   return { persister, cancel }
 }
 
-// The names list has its own copy on the device and is the same for every User.
-const shouldSaveQuery: typeof defaultShouldDehydrateQuery = (query) =>
-  defaultShouldDehydrateQuery(query) && query.queryKey[0] !== 'names'
+/**
+ * Whether a query is saved on the device: any query that has data, even when its last fetch
+ * failed (DEV-209). A failed refetch with no signal, or on venue Wi-Fi with no internet, must not
+ * make the next save forget a list the app already has. The names list is left out: it has its
+ * own copy on the device and is the same for every User.
+ */
+function shouldSaveQuery(query: Query): boolean {
+  return query.state.data !== undefined && query.queryKey[0] !== 'names'
+}
 
 let persisting: { userId: string; stop: () => void; restored: Promise<void> } | undefined
 
