@@ -7,7 +7,8 @@ import { teamPath } from '@/lib/paths'
 // the species with their Sprites; the heading already names the Regulation. Detailed: name,
 // legality badge, Regulation and species chips with their Sprites, tighter on wide screens.
 // The page's Sprite style lays the Sprites out: in the Grouped style, Inline puts each before
-// its name, Leading slot a row of them above the names line, Stacked tiles a 3 × 2 grid with
+// its name, Leading slot a row of them above the names line (which wraps between names, never
+// inside one, so every name shows), Stacked tiles a 3 × 2 grid with
 // each over its name; in the Detailed style, Stacked tiles turns the chips into tiles.
 defineProps<{ teams: TeamView[]; listStyle: ListStyle; wide: boolean; searching: boolean }>()
 
@@ -66,9 +67,12 @@ const { style: spriteStyle } = useSpriteStyle()
             surface="team-row-grouped"
           />
         </span>
-        <span class="text-muted-foreground truncate text-xs">{{
-          item.pokemon.map((build) => build.names.species).join(' · ')
-        }}</span>
+        <span class="text-muted-foreground flex flex-wrap gap-x-1 text-xs">
+          <span v-for="(build, index) in item.pokemon" :key="index" class="whitespace-nowrap"
+            >{{ build.names.species
+            }}<template v-if="index < item.pokemon.length - 1"> ·</template></span
+          >
+        </span>
       </template>
       <span v-else class="grid grid-cols-3 gap-1">
         <span
