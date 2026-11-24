@@ -66,13 +66,15 @@ function tap(value: SpriteStyle, event: MouseEvent) {
                 @keydown.enter.prevent="open = false"
               />
               <span class="text-sm font-medium">{{ SPRITE_STYLE_LABELS[value] }}</span>
-              <!-- The same sample in each style, laid out as an Opponent's Team shows it. -->
+              <!-- The same sample in each style, laid out as an Opponent's Team shows it. A
+                   Stacked tile is centred in the card, with the held item on a line of its own
+                   so its name never splits (DEV-196). -->
               <span
                 aria-hidden="true"
                 class="flex gap-2 text-sm"
                 :class="
                   value === 'stacked-tiles'
-                    ? 'w-32 flex-col items-center text-center'
+                    ? 'w-32 flex-col items-center self-center text-center'
                     : 'items-center'
                 "
               >
@@ -91,7 +93,11 @@ function tap(value: SpriteStyle, event: MouseEvent) {
                   />
                   <span
                     >{{ SAMPLE.name }}
-                    <span class="text-muted-foreground">@ {{ SAMPLE.item }}</span></span
+                    <span
+                      class="text-muted-foreground"
+                      :class="{ 'block whitespace-nowrap': value === 'stacked-tiles' }"
+                      >@ {{ SAMPLE.item }}</span
+                    ></span
                   >
                 </span>
               </span>
