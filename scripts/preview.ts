@@ -209,7 +209,8 @@ function summary(state: PreviewState) {
     `Preview running at ${state.url} (API on ${state.apiPort}), with a throwaway database.`,
     `Log in as ${state.email} / ${state.password}. Seeded pages:`,
     ...(state.pages ?? []).map(({ label, path }) => `  ${path}  ${label}`),
-    'Screenshots: pnpm screenshots [path] [--click <text>]...   Stop: pnpm preview:stop',
+    'Screenshots: pnpm screenshots [path] [--sprite-style <inline|leading-slot|stacked-tiles>]',
+    '             [--click <text>]...   Stop: pnpm preview:stop',
   ].join('\n')
 }
 
