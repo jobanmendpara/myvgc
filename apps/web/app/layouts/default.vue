@@ -32,7 +32,9 @@ const shownBar = computed(() => (onRoundForm.value ? undefined : bar.value))
         class="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3"
       >
         <NuxtLink to="/dashboard" class="text-lg font-semibold">MyVGC</NuxtLink>
-        <div class="flex items-center gap-1">
+        <!-- As tall as the Sprite style button, so the header keeps its height on the pages
+             without it (DEV-192). -->
+        <div class="flex min-h-9 items-center gap-1">
           <span
             v-if="!online"
             class="text-muted-foreground inline-flex items-center gap-1 px-1 text-xs"
