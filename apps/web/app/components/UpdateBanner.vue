@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { browserReloadEnvironment, reloadToNewVersion } from '@/lib/reload-to-new-version'
+
 // A new version never loads on its own (ADR 17): it waits until the User chooses to reload, so a
 // half-filled form isn't lost.
 const { $pwa } = useNuxtApp()
@@ -6,8 +8,13 @@ const reloading = ref(false)
 
 async function reload() {
   reloading.value = true
-  // Activates the waiting version and reloads the page once it takes over.
-  await $pwa?.updateServiceWorker(true)
+  // Activates the waiting version and reloads the page once it takes over, whether or not the
+  // service worker controls this page (DEV-208).
+  await reloadToNewVersion(
+    browserReloadEnvironment(async () => {
+      await $pwa?.updateServiceWorker(true)
+    }),
+  )
 }
 </script>
 
