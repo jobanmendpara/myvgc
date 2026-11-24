@@ -28,7 +28,7 @@ describe('pickPorts', () => {
   })
 
   test('skips busy ports and wraps round to the start of the range', async () => {
-    const busy = new Set([PORT_RANGE.to, PORT_RANGE.from])
+    const busy = new Set<number>([PORT_RANGE.to, PORT_RANGE.from])
     const ports = await pickPorts(2, async (port) => !busy.has(port), PORT_RANGE.to)
     expect(ports).toEqual([PORT_RANGE.from + 1, PORT_RANGE.from + 2])
   })
