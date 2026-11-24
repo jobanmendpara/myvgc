@@ -9,7 +9,8 @@ import { teamPath } from '@/lib/paths'
 // The page's Sprite style lays the Sprites out: in the Grouped style, Inline puts each before
 // its name, Leading slot a row of them above the names line (which wraps between names, never
 // inside one, so every name shows), Stacked tiles a 3 × 2 grid with
-// each over its name; in the Detailed style, Stacked tiles turns the chips into tiles.
+// each over its name; in the Detailed style, Stacked tiles turns the chips into tiles. A tile's
+// name wraps rather than truncating, as on Brought and Leads tiles, so long names stay readable.
 defineProps<{ teams: TeamView[]; listStyle: ListStyle; wide: boolean; searching: boolean }>()
 
 // Typed here: passing the generic core function straight to ListRows broke CI's typecheck.
@@ -81,7 +82,7 @@ const { style: spriteStyle } = useSpriteStyle()
           class="text-muted-foreground flex min-w-0 flex-col items-center text-center text-xs leading-tight"
         >
           <Sprite :species="build.species" surface="team-row-grouped" />
-          <span class="w-full truncate">{{ build.names.species }}</span>
+          <span class="w-full break-words">{{ build.names.species }}</span>
         </span>
       </span>
     </template>
@@ -121,7 +122,7 @@ const { style: spriteStyle } = useSpriteStyle()
           class="bg-muted text-muted-foreground flex min-w-0 flex-col items-center rounded p-1 text-center text-xs"
         >
           <Sprite :species="build.species" surface="team-row-detailed" />
-          <span class="w-full truncate">{{ build.names.species }}</span>
+          <span class="w-full break-words">{{ build.names.species }}</span>
         </li>
       </ul>
     </template>
