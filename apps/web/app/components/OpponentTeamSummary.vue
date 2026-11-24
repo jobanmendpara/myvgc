@@ -22,10 +22,13 @@ const { style: spriteStyle } = useSpriteStyle()
       v-for="build in pokemon"
       :key="build.species"
       class="bg-muted/40 flex gap-2 rounded-md p-2 text-sm"
-      :class="{ 'flex-col items-center text-center': spriteStyle === 'stacked-tiles' }"
+      :class="{
+        'flex-col items-center text-center': spriteStyle === 'stacked-tiles',
+        'items-center': spriteStyle === 'leading-slot' && !build.ability && !build.moves.length,
+      }"
     >
       <!-- Inline: the Sprite before the name. Leading slot: a slot to the left. Stacked tiles:
-           on top, centred. -->
+           on top, centred. In Leading slot a lone name line is centred on the slot (DEV-194). -->
       <Sprite v-if="spriteStyle !== 'inline'" :species="build.species" surface="opponent-team" />
       <div class="flex min-w-0 flex-col gap-0.5">
         <p
