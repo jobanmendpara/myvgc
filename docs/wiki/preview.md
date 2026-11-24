@@ -22,7 +22,28 @@ On 2026-11-23 the DEV-180 agent shipped three Sprite styles without seeing them 
 
 Filed on 2026-11-23:
 
-- [DEV-186](https://linear.app/mendpara/issue/DEV-186): act on the page (tap, type) before a shot, and capture a pane's full height.
-- [DEV-187](https://linear.app/mendpara/issue/DEV-187): the root `scripts/` folder isn't typechecked. The editor showed a type error in `scripts/preview.test.ts` at line 24 that `pnpm typecheck` didn't catch.
+- [DEV-186](https://linear.app/mendpara/issue/DEV-186): act on the page (tap, type) before a shot, and capture a pane's full height. (Closed 2026-11-24: DEV-198's `--click` and 1,600 px slices cover it, see "Changes" below.)
+- [DEV-187](https://linear.app/mendpara/issue/DEV-187): the root `scripts/` folder isn't typechecked. The editor showed a type error in `scripts/preview.test.ts` at line 24 that `pnpm typecheck` didn't catch. (Closed 2026-11-24: PR #300 typechecks the root scripts, `jobanmendpara/myvgc@7777f1c`, merged 01:32 UTC; Linear moved by hand, see [shipping flow](shipping-flow.md).)
+- Gaps found by [DEV-183](https://linear.app/mendpara/issue/DEV-183) on 2026-11-23 (seeding by hand, no clicks, no dark theme) were filed as DEV-197 and DEV-198 and closed on 2026-11-24, see "Changes" below.
+
+## Changes
+
+From the implementers' reports, 2026-11-24. Times are merge times from `gh pr view`, UTC, 2026-11-24.
+
+- [DEV-197](https://linear.app/mendpara/issue/DEV-197), PR #314, 09:43, `jobanmendpara/myvgc@6768984`: the seed runs through `app.request()` in `apps/api/scripts/preview-seed.ts`, from `seed.json`, and `pnpm preview` prints the seeded pages (the seed is described under "What it does" above). PR #316, 09:51, `jobanmendpara/myvgc@a0e0ce8`, added a hint at start-up.
+- [DEV-198](https://linear.app/mendpara/issue/DEV-198), PR #315, 09:43, `jobanmendpara/myvgc@096d460`: `pnpm screenshots --click` clicks labels before a shot, `--sprite-style` picks the Sprite style, shots wait for images to load, file names are unique with a hash, tall pages are cut into 1,600 px slices, and the root script runs `node` directly.
+- [DEV-199](https://linear.app/mendpara/issue/DEV-199), PR #323, 10:12, `jobanmendpara/myvgc@a49030d`: `--dark`, `--2x` and `--help` (exits 0), and the Riley Park Round with Cramorant-Gulping in the Leads and an Opponent's Team with moves (described under "What it does" above). DEV-199 closed on merge, see [shipping flow](shipping-flow.md).
+
+## Tips
+
+From the implementers' reports, 2026-11-24:
+
+- On macOS, `sips --cropOffset 0 0` crops from the middle, not the top left. Use `--cropOffset 1 0`.
+- No pixel library is installed. To measure an element, write a short Playwright script.
+- The seed's Lead with no Sprite (Cramorant-Gulping) is always the back Sprite of its pair, so DEV-189's fill on the front Sprite hasn't been seen. See [sprites rollout](sprites-rollout.md).
+
+## Known issues
+
+- As of `jobanmendpara/myvgc@a49030d` (2026-11-24), the seeded Tournament starts today, whatever day the seed runs.
 
 Related: [up:local shares the dev DB](up-local-shares-dev-db.md), [sprites rollout](sprites-rollout.md), [parallel agents](parallel-agents.md).

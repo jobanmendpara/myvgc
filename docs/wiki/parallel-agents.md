@@ -143,4 +143,13 @@ See [sprites rollout](sprites-rollout.md) for how the round ran. From the implem
 - The worktree guard refused the 2026-11-11 HTTPS workaround above, because of `git -c credential.helper=…` (DEV-184 agent and DEV-185 prototype agent). The plain form `git push https://jobanmendpara@github.com/jobanmendpara/myvgc.git <branch>` worked, with the osxkeychain credential helper supplying the token (DEV-184 agent). From 2026-11-23 agents use this plain form instead of the `-c` form.
 - The DEV-185 prototype agent instead built its branch through `gh api` (git trees, commits and refs). This is a workaround to avoid: use the plain HTTPS push above.
 
+## Environment on 2026-11-24 (DEV-188 to DEV-199)
+
+See [sprites rollout](sprites-rollout.md), "Looking at the Sprites and fixing what was found". From the implementers' reports, 2026-11-24:
+
+- SSH push was refused again for some agents. The plain HTTPS form from 2026-11-23 above, `git push https://jobanmendpara@github.com/jobanmendpara/myvgc.git <branch>`, worked.
+- A force push to a URL needs the lease spelled out: `--force-with-lease=<branch>:<old sha>`.
+- The worktree guard refused `cd … && <heredoc>` chains, as with heredocs on 2026-11-19 and 2026-11-23 above.
+- The 5-hour usage limit paused every running agent twice on 2026-11-23, in the afternoon and the evening. The maintainer then chose to run two or three agents at a time (see [sprites rollout](sprites-rollout.md)).
+
 Related: [shipping flow](shipping-flow.md), [list and detail rollout](list-detail-rollout.md), [team reading rollout](team-reading-rollout.md).

@@ -49,4 +49,30 @@ From the implementers' reports, 2026-11-23:
 - [DEV-184](https://linear.app/mendpara/issue/DEV-184) merged in PR #296 (`jobanmendpara/myvgc@efba1bf`): `pnpm preview` lets agents run the app from a worktree and take screenshots. See [preview](preview.md).
 - The maintainer asked for a prototype of Sprites on `TournamentTeam`, `OpponentTimeline`, `StatisticsCounted` and the `BuildEditor` heading. It is the Decision issue [DEV-185](https://linear.app/mendpara/issue/DEV-185), on branch `prototype/dev-185-more-sprite-surfaces` (remote commit `9d89ada`, not merged). How to view it is in a comment on DEV-185. As of 2026-11-23 it awaits the maintainer's choice.
 
+## Looking at the Sprites and fixing what was found
+
+From the implementers' reports and the chief-of-staff, 2026-11-23 to 2026-11-24, unless marked otherwise.
+
+- [DEV-183](https://linear.app/mendpara/issue/DEV-183) (look at every Sprite style) was Done on 2026-11-23. Its agent ran `pnpm preview`, seeded the database by hand (about 6 minutes), and filed nine Bugs, [DEV-188](https://linear.app/mendpara/issue/DEV-188) to [DEV-196](https://linear.app/mendpara/issue/DEV-196). It did not cover a real screen reader, the dark theme, or widths from 640 to 1023 px.
+- On 2026-11-23 the maintainer chose the order: fix the environment first ([DEV-197](https://linear.app/mendpara/issue/DEV-197) and [DEV-198](https://linear.app/mendpara/issue/DEV-198), see [preview](preview.md)), then the Bugs in small groups by surface, two or three agents at a time. This came after the 5-hour usage limit paused every running agent twice, in the afternoon and the evening of 2026-11-23.
+- Each Bug fix came with before and after screenshots. In order of merge (times from `gh pr view`, UTC, 2026-11-24):
+
+| Issue | What | PR | Merged | Merge commit |
+| --- | --- | --- | --- | --- |
+| DEV-193 | Stacked tiles in a three-column grid (`grid-cols-3`) | #317 | 09:53 | `jobanmendpara/myvgc@fae0994` |
+| DEV-189 | An outline in the background colour on the front Sprite of a stacked Lead pair | #318 | 09:53 | `jobanmendpara/myvgc@ee815a9` |
+| DEV-190 | Number columns don't wrap (`nowrap`) | #320 | 10:00 | `jobanmendpara/myvgc@7aaf2b0` |
+| DEV-194 | A lone name is centred | #319 | 10:01 | `jobanmendpara/myvgc@95e24c4` |
+| DEV-191 | A names line wraps between names, not inside one | #322 | 10:08 | `jobanmendpara/myvgc@cc333b1` |
+| DEV-195 | Tile names break inside long species names (`break-words`) | #324 | 10:15 | `jobanmendpara/myvgc@f463a19` |
+| DEV-192 | The header's right group gets `min-h-9`, so the header is 99 px on every page | #325 | 10:21 | `jobanmendpara/myvgc@2179506` |
+| DEV-188 | A white backing behind the Sprites on Lead buttons | #326 | 10:25 | `jobanmendpara/myvgc@ee1d70d` |
+| DEV-196 | The Sprite style dialog's sample item sits on its own `nowrap` line | #327 | 10:25 | `jobanmendpara/myvgc@229eb2a` |
+
+- No test covers the wrapping fixes (2026-11-24); the screenshots are the only evidence.
+- DEV-189's fill on the front Sprite hasn't been seen in a screenshot: the seed's Lead with no Sprite is always the back Sprite of its pair (2026-11-24, see [preview](preview.md)).
+- Filed on 2026-11-24: [DEV-200](https://linear.app/mendpara/issue/DEV-200), dark Sprites are faint on the near-black background of the dark theme. The approach awaits the maintainer.
+- As of 2026-11-24 the [DEV-185](https://linear.app/mendpara/issue/DEV-185) prototype (see "Follow-ups" above) still awaits the maintainer.
+- How the PRs closed their issues is in [shipping flow](shipping-flow.md), "Sprite Bugs (2026-11-23 to 2026-11-24)".
+
 Related: [shipping flow](shipping-flow.md), [parallel agents](parallel-agents.md), [preview](preview.md).
