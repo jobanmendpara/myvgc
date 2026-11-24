@@ -455,7 +455,7 @@ test('upload a Teamsheet PDF to a Tournament, then read it into a Team', async (
   ).toHaveText('Charizard')
 })
 
-test('the chosen List style survives a reload, and needs a connection to change', async ({
+test('the chosen List style survives a reload, and changes with no signal too', async ({
   page,
 }) => {
   await signUp(page, 'smoke-list-style')
@@ -495,13 +495,16 @@ test('the chosen List style survives a reload, and needs a connection to change'
   await expect(search).toHaveValue('')
   await expect(list.getByRole('heading', { name: 'A' })).toBeVisible()
 
-  // Offline, the saved List style still shows, but it can't be changed.
+  // Offline, the List style still changes at once, and is sent when the signal returns (DEV-205).
   await page.context().setOffline(true)
-  await expect(page.getByTestId('list-style-offline')).toBeVisible()
-  await expect(listStyle.getByRole('radio', { name: 'Compact' })).toBeDisabled()
-  await expect(list.getByRole('heading', { name: 'A' })).toBeVisible()
+  await listStyle.getByTitle('Compact').click()
+  await expect(listStyle.getByRole('radio', { name: 'Compact' })).toBeChecked()
+  await expect(list.getByRole('heading')).toHaveCount(0)
+  await expect(page.getByTestId('sync-bar')).toContainText('1 change saved on this phone')
   await page.context().setOffline(false)
-  await expect(listStyle.getByRole('radio', { name: 'Compact' })).toBeEnabled()
+  await expect(page.getByTestId('sync-bar')).toContainText('1 change sent')
+  await page.reload()
+  await expect(listStyle.getByRole('radio', { name: 'Compact' })).toBeChecked()
 })
 
 test('the chosen palette and mode survive a reload, also before logging in', async ({ page }) => {
@@ -820,5 +823,60 @@ test('a Tournament created with no signal, and a Round logged in it, are sent wh
   await expect(page.getByTestId('tournament-name')).toHaveText('Venue Open')
   await expect(page.getByTestId('record')).toContainText('Swiss 1-0-0')
   await expect(page.getByTestId('round')).toContainText('Venue Opponent')
+  await expect(page.getByTestId('sync-mark')).toHaveCount(0)
+})
+
+test('an Opponent changed and another deleted with no signal are sent when the signal returns', async ({
+  context,
+  page,
+}) => {
+  await signUp(page, 'smoke-outbox-opponent')
+  const addOpponent = async (name: string) => {
+    await page.goto('/opponents')
+    await page.getByRole('button', { name: 'Add Opponent' }).click()
+    await page.getByLabel('Name', { exact: true }).fill(name)
+    await page.getByRole('button', { name: 'Add', exact: true }).click()
+    await expect(page.getByTestId('opponent-name')).toHaveText(name)
+  }
+  await addOpponent('Delete Me')
+  await addOpponent('Rename Me')
+  const nav = page.getByRole('navigation', { name: 'Main' })
+  const list = page.getByTestId('opponents-list')
+  // Each page opened once with a signal, in the app rather than by reloading, so it is on the
+  // phone.
+  await nav.getByRole('link', { name: 'Opponents' }).click()
+  await list.getByRole('link', { name: /Delete Me/ }).click()
+  await expect(page.getByTestId('opponent-name')).toHaveText('Delete Me')
+  await nav.getByRole('link', { name: 'Opponents' }).click()
+  await list.getByRole('link', { name: /Rename Me/ }).click()
+  await expect(page.getByTestId('opponent-name')).toHaveText('Rename Me')
+
+  await context.setOffline(true)
+  await page.getByRole('button', { name: 'Edit' }).click()
+  await page.getByLabel('Display name').fill('Renamed Rival')
+  await page.getByRole('button', { name: 'Save' }).click()
+  // Shown at once, marked until the server has it.
+  await expect(page.getByTestId('opponent-name')).toHaveText('Renamed Rival')
+  await expect(page.locator('header').getByTestId('sync-mark')).toHaveText('Not synced')
+
+  await nav.getByRole('link', { name: 'Opponents' }).click()
+  const renamed = list.getByRole('link', { name: /Renamed Rival/ })
+  await expect(renamed.getByTestId('sync-mark')).toHaveText('Not synced')
+  await list.getByRole('link', { name: /Delete Me/ }).click()
+  await expect(page.getByTestId('opponent-name')).toHaveText('Delete Me')
+  await page.getByRole('button', { name: 'Delete Opponent' }).click()
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Delete Opponent' }).click()
+
+  // Still in the list, struck through, until the server has it.
+  const deleting = list.getByRole('link', { name: /Delete Me/ })
+  await expect(deleting.getByTestId('sync-mark')).toHaveText('Deleting when the signal returns')
+  await expect(page.getByTestId('sync-bar')).toContainText('2 changes saved on this phone')
+
+  await context.setOffline(false)
+  await expect(page.getByTestId('sync-bar')).toContainText('All 2 changes sent')
+  await expect(list.getByRole('link', { name: /Delete Me/ })).toHaveCount(0)
+  await page.reload()
+  await expect(list).toContainText('Renamed Rival')
+  await expect(list).not.toContainText('Delete Me')
   await expect(page.getByTestId('sync-mark')).toHaveCount(0)
 })

@@ -34,7 +34,7 @@ defineSlots<{
   default(props: { listStyle: ListStyle }): unknown
 }>()
 
-const { style, changeable, online, failed, setStyle } = useListStyle(props.list)
+const { style, changeable, failed, setStyle } = useListStyle(props.list)
 // On a device with nothing cached yet, wait for the List style too, so the wrong one never
 // flashes up first.
 const loading = computed(() => props.pending || !style.value)
@@ -61,14 +61,7 @@ const width = computed(
           />
           <slot name="actions" />
         </div>
-        <p
-          v-if="showControl && !online"
-          class="text-muted-foreground text-xs"
-          data-testid="list-style-offline"
-        >
-          Online only. Connect to change the List style.
-        </p>
-        <p v-else-if="showControl && failed" class="text-destructive text-xs" role="alert">
+        <p v-if="showControl && failed" class="text-destructive text-xs" role="alert">
           Couldn't save the List style. Try again.
         </p>
       </div>

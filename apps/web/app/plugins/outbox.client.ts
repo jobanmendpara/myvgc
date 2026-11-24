@@ -29,18 +29,29 @@ function staleAfter(write: OutboxWrite): unknown[][] {
     case 'unlink-tournament-team':
       return [['tournament', tournamentId], ['tournaments'], ['dashboard'], ['statistics']]
     case 'add-opponent':
+    case 'delete-opponent':
       return [['opponents']]
+    case 'edit-opponent':
+      // The Rounds against them show their display name.
+      return [['opponents'], ['tournament']]
+    case 'save-player-details':
+      return [['account', 'player-details']]
+    case 'save-list-styles':
+      return [['account', 'list-styles']]
     default:
       return [['opponents', 'detail', opponentId]]
   }
 }
 
-/** Every Opponent a pending write adds, whose page is needed before the server has them. */
+/**
+ * Every Opponent a write adds, whose page is needed before the server has them: added with a
+ * Round while it waits, or on their own, also while the server refuses them, so they can be fixed.
+ */
 function addedOpponentIds(writes: readonly OutboxWrite[]) {
   return writes.flatMap((write) => {
     const body = (write.request.body ?? {}) as { id?: string; newOpponentId?: string }
-    if (write.state.status !== 'pending') return []
     if (write.kind === 'add-opponent' && body.id) return [body.id]
+    if (write.state.status !== 'pending') return []
     if (write.kind === 'log-round' && body.newOpponentId) return [body.newOpponentId]
     return []
   })
@@ -104,6 +115,13 @@ function connect(outbox: Outbox, queryClient: QueryClient) {
       const kept = new Set(addedTournamentIds(outbox.writes))
       for (const id of addedTournamentIds(event.writes))
         if (!kept.has(id)) queryClient.removeQueries({ queryKey: ['tournament', id], exact: true })
+      // So does a new Opponent's, once nothing on this phone adds them any more.
+      const stillAdded = new Set(addedOpponentIds(outbox.writes))
+      for (const write of event.writes) {
+        const id = write.kind === 'add-opponent' ? write.subject.opponentId : undefined
+        if (id && !stillAdded.has(id) && !outbox.writes.some((w) => w.id === write.id))
+          queryClient.removeQueries({ queryKey: ['opponents', 'detail', id], exact: true })
+      }
       for (const write of event.writes) refetch(write)
     }
   })

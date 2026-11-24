@@ -494,6 +494,26 @@ describe('Discarding a new record', () => {
     expect(server.sent).toEqual([tournament.request.url, tournament.request.url, round.request.url])
     expect(outbox.writes).toEqual([])
   })
+
+  it('stops holding back a series once a fix no longer creates its record', async () => {
+    const outbox = newOutbox()
+    await open(outbox, ASH)
+    server.answerAll({ status: 'unreachable' })
+    // A Round adding a new Opponent, and a change to that Opponent waiting on it.
+    const round = await outbox.add({ ...draft('opponent:o1'), creates: 'opponent:o1' })
+    const change = await outbox.add(draft('opponent:o1', 'PATCH'))
+    server.answer(round.request.url, { status: 409, body: { error: 'Already logged.' } })
+    server.answerAll({ status: 200 })
+    await outbox.flush()
+    expect(outbox.state.pending.map((w) => w.id)).toEqual([change.id])
+
+    // Fixed to keep it refused but no longer adding the Opponent: the change goes ahead.
+    server.answer(round.request.url, { status: 409, body: { error: 'Already logged.' } })
+    await outbox.resend(round.id, { creates: undefined }, 1_000)
+    await outbox.flush()
+    expect(outbox.writes.find((w) => w.id === round.id)?.creates).toBeUndefined()
+    expect(outbox.writes.map((w) => w.id)).toEqual([round.id])
+  })
 })
 
 describe('Saving a change from a page', () => {

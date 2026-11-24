@@ -16,10 +16,16 @@ defineProps<{
 // Typed here: passing the generic core function straight to ListRows broke CI's typecheck.
 const groupBy = (items: OpponentView[]) => groupOpponents(items)
 
-// An Opponent added on this phone and not yet synced is marked (DEV-167).
+// An Opponent added, changed or deleted on this phone and not yet synced is marked, and one
+// waiting to be deleted is struck through (DEV-167, DEV-205).
 const { state } = useOutbox()
 const marks = computed(() => opponentMarks(state.value))
-const edge = (item: OpponentView) => syncEdge(marks.value.get(item.id))
+const edge = (item: OpponentView) => {
+  const mark = marks.value.get(item.id)
+  return [syncEdge(mark), mark?.status === 'deleting' ? 'line-through opacity-70' : '']
+    .filter(Boolean)
+    .join(' ')
+}
 
 const rounds = ({ roundCount }: OpponentView) =>
   roundCount === 1 ? '1 Round' : `${roundCount} Rounds`

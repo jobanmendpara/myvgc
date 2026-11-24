@@ -16,9 +16,10 @@ import {
   type WriteRequest,
 } from './outbox-rules'
 
-// The outbox (ADR 17): the Tournaments, Rounds, Opponents and Note entries a User saves are kept on the device
-// first, then sent to the server, in order, whenever it can be reached. Nothing in it expires,
-// and clearing the query cache never touches it. Its rules are in outbox-rules.ts.
+// The outbox (ADR 17): the Tournaments, Rounds, Opponents, Note entries and account settings a
+// User saves are kept on the device first, then sent to the server, in order, whenever it can be
+// reached. Nothing in it expires, and clearing the query cache never touches it. Its rules are in
+// outbox-rules.ts.
 
 /**
  * A plain copy of what a page hands the outbox. A page's data, such as the Round being deleted,
@@ -40,7 +41,9 @@ export interface OutboxStore {
 export type WriteDraft = Omit<OutboxWrite, 'userId' | 'format' | 'order' | 'createdAt' | 'state'>
 
 /** What fixing a rejected write changes in it. */
-export type WriteFix = Partial<Pick<OutboxWrite, 'request' | 'label' | 'series' | 'subject'>>
+export type WriteFix = Partial<
+  Pick<OutboxWrite, 'request' | 'label' | 'series' | 'subject' | 'creates'>
+>
 
 export type OutboxEvent =
   | { type: 'changed'; state: OutboxState }
@@ -285,6 +288,8 @@ export class Outbox {
     const write = this.#writes.find((w) => w.id === id)
     if (!write || write.state.status === 'pending' || !canSend(write)) return undefined
     const next: OutboxWrite = { ...write, ...plain(fix), state: { status: 'pending', attempts: 0 } }
+    // A fix that no longer creates a record, such as a Round no longer adding a new Opponent.
+    if ('creates' in fix && !fix.creates) delete next.creates
     await this.#store.put(next)
     this.#writes = this.#writes.map((w) => (w.id === id ? next : w))
     this.#saving.add(id)
