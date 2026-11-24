@@ -1,6 +1,9 @@
 <script setup lang="ts">
-// Asks before logging out loses changes the server doesn't have yet (ADR 17).
+import { useOnline } from '@vueuse/core'
+
+// Asks before logging out loses changes the server doesn't have yet (ADR 17, DEV-167).
 const question = useUnsyncedQuestion()
+const online = useOnline()
 const open = computed({
   get: () => !!question.value,
   set: (value) => {
@@ -13,13 +16,16 @@ const open = computed({
   <AlertDialog v-model:open="open">
     <AlertDialogContent>
       <AlertDialogHeader>
-        <AlertDialogTitle>{{ unsyncedChangesText(question?.count ?? 0) }}</AlertDialogTitle>
+        <AlertDialogTitle
+          >{{ unsyncedChangesText(question?.count ?? 0) }} Log out and lose them?</AlertDialogTitle
+        >
         <AlertDialogDescription>
-          Log out and lose them? Once you log out, they can't be sent.
+          Stay logged in and they are sent
+          {{ online ? 'now' : 'when the signal returns' }}.
         </AlertDialogDescription>
       </AlertDialogHeader>
       <AlertDialogFooter>
-        <AlertDialogCancel>Keep them</AlertDialogCancel>
+        <AlertDialogCancel>Stay logged in</AlertDialogCancel>
         <Button variant="destructive" @click="question?.answer(true)">Log out and lose them</Button>
       </AlertDialogFooter>
     </AlertDialogContent>

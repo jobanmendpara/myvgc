@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { type ListStyle, type OpponentView, formatRecord, groupOpponents } from '@myvgc/core/schema'
+import { opponentMarks, syncEdge } from '@/lib/outbox-view'
 import { opponentPath } from '@/lib/paths'
 
 // The rows of the Opponents list, and what a row shows in each List style. Compact: the
@@ -15,6 +16,11 @@ defineProps<{
 // Typed here: passing the generic core function straight to ListRows broke CI's typecheck.
 const groupBy = (items: OpponentView[]) => groupOpponents(items)
 
+// An Opponent added on this phone and not yet synced is marked (DEV-167).
+const { state } = useOutbox()
+const marks = computed(() => opponentMarks(state.value))
+const edge = (item: OpponentView) => syncEdge(marks.value.get(item.id))
+
 const rounds = ({ roundCount }: OpponentView) =>
   roundCount === 1 ? '1 Round' : `${roundCount} Rounds`
 </script>
@@ -27,10 +33,14 @@ const rounds = ({ roundCount }: OpponentView) =>
     :path="opponentPath"
     :group-by="groupBy"
     :searching="searching"
+    :row-class="edge"
     data-testid="opponents-list"
   >
     <template #compact="{ item }">
-      <span class="min-w-0 truncate">{{ item.displayName }}</span>
+      <span class="flex min-w-0 flex-col">
+        <span class="truncate">{{ item.displayName }}</span>
+        <SyncMark v-if="marks.get(item.id)" :mark="marks.get(item.id)!" />
+      </span>
       <span class="text-muted-foreground shrink-0">{{ formatRecord(item.headToHead) }}</span>
     </template>
 
@@ -42,6 +52,7 @@ const rounds = ({ roundCount }: OpponentView) =>
       <span class="text-muted-foreground truncate text-xs">{{
         [...item.aliases, rounds(item)].join(' · ')
       }}</span>
+      <SyncMark v-if="marks.get(item.id)" :mark="marks.get(item.id)!" />
     </template>
 
     <template #detailed="{ item }">
@@ -51,6 +62,7 @@ const rounds = ({ roundCount }: OpponentView) =>
           <span v-if="item.aliases.length" class="text-muted-foreground truncate text-xs">{{
             item.aliases.join(', ')
           }}</span>
+          <SyncMark v-if="marks.get(item.id)" :mark="marks.get(item.id)!" />
         </span>
         <span class="shrink-0 text-right text-sm">
           <span class="font-medium">{{ formatRecord(item.headToHead) }}</span>

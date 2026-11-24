@@ -137,8 +137,18 @@ function applyToTournament(tournament: TournamentView, write: OutboxWrite): Tour
   return dropUnplayed(after, existing?.opponent?.id)
 }
 
-const isRoundWrite = (write: OutboxWrite) =>
+export const isRoundWrite = (write: OutboxWrite) =>
   write.kind === 'log-round' || write.kind === 'edit-round' || write.kind === 'delete-round'
+
+/**
+ * A Tournament as it would be with one write applied, whatever its state: a rejected Round
+ * shown in the list, or opened to be fixed.
+ */
+export function withWrite(tournament: TournamentView, write: OutboxWrite): TournamentView {
+  if (!Array.isArray(tournament.rounds) || write.subject.tournamentId !== tournament.id)
+    return tournament
+  return isRoundWrite(write) ? applyToTournament(tournament, write) : tournament
+}
 
 /** A Tournament with the pending writes on its Rounds applied. */
 export function applyToTournamentView(
@@ -176,7 +186,7 @@ function newOpponent(id: string, displayName: string, createdAt: string): Oppone
 }
 
 /** The Opponent a write adds, either on its own or with a Round. */
-function addedOpponent(write: OutboxWrite): OpponentView | undefined {
+export function addedOpponent(write: OutboxWrite): OpponentView | undefined {
   const body = (write.request.body ?? {}) as {
     id?: string
     displayName?: string

@@ -25,20 +25,26 @@ async function clear() {
           <Button variant="outline">Clear data on this device</Button>
         </AlertDialogTrigger>
         <AlertDialogContent>
-          <AlertDialogHeader>
+          <AlertDialogHeader v-if="unsynced">
+            <AlertDialogTitle
+              >{{ unsyncedChangesText(unsynced) }} Clear data and lose them?</AlertDialogTitle
+            >
+            <AlertDialogDescription>
+              Clearing removes them along with the copy of your data kept on this device, and logs
+              you out. Your account keeps everything that already synced.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogHeader v-else>
             <AlertDialogTitle>Clear data on this device?</AlertDialogTitle>
             <AlertDialogDescription>
               This removes the copy of your data kept on this device and logs you out. Your data on
               the server stays.
-              <template v-if="unsynced">
-                {{ unsyncedChangesText(unsynced) }} Clear data and lose them?
-              </template>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{{ unsynced ? 'Stay logged in' : 'Cancel' }}</AlertDialogCancel>
             <Button variant="destructive" @click="clear">{{
-              unsynced ? 'Clear and lose them' : 'Clear and log out'
+              unsynced ? 'Clear data and lose them' : 'Clear and log out'
             }}</Button>
           </AlertDialogFooter>
         </AlertDialogContent>

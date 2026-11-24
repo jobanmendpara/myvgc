@@ -9,6 +9,7 @@ import {
   opponentTeamOf,
 } from '@myvgc/core/schema'
 import { roundLabel } from '@/lib/format'
+import { roundRows, syncEdge } from '@/lib/outbox-view'
 import { newRoundPath, roundPath } from '@/lib/paths'
 
 const props = defineProps<{ tournament: TournamentView }>()
@@ -43,6 +44,13 @@ const teamLine = (opponentId: string | undefined) =>
 const ageDivisionOf = (opponentId: string | undefined) =>
   opponentAgeDivisionOf(props.tournament.opponentAgeDivisions, opponentId)
 const hasTopCut = computed(() => props.tournament.rounds.some((r) => r.phase === 'top-cut'))
+
+// Each Round not yet synced is marked (DEV-167). A Round deleted on this phone stays, struck
+// through, and a new Round the server refused stays too, until the server has them; neither
+// counts in the Record.
+const { state } = useOutbox()
+const rows = computed(() => roundRows(props.tournament, state.value))
+const NuxtLink = resolveComponent('NuxtLink')
 </script>
 
 <template>
@@ -62,22 +70,32 @@ const hasTopCut = computed(() => props.tournament.rounds.some((r) => r.phase ===
       </Button>
     </div>
 
-    <p v-if="tournament.rounds.length === 0" class="text-muted-foreground text-sm">
-      No Rounds logged yet.
-    </p>
-    <ol v-else class="flex flex-col divide-y rounded-lg border" data-testid="rounds">
-      <li v-for="r in tournament.rounds" :key="r.id">
-        <NuxtLink
-          :to="roundPath(tournament.id, r.id)"
-          class="hover:bg-muted/50 focus-visible:ring-ring/50 flex items-start gap-3 p-3 outline-none focus-visible:ring-3"
+    <p v-if="rows.length === 0" class="text-muted-foreground text-sm">No Rounds logged yet.</p>
+    <ol
+      v-else
+      class="flex flex-col divide-y overflow-hidden rounded-lg border"
+      data-testid="rounds"
+    >
+      <li v-for="{ round: r, mark } in rows" :key="r.id" :class="syncEdge(mark)">
+        <component
+          :is="mark?.status === 'deleting' ? 'div' : NuxtLink"
+          :to="mark?.status === 'deleting' ? undefined : roundPath(tournament.id, r.id)"
+          class="focus-visible:ring-ring/50 flex items-start gap-3 p-3 outline-none focus-visible:ring-3"
+          :class="{ 'hover:bg-muted/50': mark?.status !== 'deleting' }"
           data-testid="round"
         >
-          <span class="text-muted-foreground w-16 shrink-0 text-sm">{{ roundLabel(r) }}</span>
+          <span
+            class="text-muted-foreground w-16 shrink-0 text-sm"
+            :class="{ 'line-through': mark?.status === 'deleting' }"
+            >{{ roundLabel(r) }}</span
+          >
           <span class="flex min-w-0 flex-1 flex-col">
             <span class="flex flex-wrap items-center gap-1.5">
-              <span class="font-medium break-words">{{
-                r.bye ? 'Bye' : (r.opponent?.displayName ?? 'Unknown')
-              }}</span>
+              <span
+                class="font-medium break-words"
+                :class="{ 'line-through opacity-70': mark?.status === 'deleting' }"
+                >{{ r.bye ? 'Bye' : (r.opponent?.displayName ?? 'Unknown') }}</span
+              >
               <AgeDivisionBadge
                 v-if="ageDivisionOf(r.opponent?.id)"
                 :age-division="ageDivisionOf(r.opponent?.id)!"
@@ -99,6 +117,7 @@ const hasTopCut = computed(() => props.tournament.rounds.some((r) => r.phase ===
               data-testid="game-line"
               >{{ gameLine(game) }}</span
             >
+            <SyncMark v-if="mark" :mark="mark" class="mt-1" />
           </span>
           <span class="flex shrink-0 flex-col items-end gap-1">
             <span
@@ -110,7 +129,7 @@ const hasTopCut = computed(() => props.tournament.rounds.some((r) => r.phase ===
               >{{ r.gameScore.won }}-{{ r.gameScore.lost }}</span
             >
           </span>
-        </NuxtLink>
+        </component>
       </li>
     </ol>
   </section>

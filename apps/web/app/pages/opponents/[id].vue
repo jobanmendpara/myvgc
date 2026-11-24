@@ -11,6 +11,7 @@ import { useOnline } from '@vueuse/core'
 import { FetchError } from 'ofetch'
 import { fieldErrorsOf, saveFailureMessage } from '@/lib/api'
 import { formatDates, roundLabel, roundOutcome } from '@/lib/format'
+import { opponentMarks } from '@/lib/outbox-view'
 import { roundPath, tournamentPath } from '@/lib/paths'
 import type { OpponentChoice } from '@/components/OpponentPicker.vue'
 
@@ -24,6 +25,9 @@ const query = useQuery({
 const opponent = query.data
 // Their Rounds by Tournament, each with the Opponent's Team they brought there (ADR 22).
 const tournaments = computed(() => (opponent.value ? groupByTournament(opponent.value) : []))
+// An Opponent added on this phone is marked until the server has them (DEV-167).
+const { state } = useOutbox()
+const mark = computed(() => opponentMarks(state.value).get(id.value))
 const notFound = computed(
   () => query.error.value instanceof FetchError && query.error.value.statusCode === 404,
 )
@@ -208,6 +212,7 @@ const roundsMoving = computed(() => {
           </h1>
           <Button variant="outline" size="sm" @click="startEditing">Edit</Button>
         </div>
+        <SyncMark v-if="mark" :mark="mark" />
         <p v-if="opponent.aliases.length" class="text-muted-foreground text-sm">
           Also: {{ opponent.aliases.join(', ') }}
         </p>

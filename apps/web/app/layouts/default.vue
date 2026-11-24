@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { CloudOffIcon } from '@lucide/vue'
+
 // The main areas of the app: the Dashboard is home, then the order a User reaches for the rest
 // at an event.
 const areas = [
@@ -15,6 +17,12 @@ const isCurrent = (to: string) => route.path === to || route.path.startsWith(`${
 // pane scroll on their own (see ListDetail).
 const wide = useWideLayout()
 const split = computed(() => !!route.meta.listDetail && wide.value)
+
+// Changes waiting on this phone show in a bar at the bottom of the screen (DEV-167). The Round
+// form has its own banner for a refused change, and its buttons sit at the bottom.
+const { bar, online } = useSyncBar()
+const onRoundForm = computed(() => /^\/tournaments\/[^/]+\/rounds\//.test(route.path))
+const shownBar = computed(() => (onRoundForm.value ? undefined : bar.value))
 </script>
 
 <template>
@@ -25,6 +33,13 @@ const split = computed(() => !!route.meta.listDetail && wide.value)
       >
         <NuxtLink to="/dashboard" class="text-lg font-semibold">MyVGC</NuxtLink>
         <div class="flex items-center gap-1">
+          <span
+            v-if="!online"
+            class="text-muted-foreground inline-flex items-center gap-1 px-1 text-xs"
+            data-testid="offline"
+          >
+            <CloudOffIcon class="size-3.5" aria-hidden="true" /> Offline
+          </span>
           <SpriteStyleButton />
           <AccountMenu />
         </div>
@@ -43,9 +58,13 @@ const split = computed(() => !!route.meta.listDetail && wide.value)
         </ul>
       </nav>
     </header>
-    <OutboxNotice class="shrink-0" />
-    <main class="mx-auto w-full max-w-7xl flex-1" :class="split ? 'min-h-0' : 'p-4'">
+    <main
+      class="mx-auto w-full max-w-7xl flex-1"
+      :class="[split ? 'min-h-0' : 'p-4', { 'pb-24': shownBar && !split }]"
+    >
       <slot />
     </main>
+    <SyncBar v-if="shownBar" :bar="shownBar" :online="online" />
+    <ChangesSheet />
   </div>
 </template>

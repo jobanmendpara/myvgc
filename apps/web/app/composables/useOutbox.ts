@@ -1,4 +1,4 @@
-import { saveChange, type WriteDraft } from '@/lib/outbox'
+import { ANSWER_WAIT, saveChange, type WriteDraft, type WriteFix } from '@/lib/outbox'
 
 /**
  * The outbox of changes kept on this device until the server has them (ADR 17): its state, for
@@ -17,5 +17,8 @@ export function useOutbox() {
     save: (draft: WriteDraft) => saveChange($outbox, draft),
     discard: (id: string) => $outbox.discard(id),
     retry: (id: string) => $outbox.retry(id),
+    /** Sends a rejected change again as the User fixed it, waiting for the answer as a save does. */
+    resend: (id: string, fix: WriteFix) =>
+      $outbox.resend(id, fix, navigator.onLine === false ? 0 : ANSWER_WAIT),
   }
 }

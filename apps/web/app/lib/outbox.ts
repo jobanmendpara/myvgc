@@ -19,6 +19,12 @@ import {
 // first, then sent to the server, in order, whenever it can be reached. Nothing in it expires,
 // and clearing the query cache never touches it. Its rules are in outbox-rules.ts.
 
+/**
+ * A plain copy of what a page hands the outbox. A page's data, such as the Round being deleted,
+ * is often a Vue Proxy, which IndexedDB can't keep; a write is JSON when it is sent anyway.
+ */
+const plain = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T
+
 /** Where the writes are kept: the `outbox` store, one record per write. */
 export interface OutboxStore {
   /** Every write kept for a User, as stored. */
@@ -32,8 +38,13 @@ export interface OutboxStore {
 /** A write before it is in the outbox: the outbox fills in who, when and its state. */
 export type WriteDraft = Omit<OutboxWrite, 'userId' | 'format' | 'order' | 'createdAt' | 'state'>
 
+/** What fixing a rejected write changes in it. */
+export type WriteFix = Partial<Pick<OutboxWrite, 'request' | 'label' | 'series' | 'subject'>>
+
 export type OutboxEvent =
   | { type: 'changed'; state: OutboxState }
+  /** Only what is being sent or saved changed: the writes themselves are as they were. */
+  | { type: 'progress'; state: OutboxState }
   /** A write was sent and answered, or couldn't be sent. */
   | { type: 'attempted'; write: OutboxWrite; settlement: Settlement }
   /** Writes left the outbox, or stopped being pending, so the page can stop showing them. */
@@ -55,6 +66,8 @@ export class Outbox {
   #userId: string | undefined
   #writes: OutboxWrite[] = []
   #waitingForLogin = false
+  #saving = new Set<string>()
+  #sending: string | undefined
   #listeners = new Set<(event: OutboxEvent) => void>()
   #running: Promise<void> | undefined
   #again = false
@@ -75,7 +88,10 @@ export class Outbox {
   }
 
   get state(): OutboxState {
-    return outboxState(this.#writes, this.#waitingForLogin)
+    return outboxState(this.#writes, this.#waitingForLogin, {
+      saving: [...this.#saving],
+      sending: this.#sending,
+    })
   }
 
   subscribe(listener: (event: OutboxEvent) => void) {
@@ -89,6 +105,10 @@ export class Outbox {
 
   #changed() {
     this.#emit({ type: 'changed', state: this.state })
+  }
+
+  #progress() {
+    this.#emit({ type: 'progress', state: this.state })
   }
 
   async #load(userId: string) {
@@ -130,7 +150,7 @@ export class Outbox {
     const latest = Math.max(0, ...this.#writes.map((w) => w.order))
     const now = this.#now()
     const write: OutboxWrite = {
-      ...draft,
+      ...plain(draft),
       userId,
       format: OUTBOX_FORMAT,
       order: Math.max(now, latest + 1),
@@ -171,7 +191,11 @@ export class Outbox {
       const write = nextWrite(this.#writes, tried)
       if (!write) break
       tried.add(write.id)
-      const answer = await this.#send(write.request)
+      this.#sending = write.id
+      this.#progress()
+      const answer = await this.#send(write.request).finally(() => {
+        this.#sending = undefined
+      })
       // Discarded, or another User signed in, while it was on its way.
       const current = this.#writes.find((w) => w.id === write.id)
       if (this.#userId !== userId || !current) continue
@@ -203,8 +227,19 @@ export class Outbox {
     draft: WriteDraft,
     timeout: number,
   ): Promise<{ write: OutboxWrite; settlement: Settlement | undefined }> {
-    const write = await this.add(draft)
-    const settlement = await new Promise<Settlement | undefined>((resolve) => {
+    this.#saving.add(draft.id)
+    try {
+      const write = await this.add(draft)
+      return { write, settlement: await this.#answerFor(write.id, timeout) }
+    } finally {
+      this.#saving.delete(draft.id)
+      this.#progress()
+    }
+  }
+
+  /** Sends what is pending and waits for a write's answer, at most `timeout` ms. */
+  #answerFor(id: string, timeout: number): Promise<Settlement | undefined> {
+    return new Promise<Settlement | undefined>((resolve) => {
       let settled = false
       const finish = (value: Settlement | undefined) => {
         if (settled) return
@@ -215,11 +250,10 @@ export class Outbox {
       }
       const timer = setTimeout(() => finish(undefined), timeout)
       const unsubscribe = this.subscribe((event) => {
-        if (event.type === 'attempted' && event.write.id === write.id) finish(event.settlement)
+        if (event.type === 'attempted' && event.write.id === id) finish(event.settlement)
       })
       void this.flush().then(() => finish(undefined))
     })
-    return { write, settlement }
   }
 
   /** Removes a write without sending it. */
@@ -234,13 +268,27 @@ export class Outbox {
 
   /** Puts a rejected write back in line and tries to send it again. */
   async retry(id: string) {
+    await this.resend(id, {}, 0)
+  }
+
+  /**
+   * Puts a rejected write back in line with the User's fix, keeping its place, and sends it.
+   * Waits at most `timeout` ms for the answer; nothing when it is still pending.
+   */
+  async resend(id: string, fix: WriteFix, timeout: number): Promise<Settlement | undefined> {
     const write = this.#writes.find((w) => w.id === id)
-    if (!write || write.state.status === 'pending' || !canSend(write)) return
-    const next: OutboxWrite = { ...write, state: { status: 'pending', attempts: 0 } }
+    if (!write || write.state.status === 'pending' || !canSend(write)) return undefined
+    const next: OutboxWrite = { ...write, ...plain(fix), state: { status: 'pending', attempts: 0 } }
     await this.#store.put(next)
     this.#writes = this.#writes.map((w) => (w.id === id ? next : w))
+    this.#saving.add(id)
     this.#changed()
-    void this.flush()
+    try {
+      return await this.#answerFor(id, timeout)
+    } finally {
+      this.#saving.delete(id)
+      this.#progress()
+    }
   }
 
   /** Removes every write kept for a User, as they log out having agreed to lose them. */

@@ -626,11 +626,17 @@ test('a Round logged with no signal is kept on the phone and sent when the signa
   // Shown at once, with the Record, while it waits on the phone.
   await expect(page.getByTestId('record')).toContainText('Swiss 1-0-0')
   await expect(page.getByTestId('round')).toContainText('Offline Opponent')
-  await expect(page.getByTestId('outbox-pending')).toContainText('1 change saved on this phone')
+  // The bar at the bottom counts it, and the Round is marked until the server has it.
+  await expect(page.getByTestId('offline')).toBeVisible()
+  await expect(page.getByTestId('sync-bar')).toContainText('1 change saved on this phone')
+  await expect(page.getByTestId('sync-bar')).toContainText('Sent when the signal returns')
+  await expect(page.getByTestId('round').getByTestId('sync-mark')).toHaveText('Not synced')
 
-  // Back online, it is sent, and the server has it.
+  // Back online, it is sent, the bar says so for a moment, and the server has it.
   await context.setOffline(false)
-  await expect(page.getByTestId('outbox-pending')).toHaveCount(0)
+  await expect(page.getByTestId('sync-bar')).toContainText('1 change sent')
+  await expect(page.getByTestId('sync-mark')).toHaveCount(0)
+  await expect(page.getByTestId('sync-bar')).toHaveCount(0)
   await page.reload()
   await expect(page.getByTestId('record')).toContainText('Swiss 1-0-0')
   await expect(page.getByTestId('round')).toContainText('Offline Opponent')

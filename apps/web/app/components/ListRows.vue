@@ -16,6 +16,8 @@ const props = defineProps<{
   groupBy: (items: T[]) => ListGroup<T>[]
   /** Whether the items are search results, which show under no headings. */
   searching: boolean
+  /** Extra classes for an item's row, such as the edge marking it not yet synced. */
+  rowClass?: (item: T) => string
 }>()
 defineSlots<{
   compact(props: { item: T }): unknown
@@ -51,7 +53,7 @@ const selectedId = computed(() => ('id' in route.params ? String(route.params.id
           <NuxtLink
             :to="path(item.id)"
             :aria-current="item.id === selectedId ? 'page' : undefined"
-            :class="look.link(wide)"
+            :class="[look.link(wide), rowClass?.(item)]"
           >
             <slot v-if="listStyle === 'compact'" name="compact" :item="item" />
             <slot v-else-if="listStyle === 'detailed'" name="detailed" :item="item" />

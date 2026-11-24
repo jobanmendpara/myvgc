@@ -183,14 +183,27 @@ export interface OutboxState {
   rejected: OutboxWrite[]
   /** The session ended: nothing is sent until the User logs in again. */
   waitingForLogin: boolean
+  /**
+   * Pending writes a page is still saving: it waits for their answer and shows them as saving,
+   * not yet as kept on this phone.
+   */
+  saving?: string[]
+  /** The write on its way to the server right now, if any. */
+  sending?: string
 }
 
-export function outboxState(writes: readonly OutboxWrite[], waitingForLogin: boolean): OutboxState {
+export function outboxState(
+  writes: readonly OutboxWrite[],
+  waitingForLogin: boolean,
+  progress: Pick<OutboxState, 'saving' | 'sending'> = {},
+): OutboxState {
   const ordered = inOrder(writes)
   return {
     pending: ordered.filter(isPending),
     rejected: ordered.filter((write) => !isPending(write)),
     waitingForLogin,
+    ...(progress.saving?.length ? { saving: progress.saving } : {}),
+    ...(progress.sending ? { sending: progress.sending } : {}),
   }
 }
 
