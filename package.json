@@ -21,7 +21,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "pnpm -r test && pnpm test:scripts",
-    "test:scripts": "vitest run --dir scripts",
+    "test:scripts": "vitest run --dir scripts && vitest run --dir e2e/scripts",
     "accuracy": "pnpm --filter @myvgc/api accuracy",
     "smoke": "pnpm --filter @myvgc/e2e smoke",
     "sprites:update": "pnpm --filter @myvgc/core sprites:update",
