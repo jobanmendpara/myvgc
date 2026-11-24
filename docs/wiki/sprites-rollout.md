@@ -39,6 +39,14 @@ The chief-of-staff's call, 2026-11-23:
 
 ## Open question
 
-For the maintainer, 2026-11-23: should `TournamentTeam.vue`, `OpponentTimeline.vue`, `StatisticsCounted.vue` and the `BuildEditor` heading also show Sprites?
+For the maintainer, 2026-11-23: should `TournamentTeam.vue`, `OpponentTimeline.vue`, `StatisticsCounted.vue` and the `BuildEditor` heading also show Sprites? (Answered 2026-11-23: the maintainer asked for a prototype first; see "Follow-ups" below.)
 
-Related: [shipping flow](shipping-flow.md), [parallel agents](parallel-agents.md).
+## Follow-ups
+
+From the implementers' reports, 2026-11-23:
+
+- The maintainer accepted the 1.31 MiB of Sprites. [DEV-182](https://linear.app/mendpara/issue/DEV-182) amended ADR 29 to match, in PR #295 (`jobanmendpara/myvgc@cec51a4`). This settles the "well under 1 MB" gap noted under DEV-177 above.
+- [DEV-184](https://linear.app/mendpara/issue/DEV-184) merged in PR #296 (`jobanmendpara/myvgc@efba1bf`): `pnpm preview` lets agents run the app from a worktree and take screenshots. See [preview](preview.md).
+- The maintainer asked for a prototype of Sprites on `TournamentTeam`, `OpponentTimeline`, `StatisticsCounted` and the `BuildEditor` heading. It is the Decision issue [DEV-185](https://linear.app/mendpara/issue/DEV-185), on branch `prototype/dev-185-more-sprite-surfaces` (remote commit `9d89ada`, not merged). How to view it is in a comment on DEV-185. As of 2026-11-23 it awaits the maintainer's choice.
+
+Related: [shipping flow](shipping-flow.md), [parallel agents](parallel-agents.md), [preview](preview.md).
