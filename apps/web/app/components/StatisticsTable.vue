@@ -59,6 +59,14 @@ const columns = computed(() => {
 })
 
 const { style: spriteStyle } = useSpriteStyle()
+// Stacked tiles overlap a Lead pair. The front Sprite is outlined in the page's background
+// colour, tracing its shape, so two dark or busy Sprites never blend into one; a missing front
+// Sprite's dashed circle is filled, so its partner doesn't show through it (DEV-189).
+const STACKED_PAIR = [
+  '[&>*+*]:-ml-3',
+  '[&>*+*]:[filter:drop-shadow(2px_0_0_var(--background))_drop-shadow(-2px_0_0_var(--background))_drop-shadow(0_2px_0_var(--background))_drop-shadow(0_-2px_0_var(--background))]',
+  '[&>*+[data-testid=sprite-gap]]:bg-background',
+]
 // The Leading slot keeps room for two Sprites (and the 2 px between them) on every row.
 const slotWidth = computed(() =>
   spriteStyle.value === 'leading-slot'
@@ -113,10 +121,7 @@ const slotWidth = computed(() =>
                        names line up. Stacked tiles: a Lead pair overlapping. -->
                   <span
                     class="flex shrink-0 items-center"
-                    :class="{
-                      'gap-0.5': spriteStyle !== 'stacked-tiles',
-                      '[&>*+*]:-ml-3': spriteStyle === 'stacked-tiles',
-                    }"
+                    :class="spriteStyle === 'stacked-tiles' ? STACKED_PAIR : 'gap-0.5'"
                     :style="slotWidth"
                   >
                     <Sprite
