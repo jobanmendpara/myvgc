@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { EVENT_TIER_LABELS, canRefreshSnapshot, formatMoney, today } from '@myvgc/core/schema'
-import { useMutation, useQueryClient } from '@tanstack/vue-query'
+import { useMutation } from '@tanstack/vue-query'
+import { saveFailureMessage } from '@/lib/api'
 import { formatDates, ordinal } from '@/lib/format'
+import { notYetCreated, tournamentMarks } from '@/lib/outbox-view'
+import { deleteTournament, editTournament } from '@/lib/outbox-writes'
 import { editTournamentPath } from '@/lib/paths'
 
 const route = useRoute()
@@ -17,18 +20,20 @@ const canRefresh = computed(() =>
     : false,
 )
 
-const queryClient = useQueryClient()
+// Changes are kept on the phone first, so they work with no signal too, and sent when they can be
+// (ADR 17). The Tournament is marked until the server has them (DEV-204).
+const outbox = useOutbox()
+const mark = computed(() => tournamentMarks(outbox.state.value).get(id.value))
+// The Teamsheet PDF needs the Tournament on the server first (ADR 27).
+const unsynced = computed(() => notYetCreated(outbox.state.value, id.value))
+
 const confirmingDelete = ref(false)
 const remove = useMutation({
-  mutationFn: () => {
-    // A plain string URL keeps Nuxt's route-typed $fetch from recursing through every route.
-    const url: string = `/api/tournaments/${id.value}`
-    return $fetch<null>(url, { method: 'DELETE' })
-  },
+  // Runs with no signal too, as the outbox keeps the change (ADR 17).
+  networkMode: 'always',
+  mutationFn: () => outbox.save(deleteTournament(tournament.value!)),
   onSuccess: async () => {
     confirmingDelete.value = false
-    queryClient.removeQueries({ queryKey: ['tournament', id.value] })
-    await queryClient.invalidateQueries({ queryKey: ['tournaments'] })
     await navigateTo('/tournaments')
   },
 })
@@ -41,15 +46,9 @@ const suggested = computed(() => {
     : undefined
 })
 const applyPlacement = useMutation({
-  mutationFn: (placement: number) => {
-    const url: string = `/api/tournaments/${id.value}`
-    return $fetch<unknown>(url, { method: 'PATCH', body: { placement } })
-  },
-  onSuccess: async () => {
-    await queryClient.invalidateQueries({ queryKey: ['tournament', id.value] })
-    await queryClient.invalidateQueries({ queryKey: ['tournaments'] })
-    await navigateTo({ path: route.path, query: {} }, { replace: true })
-  },
+  networkMode: 'always',
+  mutationFn: (placement: number) => outbox.save(editTournament(tournament.value!, { placement })),
+  onSuccess: () => navigateTo({ path: route.path, query: {} }, { replace: true }),
 })
 
 /** "9th of 128", "9th", or nothing. */
@@ -79,12 +78,6 @@ useHead({
       </CardHeader>
     </Card>
 
-    <Alert v-else-if="query.isError.value" variant="destructive" role="alert">
-      <AlertDescription
-        >Couldn't load this Tournament. Check your connection and try again.</AlertDescription
-      >
-    </Alert>
-
     <template v-else-if="tournament">
       <header class="flex flex-col gap-2">
         <div class="flex flex-wrap items-start justify-between gap-3">
@@ -93,6 +86,7 @@ useHead({
           </h1>
           <Badge v-if="tournament.upcoming">Upcoming</Badge>
         </div>
+        <SyncMark v-if="mark" :mark="mark" />
         <dl class="text-muted-foreground flex flex-wrap gap-x-4 gap-y-1 text-sm">
           <div>
             <dt class="sr-only">Dates</dt>
@@ -170,7 +164,7 @@ useHead({
 
       <TournamentTeam :tournament="tournament" :can-refresh="canRefresh" />
 
-      <TournamentTeamsheet :tournament="tournament" />
+      <TournamentTeamsheet :tournament="tournament" :unsynced="unsynced" />
 
       <p v-if="tournament.link" class="text-sm">
         <a
@@ -191,7 +185,12 @@ useHead({
         <Button as-child variant="outline"
           ><NuxtLink :to="editTournamentPath(tournament.id)">Edit details</NuxtLink></Button
         >
-        <Button variant="ghost" class="text-destructive" @click="confirmingDelete = true">
+        <Button
+          v-if="mark?.status !== 'deleting'"
+          variant="ghost"
+          class="text-destructive"
+          @click="confirmingDelete = true"
+        >
           Delete Tournament
         </Button>
       </div>
@@ -208,7 +207,9 @@ useHead({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <Alert v-if="remove.isError.value" variant="destructive" role="alert">
-            <AlertDescription>Couldn't delete the Tournament. Try again.</AlertDescription>
+            <AlertDescription>{{
+              saveFailureMessage(remove.error.value, 'Tournament')
+            }}</AlertDescription>
           </Alert>
           <AlertDialogFooter>
             <AlertDialogCancel :disabled="remove.isPending.value">Keep it</AlertDialogCancel>
@@ -223,5 +224,11 @@ useHead({
         </AlertDialogContent>
       </AlertDialog>
     </template>
+
+    <Alert v-else-if="query.isError.value" variant="destructive" role="alert">
+      <AlertDescription
+        >Couldn't load this Tournament. Check your connection and try again.</AlertDescription
+      >
+    </Alert>
   </div>
 </template>

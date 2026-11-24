@@ -7,6 +7,7 @@ import {
   groupTournaments,
 } from '@myvgc/core/schema'
 import { formatDates, ordinal } from '@/lib/format'
+import { syncEdge, tournamentMarks } from '@/lib/outbox-view'
 import { tournamentPath } from '@/lib/paths'
 
 // The rows of the Tournaments list, and what a row shows in each List style. Compact: the name
@@ -22,6 +23,17 @@ defineProps<{
 
 // Typed here: passing the generic core function straight to ListRows broke CI's typecheck.
 const groupBy = (items: TournamentView[]) => groupTournaments(items)
+
+// A Tournament created, changed or deleted on this phone and not yet synced is marked, and one
+// waiting to be deleted is struck through (DEV-204).
+const { state } = useOutbox()
+const marks = computed(() => tournamentMarks(state.value))
+const rowClass = (item: TournamentView) => {
+  const mark = marks.value.get(item.id)
+  return [syncEdge(mark), mark?.status === 'deleting' ? 'line-through opacity-70' : '']
+    .filter(Boolean)
+    .join(' ')
+}
 
 const record = (tournament: TournamentView) =>
   tournament.rounds.length ? formatRecord(tournament.record.swiss) : ''
@@ -41,10 +53,14 @@ const hasTopCut = ({ record }: TournamentView) =>
     :path="tournamentPath"
     :group-by="groupBy"
     :searching="searching"
+    :row-class="rowClass"
     data-testid="tournaments-list"
   >
     <template #compact="{ item }">
-      <span class="min-w-0 truncate">{{ item.name }}</span>
+      <span class="flex min-w-0 flex-col">
+        <span class="truncate">{{ item.name }}</span>
+        <SyncMark v-if="marks.get(item.id)" :mark="marks.get(item.id)!" />
+      </span>
       <span class="text-muted-foreground shrink-0">{{
         item.upcoming ? 'Upcoming' : placement(item) || record(item)
       }}</span>
@@ -56,6 +72,7 @@ const hasTopCut = ({ record }: TournamentView) =>
         <span>{{ formatDates(item.startDate, item.endDate) }}</span>
         <span class="shrink-0">{{ recordAndPlacement(item) }}</span>
       </span>
+      <SyncMark v-if="marks.get(item.id)" :mark="marks.get(item.id)!" />
     </template>
 
     <template #detailed="{ item }">
@@ -83,6 +100,7 @@ const hasTopCut = ({ record }: TournamentView) =>
           }}<template v-if="item.playerCount"> of {{ item.playerCount }}</template></span
         >
       </span>
+      <SyncMark v-if="marks.get(item.id)" :mark="marks.get(item.id)!" />
     </template>
   </ListRows>
 </template>

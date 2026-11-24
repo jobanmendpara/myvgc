@@ -4,11 +4,18 @@ import {
   type RoundView,
   type TournamentView,
 } from '@myvgc/core/schema'
-import { addedOpponent, isRoundWrite, withWrite } from './outbox-apply'
-import { inOrder, type OutboxState, type OutboxWrite } from './outbox-rules'
+import {
+  addedOpponent,
+  addedTournament,
+  applyToTournamentView,
+  isRoundWrite,
+  isTournamentWrite,
+  withWrite,
+} from './outbox-apply'
+import { discardedWith, inOrder, type OutboxState, type OutboxWrite } from './outbox-rules'
 
 // What the page shows of the outbox (ADR 17, DEV-167): the bar at the bottom of the screen, the
-// marks on Rounds, Note entries and Opponents not yet synced, and the list of changes on this
+// marks on Tournaments, Rounds, Note entries and Opponents not yet synced, and the list of changes on this
 // phone. Pure, so it is tested without a browser. A change a page is still saving shows as
 // saving there, never here, so nothing changes for a User whose writes go straight through.
 
@@ -225,6 +232,53 @@ export function opponentMarks(state: OutboxState): Map<string, ItemMark> {
   )
 }
 
+/** The Tournaments created, changed or deleted on this phone and not yet synced. */
+export function tournamentMarks(state: OutboxState): Map<string, ItemMark> {
+  return marksBy(state, (write) =>
+    isTournamentWrite(write) ? write.subject.tournamentId : undefined,
+  )
+}
+
+/**
+ * The Tournaments list as it shows: the Tournaments a waiting delete still shows, struck through,
+ * and the new Tournaments the server refused, so nothing disappears before the server has it.
+ */
+export function tournamentRows(list: TournamentView[], state: OutboxState): TournamentView[] {
+  const extra: TournamentView[] = []
+  for (const [id, mark] of tournamentMarks(state)) {
+    if (list.some((t) => t.id === id)) continue
+    const tournament =
+      mark.status === 'deleting'
+        ? (mark.write.subject.before as TournamentView | undefined)
+        : mark.status === 'rejected'
+          ? addedTournament(mark.write)
+          : undefined
+    if (tournament) extra.push(applyToTournamentView(tournament, state.pending))
+  }
+  if (!extra.length) return list
+  return [...list, ...extra].sort(
+    (a, b) => b.startDate.localeCompare(a.startDate) || b.createdAt.localeCompare(a.createdAt),
+  )
+}
+
+/** The rejected new or changed Tournament to fix when its form is opened, if there is one. */
+export function rejectedTournament(
+  state: OutboxState,
+  tournamentId: string,
+): OutboxWrite | undefined {
+  return state.rejected.findLast(
+    (write) =>
+      (write.kind === 'add-tournament' || write.kind === 'edit-tournament') &&
+      write.subject.tournamentId === tournamentId,
+  )
+}
+
+/** Whether the server doesn't have this Tournament yet: its create is still on this phone. */
+export const notYetCreated = (state: OutboxState, tournamentId: string) =>
+  [...state.pending, ...state.rejected].some(
+    (write) => write.kind === 'add-tournament' && write.subject.tournamentId === tournamentId,
+  )
+
 /** What a change is, in a few words, such as "New Round 4 in Portland Regional". */
 export function changeTitle(write: OutboxWrite): string {
   if (write.kind !== 'log-round' && write.kind !== 'add-note-entry') return write.label
@@ -275,8 +329,17 @@ export function changeList(state: OutboxState): ChangeItem[] {
   return shownWrites(state).map((write) => ({ write, status: markOf(write, state)! }))
 }
 
-/** What the dialog asks before discarding a change. */
-export function discardText(write: OutboxWrite): { title: string; body: string } {
+const counted = (count: number, one: string, many: string) =>
+  count === 1 ? `1 ${one}` : `${count} ${many}`
+
+/**
+ * What the dialog asks before discarding a change. `writes` are the changes on this phone, as
+ * discarding a new Tournament takes the ones waiting on it along.
+ */
+export function discardText(
+  write: OutboxWrite,
+  writes: readonly OutboxWrite[] = [],
+): { title: string; body: string } {
   const title = `Discard ${changeTitle(write).replace(/^(A new|New) /, 'the new ')}?`
   const never = (what: string[]) =>
     `It was never saved to your account, so ${listOf(what)} ${what.length > 1 ? 'go' : 'goes'} from this phone.`
@@ -297,6 +360,19 @@ export function discardText(write: OutboxWrite): { title: string; body: string }
       return { title, body: never([`the new Opponent ${write.subject.opponentName ?? ''}`.trim()]) }
     case 'add-note-entry':
       return { title, body: never(['the Note entry']) }
+    case 'add-tournament': {
+      const along = discardedWith(writes, write).filter((w) => w.id !== write.id)
+      const rounds = along.filter((w) => w.kind === 'log-round').length
+      const others = along.length - rounds
+      return {
+        title,
+        body: never([
+          'the Tournament',
+          ...(rounds ? [`the ${counted(rounds, 'Round', 'Rounds')} logged in it`] : []),
+          ...(others ? [`${counted(others, 'other change', 'other changes')} to it`] : []),
+        ]),
+      }
+    }
     default:
       return { title, body: 'The server keeps its version.' }
   }

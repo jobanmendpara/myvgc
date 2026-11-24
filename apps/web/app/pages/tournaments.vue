@@ -2,6 +2,7 @@
 import type { TournamentView } from '@myvgc/core/schema'
 import { searchTournaments } from '@myvgc/core/search'
 import { useQuery } from '@tanstack/vue-query'
+import { tournamentRows } from '@/lib/outbox-view'
 
 definePageMeta({ listDetail: true })
 useHead({ title: 'Your Tournaments · MyVGC' })
@@ -10,9 +11,14 @@ const tournaments = useQuery({
   queryKey: ['tournaments'],
   queryFn: () => $fetch<TournamentView[]>('/api/tournaments'),
 })
+// With the Tournaments a delete on this phone still shows, and new ones the server refused.
+const { state } = useOutbox()
+const shown = computed(() =>
+  tournaments.data.value ? tournamentRows(tournaments.data.value, state.value) : undefined,
+)
 const { query, searching, results, noMatches } = useListSearch(
   'tournaments',
-  () => tournaments.data.value,
+  () => shown.value,
   (items: TournamentView[], q: string) => searchTournaments(items, q),
 )
 </script>
@@ -29,11 +35,11 @@ const { query, searching, results, noMatches } = useListSearch(
         :wide="wide"
         :pending="tournaments.isPending.value"
         :load-failed="tournaments.isError.value"
-        :empty="tournaments.data.value?.length === 0"
+        :empty="shown?.length === 0"
         :no-matches="noMatches"
       >
         <template #actions>
-          <Button v-if="tournaments.data.value?.length" as-child :size="wide ? 'sm' : 'default'">
+          <Button v-if="shown?.length" as-child :size="wide ? 'sm' : 'default'">
             <NuxtLink to="/tournaments/new">{{ wide ? 'New' : 'New Tournament' }}</NuxtLink>
           </Button>
         </template>

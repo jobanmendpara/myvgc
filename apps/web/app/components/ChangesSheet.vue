@@ -9,7 +9,7 @@ import {
   type MarkStatus,
   waitingWrites,
 } from '@/lib/outbox-view'
-import { roundPath } from '@/lib/paths'
+import { editTournamentPath, roundPath } from '@/lib/paths'
 
 // The changes on this phone (DEV-167), opened from the bar at the bottom of the screen: each one
 // waiting to be sent, and each the server refused with its message, to fix or discard.
@@ -34,15 +34,24 @@ const savedAt = (write: OutboxWrite) =>
 const detailOf = (write: OutboxWrite) =>
   [changeDetail(write), savedAt(write) && `saved ${savedAt(write)}`].filter(Boolean).join(' · ')
 
-/** A rejected Round opens in the Round form to fix; any other change is sent again as it is. */
-const isRound = (write: OutboxWrite) =>
-  (write.kind === 'log-round' || write.kind === 'edit-round') &&
-  write.subject.tournamentId &&
-  write.subject.roundId
+/**
+ * Where a rejected change opens to be fixed: a Round in the Round form, a new or changed
+ * Tournament in the Tournament form. Any other change is sent again as it is.
+ */
+function fixPath(write: OutboxWrite) {
+  const { tournamentId, roundId } = write.subject
+  if (!tournamentId) return undefined
+  if ((write.kind === 'log-round' || write.kind === 'edit-round') && roundId)
+    return roundPath(tournamentId, roundId)
+  if (write.kind === 'add-tournament' || write.kind === 'edit-tournament')
+    return editTournamentPath(tournamentId)
+  return undefined
+}
 async function fix(write: OutboxWrite) {
-  if (!isRound(write)) return retry(write.id)
+  const path = fixPath(write)
+  if (!path) return retry(write.id)
   open.value = false
-  await navigateTo(roundPath(write.subject.tournamentId!, write.subject.roundId!))
+  await navigateTo(path)
 }
 const discarding = ref<OutboxWrite | null>(null)
 </script>
@@ -112,7 +121,7 @@ const discarding = ref<OutboxWrite | null>(null)
           </div>
           <div v-if="status === 'rejected'" class="flex flex-wrap gap-2">
             <Button size="sm" @click="fix(write)">{{
-              isRound(write) ? 'Fix' : 'Try again'
+              fixPath(write) ? 'Fix' : 'Try again'
             }}</Button>
             <Button size="sm" variant="outline" @click="discarding = write">Discard</Button>
           </div>

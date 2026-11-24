@@ -11,6 +11,7 @@ import {
 } from '../app/lib/outbox'
 import {
   type Answer,
+  discardedWith,
   nextWrite,
   OLD_FORMAT_MESSAGE,
   OUTBOX_FORMAT,
@@ -162,6 +163,13 @@ describe('Choosing the next write', () => {
   it('lets a rejected write stop holding back its series', () => {
     const writes = [write('a', 1, ['t:1'], true), write('b', 2, ['t:1'])]
     expect(nextWrite(writes)?.id).toBe('b')
+  })
+
+  it('holds back what waits on a refused create, such as the Rounds in a new Tournament', () => {
+    const create = { ...write('a', 1, ['t:1'], true), creates: 't:1' }
+    const writes = [create, write('b', 2, ['t:1']), write('c', 3, ['o:1'])]
+    expect(nextWrite(writes)?.id).toBe('c')
+    expect(nextWrite([create, write('b', 2, ['t:1', 'o:1'])])).toBeUndefined()
   })
 })
 
@@ -429,6 +437,62 @@ describe('The outbox', () => {
         state: { message: 'Round 5 is already logged.' },
       },
     ])
+  })
+})
+
+describe('Discarding a new record', () => {
+  const create = (id: string) => ({ ...draft(`tournament:${id}`), creates: `tournament:${id}` })
+
+  it('takes the writes waiting on it along, and only those', () => {
+    const writes = [create('t1'), draft('tournament:t1'), draft('tournament:t2')].map(
+      (d, order) =>
+        ({ ...d, order, userId: ASH, state: { status: 'pending', attempts: 0 } }) as OutboxWrite,
+    )
+    expect(discardedWith(writes, writes[0]!).map((w) => w.id)).toEqual([
+      writes[0]!.id,
+      writes[1]!.id,
+    ])
+    expect(discardedWith(writes, writes[1]!).map((w) => w.id)).toEqual([writes[1]!.id])
+  })
+
+  it('removes a new Tournament and the Rounds logged in it from the device', async () => {
+    const outbox = newOutbox()
+    server.answerAll({ status: 'unreachable' })
+    await open(outbox, ASH)
+    const tournament = await outbox.add(create('t1'))
+    const round = await outbox.add(draft('tournament:t1'))
+    const other = await outbox.add(draft('tournament:t2'))
+    const events: OutboxEvent[] = []
+    outbox.subscribe((event) => events.push(event))
+
+    await outbox.discard(tournament.id)
+    expect(outbox.state.pending.map((w) => w.id)).toEqual([other.id])
+    expect(events.find((e) => e.type === 'withdrawn')).toMatchObject({
+      writes: [{ id: tournament.id }, { id: round.id }],
+    })
+    const later = newOutbox()
+    await open(later, ASH)
+    expect(later.state.pending.map((w) => w.id)).toEqual([other.id])
+  })
+
+  it('keeps the Rounds waiting while the new Tournament is refused, and sends them once it is fixed', async () => {
+    const outbox = newOutbox()
+    await open(outbox, ASH)
+    server.answerAll({ status: 'unreachable' })
+    const tournament = await outbox.add(create('t1'))
+    const round = await outbox.add(draft('tournament:t1'))
+    server.sent.length = 0
+    server.answerAll({ status: 200 })
+    server.answer(tournament.request.url, { status: 400, body: { error: 'Give it a name.' } })
+    await outbox.flush()
+    expect(server.sent).toEqual([tournament.request.url])
+    expect(outbox.state.rejected.map((w) => w.id)).toEqual([tournament.id])
+    expect(outbox.state.pending.map((w) => w.id)).toEqual([round.id])
+
+    await outbox.resend(tournament.id, {}, 1_000)
+    await outbox.flush()
+    expect(server.sent).toEqual([tournament.request.url, tournament.request.url, round.request.url])
+    expect(outbox.writes).toEqual([])
   })
 })
 

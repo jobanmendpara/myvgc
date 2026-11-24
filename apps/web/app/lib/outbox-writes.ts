@@ -1,17 +1,24 @@
 import {
+  type NewTournament,
   type NoteEntryView,
   type RoundInput,
   roundInputSchema,
   roundIssues,
   type RoundView,
+  type TeamSnapshotView,
+  type TeamView,
   TOP_CUT_STAGE_LABELS,
+  type TournamentChanges,
+  tournamentChangesSchema,
+  tournamentIssues,
   type TournamentView,
 } from '@myvgc/core/schema'
 import type { WriteDraft, WriteFix } from './outbox'
 import type { OutboxWrite } from './outbox-rules'
 
-// The writes the outbox sends (ADR 17): new, changed and deleted Rounds, new Opponents, and new,
-// changed and deleted Note entries. Every other write stays online-only. A new record gets its ID
+// The writes the outbox sends (ADR 17): new, changed and deleted Tournaments and their Team, new,
+// changed and deleted Rounds, new Opponents, and new, changed and deleted Note entries. Every
+// other write stays online-only. A new record gets its ID
 // here, so sending it again is recognised as the same record.
 
 /** A new random UUID, also where `crypto.randomUUID` is missing (a page not served over HTTPS). */
@@ -27,9 +34,13 @@ export function newId(): string {
 type TournamentRef = Pick<TournamentView, 'id' | 'name'>
 type OpponentRef = { id: string; displayName: string }
 
-/** Rounds on one Tournament go in series; so do writes on one Opponent and their Note entries. */
-const tournamentSeries = (id: string) => `tournament:${id}`
+/**
+ * Writes on one Tournament and its Rounds go in series; so do writes on one Opponent and their
+ * Note entries, and on one Team.
+ */
+export const tournamentSeries = (id: string) => `tournament:${id}`
 const opponentSeries = (id: string) => `opponent:${id}`
+export const teamSeries = (id: string) => `team:${id}`
 
 function roundName(input: Pick<RoundInput, 'phase' | 'roundNumber' | 'stage'>) {
   if (input.phase === 'top-cut' && input.stage) return TOP_CUT_STAGE_LABELS[input.stage]
@@ -260,5 +271,132 @@ export function reviseRound(
     label: draft.label,
     series: draft.series,
     subject: draft.subject,
+  }
+}
+
+/** A Tournament's fields as the API takes them, without the ID the outbox gives a new one. */
+export type TournamentFields = Omit<NewTournament, 'id'>
+
+/**
+ * Creates a Tournament under an ID chosen here, so the Rounds logged in it before the server has
+ * it can refer to it, and wait for it (ADR 17).
+ */
+export function addTournament(fields: TournamentFields): WriteDraft {
+  const id = newId()
+  return {
+    id: newId(),
+    kind: 'add-tournament',
+    request: { method: 'POST', url: '/api/tournaments', body: { ...fields, id } },
+    series: [tournamentSeries(id)],
+    creates: tournamentSeries(id),
+    subject: { tournamentId: id },
+    label: `New Tournament ${fields.name.trim()}`,
+  }
+}
+
+/** The ID of the Tournament a write creates. */
+export const createdTournamentId = (write: OutboxWrite) =>
+  write.kind === 'add-tournament' ? write.subject.tournamentId : undefined
+
+/** A Tournament's changes, checked against the Tournament as it will be saved, as the server does. */
+export const tournamentChangesFor = (saved: TournamentView) =>
+  tournamentChangesSchema.superRefine((changes, ctx) => {
+    for (const issue of tournamentIssues({ ...saved, ...changes }))
+      ctx.addIssue({ code: 'custom', ...issue })
+  })
+
+const changesLabel = (name: string) => `Changes to ${name}`
+
+/** Changes a Tournament's details, Placement or Championship Points. */
+export function editTournament(tournament: TournamentView, changes: TournamentChanges): WriteDraft {
+  return {
+    id: newId(),
+    kind: 'edit-tournament',
+    request: { method: 'PATCH', url: `/api/tournaments/${tournament.id}`, body: changes },
+    series: [tournamentSeries(tournament.id)],
+    subject: { tournamentId: tournament.id, before: tournament },
+    label: changesLabel(changes.name?.trim() || tournament.name),
+  }
+}
+
+export function deleteTournament(tournament: TournamentView): WriteDraft {
+  return {
+    id: newId(),
+    kind: 'delete-tournament',
+    request: { method: 'DELETE', url: `/api/tournaments/${tournament.id}` },
+    series: [tournamentSeries(tournament.id)],
+    subject: { tournamentId: tournament.id, before: tournament },
+    label: `Deleting ${tournament.name}`,
+  }
+}
+
+/**
+ * The Team snapshot a link shows until the server has made its own (ADR 9). The server judges it
+ * against the Tournament's Regulation; here it can only reuse the Team's own judgement, so a Team
+ * of another Regulation shows as not checked.
+ */
+function snapshotOf(tournament: TournamentView, team: TeamView, at: string): TeamSnapshotView {
+  return {
+    teamId: team.id,
+    name: team.name,
+    regulation: team.regulation,
+    pokemon: team.pokemon,
+    legality:
+      team.legality.regulation === tournament.regulation
+        ? team.legality
+        : { regulation: tournament.regulation, status: 'unchecked', problems: [] },
+    snapshotAt: at,
+  }
+}
+
+/**
+ * Links one of the User's Teams to a Tournament, or snapshots it again. It waits for that Team's
+ * create, should the Team itself still be waiting to be sent.
+ */
+export function linkTournamentTeam(tournament: TournamentView, team: TeamView): WriteDraft {
+  return {
+    id: newId(),
+    kind: 'link-tournament-team',
+    request: {
+      method: 'PUT',
+      url: `/api/tournaments/${tournament.id}/team`,
+      body: { teamId: team.id },
+    },
+    series: [tournamentSeries(tournament.id), teamSeries(team.id)],
+    subject: {
+      tournamentId: tournament.id,
+      teamId: team.id,
+      before: tournament.team,
+      after: snapshotOf(tournament, team, new Date().toISOString()),
+    },
+    label: `${team.name} as your Team in ${tournament.name}`,
+  }
+}
+
+export function unlinkTournamentTeam(tournament: TournamentView): WriteDraft {
+  return {
+    id: newId(),
+    kind: 'unlink-tournament-team',
+    request: { method: 'DELETE', url: `/api/tournaments/${tournament.id}/team` },
+    series: [tournamentSeries(tournament.id)],
+    subject: { tournamentId: tournament.id, before: tournament.team },
+    label: `Unlinking your Team from ${tournament.name}`,
+  }
+}
+
+/**
+ * A rejected new or changed Tournament as the User fixed it in the Tournament form, to send again
+ * in its place. A new Tournament keeps its ID, so the Rounds waiting on it still belong to it.
+ */
+export function reviseTournament(write: OutboxWrite, fields: TournamentFields): WriteFix {
+  if (write.kind === 'add-tournament')
+    return {
+      request: { ...write.request, body: { ...fields, id: write.subject.tournamentId } },
+      label: `New Tournament ${fields.name.trim()}`,
+    }
+  const before = write.subject.before as TournamentView | undefined
+  return {
+    request: { ...write.request, body: fields },
+    label: changesLabel(fields.name.trim() || before?.name || ''),
   }
 }

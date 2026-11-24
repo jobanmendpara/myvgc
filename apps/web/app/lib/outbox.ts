@@ -3,6 +3,7 @@ import {
   type Answer,
   afterAttempt,
   canSend,
+  discardedWith,
   inOrder,
   nextWrite,
   OUTBOX_FORMAT,
@@ -15,7 +16,7 @@ import {
   type WriteRequest,
 } from './outbox-rules'
 
-// The outbox (ADR 17): the Rounds, Opponents and Note entries a User saves are kept on the device
+// The outbox (ADR 17): the Tournaments, Rounds, Opponents and Note entries a User saves are kept on the device
 // first, then sent to the server, in order, whenever it can be reached. Nothing in it expires,
 // and clearing the query cache never touches it. Its rules are in outbox-rules.ts.
 
@@ -256,14 +257,19 @@ export class Outbox {
     })
   }
 
-  /** Removes a write without sending it. */
+  /**
+   * Removes a write without sending it. Discarding a create, such as a new Tournament, also
+   * removes the writes waiting on what it creates, such as the Rounds logged in it.
+   */
   async discard(id: string) {
     const write = this.#writes.find((w) => w.id === id)
     if (!write) return
-    await this.#store.remove(write)
-    this.#writes = this.#writes.filter((w) => w.id !== id)
+    const gone = discardedWith(this.#writes, write)
+    for (const each of gone) await this.#store.remove(each)
+    const ids = new Set(gone.map((w) => w.id))
+    this.#writes = this.#writes.filter((w) => !ids.has(w.id))
     this.#changed()
-    this.#emit({ type: 'withdrawn', writes: [write] })
+    this.#emit({ type: 'withdrawn', writes: gone })
   }
 
   /** Puts a rejected write back in line and tries to send it again. */

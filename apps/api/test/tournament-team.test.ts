@@ -115,15 +115,36 @@ describe('A Tournament’s Team snapshot', () => {
       eventTier: 'local',
     })
     const url = `/api/tournaments/${tournamentId}/team`
-    expect((await put(t.app, url, { teamId }, ash)).status).toBe(200)
+    const first = await json(await put(t.app, url, { teamId }, ash))
+    await t.db.update(team).set({ name: 'Fairy rain v2' }).where(eq(team.id, teamId))
 
+    // Linking it again, as a phone sending its change twice does, keeps the snapshot as it was.
     const again = await put(t.app, url, { teamId }, ash)
-    expect(again.status).toBe(409)
-    expect((await json(again)).error).toMatch(/over/)
+    expect(again.status).toBe(200)
+    expect((await json(again)).team).toEqual(first.team)
 
     // A wrong choice can still be fixed by linking a different Team.
     const other = await json(await post(t.app, '/api/teams', { name: 'Sun', paste: PASTE }, ash))
     expect((await put(t.app, url, { teamId: other.team.id }, ash)).status).toBe(200)
+  })
+
+  it('answers a link or unlink sent again as done, and one on a deleted Tournament as gone', async () => {
+    const { teamId, tournamentId } = await setUp()
+    const url = `/api/tournaments/${tournamentId}/team`
+    const first = await json(await put(t.app, url, { teamId }, ash))
+    const again = await put(t.app, url, { teamId }, ash)
+    expect(again.status).toBe(200)
+    expect((await json(again)).team).toMatchObject({ teamId, name: first.team.name })
+
+    expect((await del(t.app, url, ash)).status).toBe(200)
+    const unlinked = await del(t.app, url, ash)
+    expect(unlinked.status).toBe(200)
+    expect((await json(unlinked)).team).toBeNull()
+
+    // The outbox takes a 404 on a change as nothing left to do (ADR 17).
+    expect((await del(t.app, `/api/tournaments/${tournamentId}`, ash)).status).toBe(204)
+    expect((await put(t.app, url, { teamId }, ash)).status).toBe(404)
+    expect((await del(t.app, url, ash)).status).toBe(404)
   })
 
   it('only links the User’s own Teams to their own Tournaments', async () => {
