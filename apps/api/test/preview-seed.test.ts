@@ -1,4 +1,4 @@
-import { currentRegulation, today } from '@myvgc/core'
+import { currentRegulation, judgeTeam, today } from '@myvgc/core'
 import { afterEach, expect, it } from 'vitest'
 import { PREVIEW_EMAIL, PREVIEW_PASSWORD, seedPreview } from '../scripts/preview-seed'
 import { APP_URL, type TestApp, cookieFrom, createTestApp, get, json, post } from './app'
@@ -20,7 +20,9 @@ it('seeds the preview through the app, with Statistics showing rows without a qu
 
   // Every page the start-up message lists has data behind it.
   for (const { path } of seed.pages) {
-    const api = path === '/statistics' ? '/api/statistics' : `/api${path}`
+    // A Round has no route of its own; its Tournament's has it.
+    const api =
+      path === '/statistics' ? '/api/statistics' : `/api${path.replace(/\/rounds\/.*/, '')}`
     expect((await get(t.app, api, cookie)).status, path).toBe(200)
   }
 
@@ -40,13 +42,28 @@ it('seeds the preview through the app, with Statistics showing rows without a qu
   const tournamentPath = seed.pages.find((page) => page.label === 'Tournament')!.path
   const tournament = await json(await get(t.app, `/api${tournamentPath}`, cookie))
   expect(tournament.regulation).toBe(currentRegulation(today()))
-  expect(tournament.rounds).toHaveLength(4)
+  expect(tournament.rounds).toHaveLength(5)
   expect(tournament.rounds[0].games[0]).toMatchObject({
     brought: expect.arrayContaining(['floetteeternal']),
     leads: ['floetteeternal', 'basculegion'],
   })
 
+  // An Opponent's Team with items, abilities and moves, legal, so its rows run to several lines.
+  const full = tournament.opponentTeams.find((team: { pokemon: { moves: string[] }[] }) =>
+    team.pokemon.every((build) => build.moves.length === 4),
+  )
+  expect(full.pokemon).toHaveLength(6)
+  for (const build of full.pokemon) {
+    expect(build.item, build.species).toBeTruthy()
+    expect(build.ability, build.species).toBeTruthy()
+  }
+  expect(judgeTeam(full.pokemon, tournament.regulation).status).toBe('legal')
+
   const { statistics } = await json(await get(t.app, '/api/statistics', cookie))
   expect(statistics.speciesFaced.rows.length).toBeGreaterThan(0)
   expect(statistics.user.leads.rows.length).toBeGreaterThan(0)
+  // A Lead pair with a species that has no Sprite file.
+  expect(
+    statistics.opponent.leadPairs.rows.map((row: { species: string[] }) => row.species),
+  ).toContainEqual(['cramorantgulping', 'incineroar'])
 })

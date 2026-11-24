@@ -15,7 +15,8 @@ On 2026-11-23 the DEV-180 agent shipped three Sprite styles without seeing them 
 - State lives in `.preview/state.json`, which git ignores.
 - The database is seeded with the User `preview@example.com`. Since [DEV-197](https://linear.app/mendpara/issue/DEV-197) (2026-11-24) `apps/api/scripts/preview-seed.ts` seeds it through the app's routes before the API listens: three Teams (the Worlds 2026 winner's, one with long species names, one with Cramorant-Gulping, which has no Sprite file), a Tournament in the current Regulation with three Rounds, Games with Brought and Leads, and a Bye, and three Opponents with Opponent's Teams. `/statistics` has rows without a query. `pnpm preview` prints a path for each seeded page. `apps/api/test/preview-seed.test.ts` runs the seed against a fresh PGlite.
 - Species the API turned down for the seed on 2026-11-23: Urshifu, Amoonguss, Tornadus and Ogerpon-Hearthflame. Meloetta-Pirouette has no Sprite but is Mythical, so illegal in Reg M-C.
-- Screenshots are taken at 375 and 1280 px wide and saved to `.preview/screenshots/`.
+- Since [DEV-199](https://linear.app/mendpara/issue/DEV-199) (2026-11-24) the seed also has a fourth played Round against Riley Park, whose Opponent's Team has an item, ability, Nature and four moves on each Pokémon, and whose Leads include Cramorant-Gulping, so Statistics has a Lead pair with no Sprite. `pnpm preview` prints that Opponent and that Round.
+- Screenshots are taken at 375 and 1280 px wide and saved to `.preview/screenshots/`. Since DEV-199, `--dark` takes a shot in the dark theme (stored as `myvgc-mode`, as the theme Device setting is), `--2x` takes it at 2× pixel ratio, and `--help` prints the usage and exits 0.
 
 ## Known gaps
 

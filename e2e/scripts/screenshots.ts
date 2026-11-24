@@ -1,17 +1,17 @@
-// `pnpm screenshots [path] [--sprite-style <style>] [--click <text>]...`: screenshots of pages of
-// the running `pnpm preview` (DEV-184), at phone width (375 px) and desktop width (1280 px),
-// logged in as the preview User. Each path can be followed by a Sprite style to store before the
-// page loads (DEV-198) and clicks to make first, such as opening a dialog (DEV-186); options
-// before any path, or no arguments at all, are for the preview User's Team. Each shot starts
-// afresh, so nothing carries over to the next. A shot holds the whole page, including any pane
-// that scrolls on its own, once its images have loaded or failed. Writes
-// .preview/screenshots/<page>[-sprite-<style>][-<click>...]-<width>.png, plus <name>.partN.png
-// slices of a shot taller than SLICE px, and prints each path.
+// `pnpm screenshots [path] [options]...`: screenshots of pages of the running `pnpm preview`
+// (DEV-184), at phone width (375 px) and desktop width (1280 px), logged in as the preview User.
+// Each path can be followed by a Sprite style to store before the page loads (DEV-198), the dark
+// theme or 2× pixel ratio (DEV-199), and clicks to make first, such as opening a dialog (DEV-186);
+// `--help` lists them. Options before any path, or no arguments at all, are for the preview
+// User's Team. Each shot starts afresh, so nothing carries over to the next. A shot holds the
+// whole page, including any pane that scrolls on its own, once its images have loaded or failed.
+// Writes .preview/screenshots/<page>[-sprite-<style>][-dark][-2x][-<click>...]-<width>.png, plus
+// <name>.partN.png slices of a shot taller than SLICE image pixels, and prints each path.
 import { mkdirSync, readFileSync, readdirSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { type Locator, type Page, chromium } from '@playwright/test'
-import { USAGE, parseShots, shotName, shotStorage } from './screenshot-args.ts'
+import { HELP, USAGE, parseShots, shotName, shotStorage } from './screenshot-args.ts'
 
 const root = fileURLToPath(new URL('../..', import.meta.url))
 const outDir = join(root, '.preview/screenshots')
@@ -30,6 +30,10 @@ try {
   console.error(`${(error as Error).message}\n\n${USAGE}`)
   process.exit(64)
 }
+if (shots === HELP) {
+  console.log(USAGE)
+  process.exit(0)
+}
 
 let state: PreviewState
 try {
@@ -43,24 +47,29 @@ if (!state.teamPath) {
   process.exit(1)
 }
 
-/** Shots taller than this, in px, are also saved as slices this tall, which read without shrinking. */
+/**
+ * Shots taller than this, in image pixels, are also saved as slices this tall, which read without
+ * shrinking.
+ */
 const SLICE = 1600
 
 // Saves the shot, and slices of it if it's tall, and prints each path. Slices from an earlier,
-// taller shot of the same name are removed first.
-async function save(page: Page, name: string, fullPage: boolean) {
+// taller shot of the same name are removed first. `scale` is the shot's pixel ratio.
+async function save(page: Page, name: string, fullPage: boolean, scale: number) {
   const file = join(outDir, `${name}.png`)
   for (const old of readdirSync(outDir))
     if (old.startsWith(`${name}.part`)) rmSync(join(outDir, old))
   const shot = await page.screenshot({ path: file, fullPage, animations: 'disabled' })
   console.log(file)
-  // A PNG's height is the big-endian number at byte 20.
-  const height = shot.readUInt32BE(20)
-  if (height <= SLICE) return
-  const width = shot.readUInt32BE(16)
-  for (let y = 0, part = 1; y < height; y += SLICE, part++) {
+  // A PNG's width and height are the big-endian numbers at bytes 16 and 20, in image pixels; a
+  // clip is in CSS px.
+  if (shot.readUInt32BE(20) <= SLICE) return
+  const width = shot.readUInt32BE(16) / scale
+  const height = shot.readUInt32BE(20) / scale
+  const step = SLICE / scale
+  for (let y = 0, part = 1; y < height; y += step, part++) {
     const slice = join(outDir, `${name}.part${part}.png`)
-    const clip = { x: 0, y, width, height: Math.min(SLICE, height - y) }
+    const clip = { x: 0, y, width, height: Math.min(step, height - y) }
     await page.screenshot({ path: slice, fullPage: true, clip, animations: 'disabled' })
     console.log(slice)
   }
@@ -161,7 +170,11 @@ try {
     for (const shot of shots) {
       const path = shot.path ?? state.teamPath
       // A fresh context each time, so a Sprite style picked in one shot stays out of the next.
-      const context = await browser.newContext({ baseURL: state.url, viewport })
+      const context = await browser.newContext({
+        baseURL: state.url,
+        viewport,
+        deviceScaleFactor: shot.double ? 2 : 1,
+      })
       // Logging in through the API sets the session cookie for the pages too.
       const login = await context.request.post('/api/auth/sign-in/email', {
         data: { email: state.email, password: state.password },
@@ -184,7 +197,7 @@ try {
       const dialogOpen = await page.getByRole('dialog').filter({ visible: true }).count()
       if (!dialogOpen) await fitScrollingPanes(page, viewport)
       await settleImages(page)
-      await save(page, shotName(shot, path, width), !dialogOpen)
+      await save(page, shotName(shot, path, width), !dialogOpen, shot.double ? 2 : 1)
       await context.close()
     }
   }
