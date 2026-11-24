@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { MAX_PASTE_LENGTH, type TeamFields, pickTeamFields } from '@myvgc/core/schema'
 import { useMutation, useQueryClient } from '@tanstack/vue-query'
+import { useOnline } from '@vueuse/core'
 import { type CreatedTeam, type CreateTeamError, toCreateTeamError } from '@/lib/api'
 import { teamPath } from '@/lib/paths'
 import { newTeamFields } from '@/lib/team-form'
@@ -16,8 +17,12 @@ const paste = ref('')
 const sentLines = ref<string[]>([])
 const problem = ref<CreateTeamError | null>(null)
 
+// Reading a paste needs the server's Champions data, so importing stays online-only (ADR 17).
+const online = useOnline()
 const queryClient = useQueryClient()
 const save = useMutation({
+  // Says at once that it couldn't be saved, rather than saving whenever a signal returns.
+  networkMode: 'always',
   mutationFn: () => {
     sentLines.value = paste.value.split(/\r?\n/)
     return $fetch<CreatedTeam>('/api/teams', {
@@ -122,12 +127,15 @@ function showLine(line: number) {
       <Alert v-if="problem?.kind === 'other'" variant="destructive" role="alert">
         <AlertDescription>{{ problem.message }}</AlertDescription>
       </Alert>
+      <p v-if="!online" class="text-muted-foreground text-sm" role="status">
+        Importing a paste needs a connection. With no signal, build the Team instead.
+      </p>
 
       <div class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
         <Button as-child variant="outline" size="lg"
           ><NuxtLink :to="cancelTo">Cancel</NuxtLink></Button
         >
-        <Button type="submit" size="lg" :disabled="save.isPending.value">
+        <Button type="submit" size="lg" :disabled="!online || save.isPending.value">
           {{ save.isPending.value ? 'Saving…' : 'Save Team' }}
         </Button>
       </div>

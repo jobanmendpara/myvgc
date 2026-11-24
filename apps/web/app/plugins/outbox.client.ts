@@ -1,6 +1,12 @@
 import type { Query, QueryClient } from '@tanstack/vue-query'
 import { acrossTabs, deviceOutboxStore, Outbox, sendRequest } from '@/lib/outbox'
-import { addedTournament, applyPending, isOutboxTarget, revertWrite } from '@/lib/outbox-apply'
+import {
+  addedTeam,
+  addedTournament,
+  applyPending,
+  isOutboxTarget,
+  revertWrite,
+} from '@/lib/outbox-apply'
 import { type OutboxWrite, worthTrying } from '@/lib/outbox-rules'
 import { watchOutboxTriggers } from '@/lib/outbox-triggers'
 
@@ -34,6 +40,13 @@ function staleAfter(write: OutboxWrite): unknown[][] {
     case 'edit-opponent':
       // The Rounds against them show their display name.
       return [['opponents'], ['tournament']]
+    case 'add-team':
+    case 'edit-team':
+      // Its page and its paste, now judged by the server.
+      return [['teams'], ['team', write.subject.teamId]]
+    case 'delete-team':
+      // The Team snapshots made from it no longer link to it.
+      return [['teams'], ['tournament'], ['tournaments']]
     case 'save-player-details':
       return [['account', 'player-details']]
     case 'save-list-styles':
@@ -60,6 +73,10 @@ function addedOpponentIds(writes: readonly OutboxWrite[]) {
 /** Every Tournament created on this device, whose page is needed before the server has it. */
 const addedTournamentIds = (writes: readonly OutboxWrite[]) =>
   writes.flatMap((write) => addedTournament(write)?.id ?? [])
+
+/** Every Team built on this device, whose page is needed before the server has it. */
+const addedTeamIds = (writes: readonly OutboxWrite[]) =>
+  writes.flatMap((write) => addedTeam(write)?.id ?? [])
 
 function connect(outbox: Outbox, queryClient: QueryClient) {
   const cache = queryClient.getQueryCache()
@@ -89,6 +106,7 @@ function connect(outbox: Outbox, queryClient: QueryClient) {
     const seeded = [
       ...addedOpponentIds(writes).map((id) => ['opponents', 'detail', id]),
       ...addedTournamentIds(writes).map((id) => ['tournament', id]),
+      ...addedTeamIds(writes).map((id) => ['team', id]),
     ]
     for (const key of seeded)
       if (queryClient.getQueryData(key) === undefined)
@@ -115,6 +133,10 @@ function connect(outbox: Outbox, queryClient: QueryClient) {
       const kept = new Set(addedTournamentIds(outbox.writes))
       for (const id of addedTournamentIds(event.writes))
         if (!kept.has(id)) queryClient.removeQueries({ queryKey: ['tournament', id], exact: true })
+      // And a new Team's.
+      const teams = new Set(addedTeamIds(outbox.writes))
+      for (const id of addedTeamIds(event.writes))
+        if (!teams.has(id)) queryClient.removeQueries({ queryKey: ['team', id], exact: true })
       // So does a new Opponent's, once nothing on this phone adds them any more.
       const stillAdded = new Set(addedOpponentIds(outbox.writes))
       for (const write of event.writes) {

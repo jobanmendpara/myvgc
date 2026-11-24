@@ -1,6 +1,14 @@
 import { gzipSync } from 'node:zlib'
 import { describe, expect, it } from 'vitest'
-import { NAME_KINDS, champions, championsNames, searchAbilities, searchNames } from '../src'
+import {
+  NAME_KINDS,
+  champions,
+  championsNames,
+  nameBuild,
+  nameBuildFrom,
+  searchAbilities,
+  searchNames,
+} from '../src'
 
 describe('championsNames', () => {
   const names = championsNames()
@@ -164,5 +172,34 @@ describe('searchAbilities', () => {
   it('stops at the limit, keeping own abilities first', () => {
     expect(ids(searchAbilities(names, 'gyarados', 'a', 2))).toEqual(['intimidate', 'adaptability'])
     expect(ids(searchAbilities(names, 'incineroar', '', 1))).toEqual(['blaze'])
+  })
+})
+
+describe('nameBuildFrom', () => {
+  const names = championsNames()
+  const build = {
+    species: 'incineroar',
+    nickname: 'Roar',
+    item: 'sitrusberry',
+    ability: 'intimidate',
+    nature: 'careful',
+    moves: ['fakeout', 'flareblitz'],
+    statPoints: { hp: 32, atk: 0, def: 0, spa: 0, spd: 32, spe: 2 },
+  }
+
+  it('names a build from the names list as the API names it from the data', () => {
+    expect(nameBuildFrom(build, names)).toEqual(nameBuild(build))
+  })
+
+  it('shows the ID for a name the list does not have, or with no list at all', () => {
+    const unknown = { ...build, species: 'missingno', moves: ['notamove'] }
+    expect(nameBuildFrom(unknown, names).names).toMatchObject({
+      species: 'missingno',
+      moves: ['notamove'],
+    })
+    expect(nameBuildFrom(build, undefined).names).toMatchObject({
+      species: 'incineroar',
+      nature: 'Careful',
+    })
   })
 })

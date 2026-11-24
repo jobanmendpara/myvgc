@@ -2,7 +2,10 @@
 // ability, keyed by Showdown ID (ADR 14, ADR 17). This module holds only the shape and the
 // search, so the web app can use it through `@myvgc/core/schema`; the list itself is built
 // from Showdown's data in `champions.ts` and served by the API.
+import type { PokemonBuild } from './build'
+import { STAT_ALIGNMENTS } from './stat-alignment'
 import type { BaseStats } from './stat-values'
+import type { NamedPokemonBuild } from './team'
 
 /** A name the Champions data recognises: its Showdown ID and display name. */
 export interface Named {
@@ -71,4 +74,27 @@ export function searchAbilities(
   if (!fold(query) && ownMatches.length) return ownMatches.slice(0, limit)
   const others = searchNames(names.abilities, query).filter((entry) => !(entry.id in own))
   return [...ownMatches, ...others].slice(0, limit)
+}
+
+/**
+ * Adds display names to a Pokémon build from the names list, as the API's `nameBuild` does from
+ * the Champions data, so the web app can show a Team it built with no signal before the server
+ * has it (ADR 17). A name the list doesn't have shows as its ID.
+ */
+export function nameBuildFrom(
+  build: PokemonBuild,
+  names: Pick<ChampionsNames, NameKind> | undefined,
+): NamedPokemonBuild {
+  const nameOf = (kind: NameKind, id: string) => names?.[kind][id] ?? id
+  const nature = build.nature && STAT_ALIGNMENTS.find(({ id }) => id === build.nature)
+  return {
+    ...build,
+    names: {
+      species: nameOf('species', build.species),
+      ...(build.item ? { item: nameOf('items', build.item) } : {}),
+      ...(build.ability ? { ability: nameOf('abilities', build.ability) } : {}),
+      ...(build.nature ? { nature: nature ? nature.name : build.nature } : {}),
+      moves: build.moves.map((move) => nameOf('moves', move)),
+    },
+  }
 }

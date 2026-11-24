@@ -1,17 +1,13 @@
 <script setup lang="ts">
-import { MAX_TEAM_IMAGES, MAX_TEAM_IMAGE_MB, type TeamBody } from '@myvgc/core/schema'
+import { MAX_TEAM_IMAGES, MAX_TEAM_IMAGE_MB } from '@myvgc/core/schema'
 import { TEAM_IMAGE_FILE_TYPES } from '@/composables/useTeamReader'
-import type { CreatedTeam } from '@/lib/api'
 
 useHead({ title: 'Read screenshots · MyVGC' })
 const cancelTo = useNewTeamCancelTo()
 const imageReading = useImageReading()
+// Reading needs a connection (ADR 24); the Team read is then saved like one built by hand.
 const { online, fileInput, read, failure, chooseImages } = useTeamReader()
-
-async function save(body: TeamBody) {
-  const { team } = await $fetch<CreatedTeam>('/api/teams', { method: 'POST', body })
-  return team
-}
+const save = useSaveNewTeam()
 </script>
 
 <template>

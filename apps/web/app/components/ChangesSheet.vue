@@ -9,7 +9,7 @@ import {
   type MarkStatus,
   waitingWrites,
 } from '@/lib/outbox-view'
-import { editTournamentPath, opponentPath, roundPath } from '@/lib/paths'
+import { editTeamPath, editTournamentPath, opponentPath, roundPath } from '@/lib/paths'
 
 // The changes on this phone (DEV-167), opened from the bar at the bottom of the screen: each one
 // waiting to be sent, and each the server refused with its message, to fix or discard.
@@ -36,13 +36,16 @@ const detailOf = (write: OutboxWrite) =>
 
 /**
  * Where a rejected change opens to be fixed: a Round in the Round form, a new or changed
- * Tournament in the Tournament form, a new or changed Opponent in the form on their page, and the
- * Player details in Settings. Any other change is sent again as it is.
+ * Tournament in the Tournament form, a new or changed Opponent in the form on their page, a new
+ * or changed Team in the Team builder, and the Player details in Settings. Any other change is
+ * sent again as it is.
  */
 function fixPath(write: OutboxWrite) {
-  const { tournamentId, roundId, opponentId } = write.subject
+  const { tournamentId, roundId, opponentId, teamId } = write.subject
   if ((write.kind === 'add-opponent' || write.kind === 'edit-opponent') && opponentId)
     return `${opponentPath(opponentId)}?fix`
+  if ((write.kind === 'add-team' || write.kind === 'edit-team') && teamId)
+    return editTeamPath(teamId)
   if (write.kind === 'save-player-details') return '/settings#player-details'
   if (!tournamentId) return undefined
   if ((write.kind === 'log-round' || write.kind === 'edit-round') && roundId)

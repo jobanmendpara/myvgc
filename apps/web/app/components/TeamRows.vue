@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { type ListStyle, type TeamView, groupTeams } from '@myvgc/core/schema'
+import { syncEdge, teamMarks } from '@/lib/outbox-view'
 import { teamPath } from '@/lib/paths'
 
 // The rows of the Teams list, and what a row shows in each List style. Compact: the name and
@@ -16,6 +17,17 @@ defineProps<{ teams: TeamView[]; listStyle: ListStyle; wide: boolean; searching:
 // Typed here: passing the generic core function straight to ListRows broke CI's typecheck.
 const groupBy = (items: TeamView[]) => groupTeams(items)
 const { style: spriteStyle } = useSpriteStyle()
+
+// A Team built, changed or deleted on this phone and not yet synced is marked, and one waiting to
+// be deleted is struck through (DEV-206).
+const { state } = useOutbox()
+const marks = computed(() => teamMarks(state.value))
+const rowClass = (item: TeamView) => {
+  const mark = marks.value.get(item.id)
+  return [syncEdge(mark), mark?.status === 'deleting' ? 'line-through opacity-70' : '']
+    .filter(Boolean)
+    .join(' ')
+}
 </script>
 
 <template>
@@ -26,18 +38,22 @@ const { style: spriteStyle } = useSpriteStyle()
     :path="teamPath"
     :group-by="groupBy"
     :searching="searching"
+    :row-class="rowClass"
     data-testid="teams-list"
   >
     <template #compact="{ item }">
-      <span class="flex min-w-0 items-center gap-2">
-        <span
-          v-if="item.legality.status === 'illegal'"
-          class="bg-destructive size-2 shrink-0 rounded-full"
-          :title="`Illegal in ${item.legality.regulation}`"
-          data-testid="illegal-dot"
-          ><span class="sr-only">Illegal in {{ item.legality.regulation }}</span></span
-        >
-        <span class="truncate">{{ item.name }}</span>
+      <span class="flex min-w-0 flex-col">
+        <span class="flex min-w-0 items-center gap-2">
+          <span
+            v-if="item.legality.status === 'illegal'"
+            class="bg-destructive size-2 shrink-0 rounded-full"
+            :title="`Illegal in ${item.legality.regulation}`"
+            data-testid="illegal-dot"
+            ><span class="sr-only">Illegal in {{ item.legality.regulation }}</span></span
+          >
+          <span class="truncate">{{ item.name }}</span>
+        </span>
+        <SyncMark v-if="marks.get(item.id)" :mark="marks.get(item.id)!" />
       </span>
       <span class="text-muted-foreground shrink-0">Reg {{ item.regulation }}</span>
     </template>
@@ -85,6 +101,7 @@ const { style: spriteStyle } = useSpriteStyle()
           <span class="w-full break-words">{{ build.names.species }}</span>
         </span>
       </span>
+      <SyncMark v-if="marks.get(item.id)" :mark="marks.get(item.id)!" />
     </template>
 
     <template #detailed="{ item }">
@@ -125,6 +142,7 @@ const { style: spriteStyle } = useSpriteStyle()
           <span class="w-full break-words">{{ build.names.species }}</span>
         </li>
       </ul>
+      <SyncMark v-if="marks.get(item.id)" :mark="marks.get(item.id)!" />
     </template>
   </ListRows>
 </template>

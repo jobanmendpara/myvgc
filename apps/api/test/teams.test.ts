@@ -294,6 +294,92 @@ describe('Teams from the Team builder', () => {
     })
   })
 
+  // A Team built with no signal is sent with an ID the phone picked, and may be sent again
+  // (ADR 17, DEV-206).
+  describe('POST /api/teams with a client-generated ID', () => {
+    const ID = '6f1f6c1e-3b9a-4c41-9d1e-2f6b8f0c1a11'
+
+    it('creates the Team under that ID', async () => {
+      const cookie = await asUser()
+      const res = await post(
+        t!.app,
+        '/api/teams',
+        { id: ID, name: 'Sun', pokemon: [INCINEROAR] },
+        cookie,
+      )
+      expect(res.status).toBe(201)
+      expect((await json(res)).team.id).toBe(ID)
+      expect((await get(t!.app, `/api/teams/${ID}`, cookie)).status).toBe(200)
+    })
+
+    it('answers a replay with the saved Team and a 200, and makes no second Team', async () => {
+      const cookie = await asUser()
+      await post(t!.app, '/api/teams', { id: ID, name: 'Sun', pokemon: [INCINEROAR] }, cookie)
+      await put(t!.app, `/api/teams/${ID}`, { ...whole, name: 'Sun, renamed' }, cookie)
+
+      const replay = await post(
+        t!.app,
+        '/api/teams',
+        { id: ID, name: 'Sun', pokemon: [INCINEROAR] },
+        cookie,
+      )
+      expect(replay.status).toBe(200)
+      // The saved version wins.
+      expect((await json(replay)).team).toMatchObject({ id: ID, name: 'Sun, renamed' })
+      expect(await t!.db.select().from(team)).toHaveLength(1)
+    })
+
+    it("answers 409 for an ID another User's Team has, and leaves it alone", async () => {
+      const ash = await asUser()
+      await post(t!.app, '/api/teams', { id: ID, name: 'Sun', pokemon: [INCINEROAR] }, ash)
+      const misty = await asUser('misty@example.com')
+
+      const res = await post(
+        t!.app,
+        '/api/teams',
+        { id: ID, name: 'Mine now', pokemon: [INCINEROAR] },
+        misty,
+      )
+      expect(res.status).toBe(409)
+      expect((await json(await get(t!.app, `/api/teams/${ID}`, ash))).name).toBe('Sun')
+      expect((await get(t!.app, `/api/teams/${ID}`, misty)).status).toBe(404)
+    })
+
+    it('rejects an ID that is not a UUID, by field', async () => {
+      const cookie = await asUser()
+      const res = await post(
+        t!.app,
+        '/api/teams',
+        { id: 'team-1', name: 'Sun', pokemon: [INCINEROAR] },
+        cookie,
+      )
+      expect(res.status).toBe(400)
+      expect((await json(res)).fields).toHaveProperty('id')
+    })
+
+    // Checked when it is sent: with no signal the phone couldn't (ADR 17).
+    it('rejects a Team with a name the Champions data does not know with a 400, saving nothing', async () => {
+      const cookie = await asUser()
+      const pokemon = [{ ...INCINEROAR, species: 'missingno' }]
+      const res = await post(t!.app, '/api/teams', { id: ID, name: 'Sun', pokemon }, cookie)
+
+      expect(res.status).toBe(400)
+      expect((await json(res)).fields).toEqual({
+        'pokemon.0.species': '"missingno" is not a Pokémon in Pokémon Champions.',
+      })
+      expect(await t!.db.select().from(team)).toHaveLength(0)
+    })
+
+    it('saves a Team that is not legal in its Regulation, with the warnings (ADR 18)', async () => {
+      const cookie = await asUser()
+      const pokemon = [INCINEROAR, INCINEROAR]
+      const res = await post(t!.app, '/api/teams', { id: ID, name: 'Sun', pokemon }, cookie)
+
+      expect(res.status).toBe(201)
+      expect((await json(res)).team.legality.status).toBe('illegal')
+    })
+  })
+
   describe('PUT /api/teams/:id', () => {
     it('replaces the whole Team and answers with it', async () => {
       const cookie = await asUser()

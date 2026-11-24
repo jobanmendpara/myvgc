@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { MAX_MOVES, MAX_TEAM_SIZE, type PokemonBuild, showdownId, teamPokemonSchema } from './build'
+import { clientIdSchema } from './client-id'
 
 /** Champions Regulations a Team can be tagged with, oldest first. */
 export const REGULATIONS = ['M-A', 'M-B', 'M-C'] as const
@@ -75,9 +76,14 @@ export const BLANK_TEAM_FIELDS: Readonly<TeamFields> = {
 
 const { shape } = teamFieldsSchema
 
-/** What a User sends to create a Team: from a paste, or from the Team builder's Pokémon builds. */
+/**
+ * What a User sends to create a Team: from a paste, or from the Team builder's Pokémon builds. The
+ * Team builder sends an ID it picked, so a Team built with no signal can be sent again without
+ * making a second Team (ADR 17).
+ */
 export const newTeamSchema = teamFieldsSchema
   .extend({
+    id: clientIdSchema,
     // Every field but the name can be left out, and starts blank.
     regulation: shape.regulation.default(BLANK_TEAM_FIELDS.regulation),
     notes: shape.notes.default(BLANK_TEAM_FIELDS.notes),

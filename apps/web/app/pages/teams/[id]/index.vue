@@ -1,23 +1,24 @@
 <script setup lang="ts">
-import { type TeamView, buildProblems, teamProblems, today } from '@myvgc/core/schema'
+import { buildProblems, teamProblems, today } from '@myvgc/core/schema'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
-import { FetchError } from 'ofetch'
+import { saveFailureMessage } from '@/lib/api'
+import { teamMarks, teamNotYetCreated } from '@/lib/outbox-view'
+import { deleteTeam } from '@/lib/outbox-writes'
 import { editTeamPath } from '@/lib/paths'
 
 const route = useRoute()
 const id = computed(() => String(route.params.id))
 const queryClient = useQueryClient()
 
-const teamQuery = useQuery({
-  queryKey: computed(() => ['team', id.value]),
-  queryFn: () => $fetch<TeamView>(`/api/teams/${id.value}`),
-  retry: (count, error) => !(error instanceof FetchError && error.statusCode === 404) && count < 1,
-})
-const team = teamQuery.data
-const notFound = computed(
-  () => teamQuery.error.value instanceof FetchError && teamQuery.error.value.statusCode === 404,
-)
+const { query: teamQuery, team, notFound } = useTeam(id)
 const warnings = useImportWarnings(id.value)
+
+// Changes are kept on the phone first, so they work with no signal too, and sent when they can be
+// (ADR 17). The Team is marked until the server has them (DEV-206).
+const outbox = useOutbox()
+const mark = computed(() => teamMarks(outbox.state.value).get(id.value))
+// Its paste and Teamsheet are made by the server, so they wait until the server has the Team.
+const unsynced = computed(() => teamNotYetCreated(outbox.state.value, id.value))
 
 useHead({ title: computed(() => (team.value ? `${team.value.name} · MyVGC` : 'Team · MyVGC')) })
 
@@ -30,7 +31,7 @@ const fetchPaste = () => $fetch<string>(`/api/teams/${id.value}/paste`, { respon
 const pasteQuery = useQuery({
   queryKey: computed(() => ['team', id.value, 'paste']),
   queryFn: fetchPaste,
-  enabled: computed(() => Boolean(team.value)),
+  enabled: computed(() => Boolean(team.value) && !unsynced.value),
 })
 
 type CopyState = 'idle' | 'copying' | 'copied' | 'manual' | 'failed'
@@ -74,18 +75,16 @@ async function copyPaste() {
 
 const confirmingDelete = ref(false)
 const remove = useMutation({
-  mutationFn: () => {
-    // A plain string URL keeps Nuxt's route-typed $fetch from recursing through every route.
-    const url: string = `/api/teams/${id.value}`
-    return $fetch<null>(url, { method: 'DELETE' })
-  },
-  onSuccess: async () => {
+  // Runs with no signal too, as the outbox keeps the change (ADR 17).
+  networkMode: 'always',
+  mutationFn: () => outbox.save(deleteTeam(team.value!)),
+  onSuccess: async (saved) => {
     const deletedId = id.value
     confirmingDelete.value = false
-    await queryClient.invalidateQueries({ queryKey: ['teams'] })
     // Leave first, so this page never shows "Team not found" for the Team just deleted.
     await navigateTo('/teams')
-    queryClient.removeQueries({ queryKey: ['team', deletedId] })
+    // Until the server has it, the Teams list still shows it, struck through, and opens its page.
+    if (saved.sent) queryClient.removeQueries({ queryKey: ['team', deletedId] })
   },
 })
 </script>
@@ -123,6 +122,14 @@ const remove = useMutation({
           <Badge variant="secondary">Reg {{ team.regulation }}</Badge>
           <LegalityBadge :legality="team.legality" />
         </div>
+        <SyncMark v-if="mark" :mark="mark" />
+        <p
+          v-if="mark && mark.status !== 'deleting' && team.legality.status === 'unchecked'"
+          class="text-muted-foreground text-sm"
+          data-testid="checked-on-sync"
+        >
+          This Team will be checked when it syncs.
+        </p>
         <p v-if="team.replicaTeamId" class="text-sm" data-testid="team-replica-team-id">
           <span class="text-muted-foreground">Replica Team ID</span>
           <span class="ml-2 font-mono text-base font-medium tracking-wider select-all">{{
@@ -130,22 +137,34 @@ const remove = useMutation({
           }}</span>
         </p>
         <div class="flex flex-wrap gap-2">
-          <Button :disabled="copyState === 'copying'" data-testid="copy-paste" @click="copyPaste">
+          <Button
+            :disabled="unsynced || copyState === 'copying'"
+            data-testid="copy-paste"
+            @click="copyPaste"
+          >
             {{ copyState === 'copied' ? 'Copied' : 'Copy paste' }}
           </Button>
           <Button as-child variant="outline"
             ><NuxtLink :to="editTeamPath(id)">Edit</NuxtLink></Button
           >
           <TeamsheetExport
+            v-if="!unsynced"
             :url="`/api/teams/${id}/teamsheet`"
             :team-name="team.name"
             :legality="team.legality"
             :season-date="today()"
           />
-          <Button variant="outline" class="text-destructive" @click="confirmingDelete = true"
+          <Button
+            v-if="mark?.status !== 'deleting'"
+            variant="outline"
+            class="text-destructive"
+            @click="confirmingDelete = true"
             >Delete</Button
           >
         </div>
+        <p v-if="unsynced" class="text-muted-foreground text-xs" data-testid="team-unsynced">
+          Copying the paste and the Teamsheet work once the server has this Team.
+        </p>
         <p class="sr-only" aria-live="polite">
           {{ copyState === 'copied' ? 'Paste copied to the clipboard.' : '' }}
         </p>
@@ -218,7 +237,9 @@ const remove = useMutation({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <Alert v-if="remove.isError.value" variant="destructive" role="alert">
-            <AlertDescription>Couldn't delete the Team. Try again.</AlertDescription>
+            <AlertDescription>{{
+              saveFailureMessage(remove.error.value, 'Team')
+            }}</AlertDescription>
           </Alert>
           <AlertDialogFooter>
             <AlertDialogCancel :disabled="remove.isPending.value">Keep it</AlertDialogCancel>

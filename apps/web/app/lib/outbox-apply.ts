@@ -18,6 +18,7 @@ import {
   summarize,
   type SummaryTournament,
   type TeamSnapshotView,
+  type TeamView,
   today,
   type TournamentView,
   tournamentWarnings,
@@ -26,8 +27,8 @@ import type { OutboxWrite } from './outbox-rules'
 
 // What pending writes change on the pages before the server has them (ADR 17): the Tournament,
 // its details, Team snapshot, Rounds and Record, the Tournaments list, the dashboard, the
-// Opponents list, the Round form's Opponent suggestions, an Opponent's page and Note entries, and
-// the User's Player details and List styles.
+// Opponents list, the Round form's Opponent suggestions, an Opponent's page and Note entries, the
+// Teams list and a Team's page, and the User's Player details and List styles.
 // Applying a write twice changes nothing more, so pending writes are applied again over each
 // answer from the server until they are sent. The server's answer replaces it all once they are.
 
@@ -616,9 +617,88 @@ function revertInOpponent(detail: OpponentDetailView, write: OutboxWrite): Oppon
   return { ...detail, noteEntries: sortEntries(before ? [...others, before] : others) }
 }
 
+/** A write on a Team itself: building, changing or deleting it. */
+export const isTeamWrite = (write: OutboxWrite) =>
+  write.kind === 'add-team' || write.kind === 'edit-team' || write.kind === 'delete-team'
+
+/** The Team a write builds, as the pages show it before the server has it. */
+export function addedTeam(write: OutboxWrite): TeamView | undefined {
+  const after = write.subject.after as TeamView | undefined
+  return write.kind === 'add-team' && after?.id ? after : undefined
+}
+
+/**
+ * A Team with a write that builds or changes it applied, whatever its state: also a rejected
+ * change opened in the Team builder to be fixed.
+ */
+export function withTeamWrite(team: TeamView, write: OutboxWrite): TeamView {
+  const after = write.subject.after as TeamView | undefined
+  if (write.subject.teamId !== team.id || !after) return team
+  return write.kind === 'add-team' || write.kind === 'edit-team' ? after : team
+}
+
+/** Newest first, as the server lists them. */
+const byCreated = (a: TeamView, b: TeamView) =>
+  b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id)
+
+/** The Teams list with the pending writes: new ones in, deleted ones out, changed ones changed. */
+export function applyToTeamList(teams: TeamView[], writes: readonly OutboxWrite[]): TeamView[] {
+  const pending = writes.filter((w) => isPending(w) && isTeamWrite(w))
+  if (!pending.length) return teams
+  const added = pending
+    .map(addedTeam)
+    .filter((t): t is TeamView => !!t && !teams.some((x) => x.id === t.id))
+  const deleted = new Set(
+    pending.filter((w) => w.kind === 'delete-team').map((w) => w.subject.teamId),
+  )
+  const after = [...teams, ...added]
+    .filter((t) => !deleted.has(t.id))
+    .map((t) => pending.reduce(withTeamWrite, t))
+  if (added.length || deleted.size) return after.sort(byCreated)
+  return sameIfUnchanged(teams, after)
+}
+
+/**
+ * A Team's page with the pending writes on it. With no page cached yet, a Team built on this
+ * device gets one, also while its create is refused, so it can be opened, set as a Tournament's
+ * Team, and fixed.
+ */
+export function applyToTeamDetail(
+  team: TeamView | undefined,
+  id: string,
+  writes: readonly OutboxWrite[],
+): TeamView | undefined {
+  const start = team ?? writes.map(addedTeam).find((t): t is TeamView => t?.id === id)
+  if (!start) return undefined
+  return writes.filter((w) => isPending(w) && isTeamWrite(w)).reduce(withTeamWrite, start)
+}
+
+/** A Team with a change that won't be sent put back as it was. */
+function revertTeam(team: TeamView, write: OutboxWrite): TeamView {
+  const before = write.subject.before as TeamView | undefined
+  return write.kind === 'edit-team' && write.subject.teamId === team.id && before ? before : team
+}
+
+/** The Teams list with a write that won't be sent taken back out. */
+function revertInTeamList(list: TeamView[], write: OutboxWrite): TeamView[] {
+  const id = write.subject.teamId
+  if (write.kind === 'add-team')
+    return list.some((t) => t.id === id) ? list.filter((t) => t.id !== id) : list
+  if (write.kind === 'delete-team') {
+    const before = write.subject.before as TeamView | undefined
+    return before && !list.some((t) => t.id === id) ? [...list, before].sort(byCreated) : list
+  }
+  return sameIfUnchanged(
+    list,
+    list.map((t) => revertTeam(t, write)),
+  )
+}
+
 /** The cached queries the outbox changes, by their key. */
 type Target =
   | { kind: 'tournament'; id: string }
+  | { kind: 'teams' }
+  | { kind: 'team'; id: string }
   | { kind: 'dashboard' }
   | { kind: 'tournaments' }
   | { kind: 'opponents' }
@@ -630,6 +710,9 @@ function targetOf(key: readonly unknown[]): Target | undefined {
   if (key[0] === 'tournament' && typeof key[1] === 'string' && key.length === 2)
     return { kind: 'tournament', id: key[1] }
   if (key[0] === 'tournaments' && key.length === 1) return { kind: 'tournaments' }
+  if (key[0] === 'teams' && key.length === 1) return { kind: 'teams' }
+  if (key[0] === 'team' && typeof key[1] === 'string' && key.length === 2)
+    return { kind: 'team', id: key[1] }
   if (key[0] === 'dashboard') return { kind: 'dashboard' }
   if (key[0] === 'opponents' && key[1] === 'list' && key.length === 2) return { kind: 'opponents' }
   if (key[0] === 'opponents' && key[1] === 'suggestions') return { kind: 'suggestions' }
@@ -671,6 +754,10 @@ export function applyPending(
       return applyToTournamentDetail(data as TournamentView | undefined, target.id, writes)
     case 'tournaments':
       return Array.isArray(data) ? applyToTournamentList(data as TournamentView[], writes) : data
+    case 'teams':
+      return Array.isArray(data) ? applyToTeamList(data as TeamView[], writes) : data
+    case 'team':
+      return applyToTeamDetail(data as TeamView | undefined, target.id, writes)
     case 'dashboard':
       return data
         ? applyToDashboard(
@@ -699,6 +786,10 @@ export function revertWrite(key: readonly unknown[], data: unknown, write: Outbo
       return revertInTournament(data as TournamentView, write)
     case 'tournaments':
       return Array.isArray(data) ? revertInTournamentList(data as TournamentView[], write) : data
+    case 'teams':
+      return Array.isArray(data) ? revertInTeamList(data as TeamView[], write) : data
+    case 'team':
+      return revertTeam(data as TeamView, write)
     case 'dashboard':
       // Worked out again from the Tournaments list, then asked of the server again.
       return data

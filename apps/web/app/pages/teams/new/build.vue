@@ -1,14 +1,8 @@
 <script setup lang="ts">
-import type { TeamBody } from '@myvgc/core/schema'
-import type { CreatedTeam } from '@/lib/api'
-
 useHead({ title: 'Build a Team · MyVGC' })
 const cancelTo = useNewTeamCancelTo()
-
-async function save(body: TeamBody) {
-  const { team } = await $fetch<CreatedTeam>('/api/teams', { method: 'POST', body })
-  return team
-}
+// Works with no signal too: the pickers use the names kept on the phone (ADR 17).
+const save = useSaveNewTeam()
 </script>
 
 <template>
