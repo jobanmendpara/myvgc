@@ -33,6 +33,8 @@ describe('Sprite sizes', () => {
     expect(spriteSize('statistics-row', 'inline')).toBe(24)
     expect(spriteSize('species-picker-choice', 'inline')).toBe(24)
     expect(spriteSize('species-picker-option', 'inline')).toBe(24)
+    expect(spriteSize('tournament-team', 'inline')).toBe(20)
+    expect(spriteSize('build-editor-heading', 'inline')).toBe(32)
   })
 
   it('sizes each surface in the Leading slot style', () => {
@@ -46,6 +48,8 @@ describe('Sprite sizes', () => {
     expect(spriteSize('statistics-row', 'leading-slot')).toBe(32)
     expect(spriteSize('species-picker-choice', 'leading-slot')).toBe(32)
     expect(spriteSize('species-picker-option', 'leading-slot')).toBe(32)
+    expect(spriteSize('tournament-team', 'leading-slot')).toBe(28)
+    expect(spriteSize('build-editor-heading', 'leading-slot')).toBe(48)
   })
 
   it('sizes each surface in the Stacked tiles style', () => {
@@ -59,6 +63,8 @@ describe('Sprite sizes', () => {
     expect(spriteSize('statistics-row', 'stacked-tiles')).toBe(32)
     expect(spriteSize('species-picker-choice', 'stacked-tiles')).toBe(40)
     expect(spriteSize('species-picker-option', 'stacked-tiles')).toBe(32)
+    expect(spriteSize('tournament-team', 'stacked-tiles')).toBe(40)
+    expect(spriteSize('build-editor-heading', 'stacked-tiles')).toBe(48)
   })
 
   it('shows Inline when no style is given', () => {

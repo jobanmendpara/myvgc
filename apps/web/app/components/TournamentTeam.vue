@@ -10,6 +10,7 @@ const props = defineProps<{ tournament: TournamentView; canRefresh: boolean }>()
 
 const queryClient = useQueryClient()
 const teams = useQuery({ queryKey: ['teams'], queryFn: () => $fetch<TeamView[]>('/api/teams') })
+const { style: spriteStyle } = useSpriteStyle()
 
 const choosing = ref(false)
 const chosenTeamId = ref('')
@@ -86,13 +87,34 @@ const snapshotDate = computed(() =>
         v-if="tournament.team.legality.problems.length"
         :problems="tournament.team.legality.problems"
       />
-      <ul class="flex flex-wrap gap-1.5" :aria-label="`Pokémon in ${tournament.team.name}`">
+      <!-- As a Detailed Team row: Inline and Leading slot put the Sprite inside each chip; Stacked
+           tiles put it over each name, 3 a row on a phone and 6 on a wide screen. -->
+      <ul
+        v-if="spriteStyle !== 'stacked-tiles'"
+        class="flex flex-wrap gap-1.5"
+        :aria-label="`Pokémon in ${tournament.team.name}`"
+      >
         <li
           v-for="(build, index) in tournament.team.pokemon"
           :key="index"
-          class="bg-muted text-muted-foreground rounded px-2 py-0.5 text-sm"
+          class="bg-muted text-muted-foreground flex items-center gap-1 rounded px-2 py-0.5 text-sm"
         >
+          <Sprite :species="build.species" surface="tournament-team" />
           {{ build.names.species }}
+        </li>
+      </ul>
+      <ul
+        v-else
+        class="grid grid-cols-3 gap-1.5 sm:grid-cols-6"
+        :aria-label="`Pokémon in ${tournament.team.name}`"
+      >
+        <li
+          v-for="(build, index) in tournament.team.pokemon"
+          :key="index"
+          class="bg-muted text-muted-foreground flex min-w-0 flex-col items-center rounded p-1 text-center text-xs"
+        >
+          <Sprite :species="build.species" surface="tournament-team" />
+          <span class="w-full break-words">{{ build.names.species }}</span>
         </li>
       </ul>
       <Button variant="ghost" size="sm" class="self-start" @click="showBuilds = !showBuilds">
