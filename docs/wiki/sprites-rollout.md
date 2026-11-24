@@ -47,7 +47,7 @@ From the implementers' reports, 2026-11-23:
 
 - The maintainer accepted the 1.31 MiB of Sprites. [DEV-182](https://linear.app/mendpara/issue/DEV-182) amended ADR 29 to match, in PR #295 (`jobanmendpara/myvgc@cec51a4`). This settles the "well under 1 MB" gap noted under DEV-177 above.
 - [DEV-184](https://linear.app/mendpara/issue/DEV-184) merged in PR #296 (`jobanmendpara/myvgc@efba1bf`): `pnpm preview` lets agents run the app from a worktree and take screenshots. See [preview](preview.md).
-- The maintainer asked for a prototype of Sprites on `TournamentTeam`, `OpponentTimeline`, `StatisticsCounted` and the `BuildEditor` heading. It is the Decision issue [DEV-185](https://linear.app/mendpara/issue/DEV-185), on branch `prototype/dev-185-more-sprite-surfaces` (remote commit `9d89ada`, not merged). How to view it is in a comment on DEV-185. As of 2026-11-23 it awaits the maintainer's choice.
+- The maintainer asked for a prototype of Sprites on `TournamentTeam`, `OpponentTimeline`, `StatisticsCounted` and the `BuildEditor` heading. It is the Decision issue [DEV-185](https://linear.app/mendpara/issue/DEV-185), on branch `prototype/dev-185-more-sprite-surfaces` (remote commit `9d89ada`, not merged). How to view it is in a comment on DEV-185. As of 2026-11-23 it awaits the maintainer's choice. (Superseded 2026-11-24: the maintainer chose the Tournament Team and the build editor heading only; see "More Sprite surfaces" below.)
 
 ## Looking at the Sprites and fixing what was found
 
@@ -72,7 +72,7 @@ From the implementers' reports and the chief-of-staff, 2026-11-23 to 2026-11-24,
 - No test covers the wrapping fixes (2026-11-24); the screenshots are the only evidence.
 - DEV-189's fill on the front Sprite hasn't been seen in a screenshot: the seed's Lead with no Sprite is always the back Sprite of its pair (2026-11-24, see [preview](preview.md)).
 - Filed on 2026-11-24: [DEV-200](https://linear.app/mendpara/issue/DEV-200), dark Sprites are faint on the near-black background of the dark theme. The approach awaits the maintainer. (Superseded 2026-11-24: the maintainer chose a thin light outline, merged in PR #342; see "Dark Sprites in the dark theme" below.)
-- As of 2026-11-24 the [DEV-185](https://linear.app/mendpara/issue/DEV-185) prototype (see "Follow-ups" above) still awaits the maintainer.
+- As of 2026-11-24 the [DEV-185](https://linear.app/mendpara/issue/DEV-185) prototype (see "Follow-ups" above) still awaits the maintainer. (Superseded 2026-11-24: the maintainer chose the Tournament Team and the build editor heading only, merged in PR #335; see "More Sprite surfaces" below.)
 - How the PRs closed their issues is in [shipping flow](shipping-flow.md), "Sprite Bugs (2026-11-23 to 2026-11-24)".
 
 ## Dark Sprites in the dark theme
@@ -83,5 +83,12 @@ From the chief-of-staff, 2026-11-24.
 - The maintainer compared four options in a prototype: a light backing, a thin light outline, a soft glow, and doing nothing. They chose the thin light outline.
 - PR #342 merged at 16:01 UTC as `jobanmendpara/myvgc@24647fd`. It added `dark:[filter:drop-shadow(0_0_0.5px_rgb(255_255_255/0.5))_drop-shadow(0_0_0.5px_rgb(255_255_255/0.5))]` to the `<img>` in `apps/web/app/components/Sprite.vue`, so it applies once to every surface and Sprite style. A single 1px shadow had looked like a soft glow, so two are stacked.
 - The light theme is unchanged. DEV-188's white backing behind the Sprites on Lead buttons (PR #326, `jobanmendpara/myvgc@ee1d70d`) stays.
+
+## More Sprite surfaces
+
+From the chief-of-staff, 2026-11-24.
+
+- The maintainer decided [DEV-185](https://linear.app/mendpara/issue/DEV-185): add Sprites to the Tournament Team and the build editor heading only. `OpponentTimeline` and `StatisticsCounted` were not chosen.
+- The implementation issue [DEV-203](https://linear.app/mendpara/issue/DEV-203) merged in PR #335 at 13:32 UTC as `jobanmendpara/myvgc@115ca02`. It added the surfaces `tournament-team` and `build-editor-heading` to `apps/web/app/lib/sprites.ts`.
 
 Related: [shipping flow](shipping-flow.md), [parallel agents](parallel-agents.md), [preview](preview.md).
