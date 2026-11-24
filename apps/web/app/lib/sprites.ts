@@ -30,6 +30,8 @@ export const SPRITE_SURFACES = [
   'statistics-row',
   'species-picker-choice',
   'species-picker-option',
+  'tournament-team',
+  'build-editor-heading',
 ] as const
 export type SpriteSurface = (typeof SPRITE_SURFACES)[number]
 
@@ -46,6 +48,8 @@ export const SPRITE_SIZES: Record<SpriteStyle, Record<SpriteSurface, number>> = 
     'statistics-row': 24,
     'species-picker-choice': 24,
     'species-picker-option': 24,
+    'tournament-team': 20,
+    'build-editor-heading': 32,
   },
   'leading-slot': {
     'build-card': 48,
@@ -58,6 +62,8 @@ export const SPRITE_SIZES: Record<SpriteStyle, Record<SpriteSurface, number>> = 
     'statistics-row': 32,
     'species-picker-choice': 32,
     'species-picker-option': 32,
+    'tournament-team': 28,
+    'build-editor-heading': 48,
   },
   'stacked-tiles': {
     'build-card': 48,
@@ -70,6 +76,8 @@ export const SPRITE_SIZES: Record<SpriteStyle, Record<SpriteSurface, number>> = 
     'statistics-row': 32,
     'species-picker-choice': 40,
     'species-picker-option': 32,
+    'tournament-team': 40,
+    'build-editor-heading': 48,
   },
 }
 

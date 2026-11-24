@@ -43,6 +43,15 @@ const remaining = computed(() => MAX_TOTAL_STAT_POINTS - totalStatPoints(build.v
 // Live as Stat Points, the Stat Alignment or the species change.
 const values = useStatValues(build)
 
+// The heading's Sprite and species name, in the Sprite style of the page the editor is open on.
+const { style: spriteStyle } = useSpriteStyle()
+const names = useChampionsNames()
+const speciesName = computed(() =>
+  build.value.species
+    ? (names.data.value?.species[build.value.species] ?? build.value.species)
+    : '',
+)
+
 function setStat(stat: StatId, value: string | number) {
   build.value.statPoints[stat] = Math.max(0, Math.trunc(Number(value) || 0))
 }
@@ -57,8 +66,30 @@ function setStat(stat: StatId, value: string | number) {
         class="bg-background fixed inset-0 z-40 flex flex-col gap-5 overflow-y-auto p-4 outline-none sm:left-auto sm:w-[28rem] sm:border-l sm:p-6"
         data-testid="build-editor"
       >
+        <!-- With a species picked, its Sprite and name: Inline puts the Sprite before the
+             heading, Leading slot in a slot to its left, Stacked tiles over it. -->
         <div class="flex items-center justify-between gap-3">
-          <DialogTitle class="text-lg font-semibold">Pokémon {{ props.index + 1 }}</DialogTitle>
+          <div
+            class="flex min-w-0"
+            :class="
+              spriteStyle === 'stacked-tiles' ? 'flex-col items-start gap-1' : 'items-center gap-2'
+            "
+          >
+            <Sprite v-if="build.species" :species="build.species" surface="build-editor-heading" />
+            <div
+              class="flex min-w-0"
+              :class="spriteStyle === 'inline' ? 'flex-wrap items-baseline gap-x-1.5' : 'flex-col'"
+            >
+              <DialogTitle class="text-lg font-semibold">Pokémon {{ props.index + 1 }}</DialogTitle>
+              <span
+                v-if="build.species"
+                class="text-muted-foreground text-sm break-words"
+                data-testid="build-editor-species"
+                ><span v-if="spriteStyle === 'inline'" aria-hidden="true">· </span
+                >{{ speciesName }}</span
+              >
+            </div>
+          </div>
           <Button type="button" @click="open = false">Done</Button>
         </div>
 
