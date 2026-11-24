@@ -1,5 +1,8 @@
 import {
+  type ChampionsNames,
   type ListStyles,
+  type NameKind,
+  nameBuildFrom,
   type NewTournament,
   type NoteEntryView,
   type OpponentView,
@@ -8,6 +11,7 @@ import {
   roundInputSchema,
   roundIssues,
   type RoundView,
+  type TeamBody,
   type TeamSnapshotView,
   type TeamView,
   TOP_CUT_STAGE_LABELS,
@@ -20,8 +24,8 @@ import type { WriteDraft, WriteFix } from './outbox'
 import type { OutboxWrite } from './outbox-rules'
 
 // The writes the outbox sends (ADR 17): new, changed and deleted Tournaments and their Team, new,
-// changed and deleted Rounds, new, changed and deleted Opponents and Note entries, and the
-// User's Player details and List styles. Every other write stays online-only. A new record gets
+// changed and deleted Rounds, new, changed and deleted Opponents and Note entries, new, changed
+// and deleted Teams, and the User's Player details and List styles. Every other write stays online-only. A new record gets
 // its ID here, so sending it again is recognised as the same record.
 
 /** A new random UUID, also where `crypto.randomUUID` is missing (a page not served over HTTPS). */
@@ -508,5 +512,105 @@ export function reviseTournament(write: OutboxWrite, fields: TournamentFields): 
   return {
     request: { ...write.request, body: fields },
     label: changesLabel(fields.name.trim() || before?.name || ''),
+  }
+}
+
+/** The names list the Team builder has on the phone, to show a Team before the server has it. */
+export type BuildNames = Pick<ChampionsNames, NameKind> | undefined
+
+/**
+ * A Team as the pages show it until the server has it (ADR 17): its Pokémon builds named from the
+ * names list on the phone. It isn't judged, since only the server can (ADR 18), so it shows as
+ * not checked until the server's answer replaces it.
+ */
+function teamAsSaved(
+  id: string,
+  body: TeamBody,
+  names: BuildNames,
+  times: Pick<TeamView, 'createdAt' | 'updatedAt'>,
+): TeamView {
+  return {
+    id,
+    name: body.name.trim(),
+    regulation: body.regulation,
+    notes: body.notes,
+    replicaTeamId: body.replicaTeamId,
+    pokemon: body.pokemon.map((build) => nameBuildFrom(build, names)),
+    legality: { regulation: body.regulation, status: 'unchecked', problems: [] },
+    ...times,
+  }
+}
+
+const newTeamLabel = (body: TeamBody) => `New Team ${body.name.trim()}`
+
+/**
+ * Builds a Team under an ID chosen here, unchecked: the server checks it when it is sent, and
+ * refuses it with a 400 if it isn't valid (ADR 17). A Tournament set to it waits for its create.
+ */
+export function addTeam(body: TeamBody, names: BuildNames): WriteDraft {
+  const id = newId()
+  const now = new Date().toISOString()
+  return {
+    id: newId(),
+    kind: 'add-team',
+    request: { method: 'POST', url: '/api/teams', body: { ...body, id } },
+    series: [teamSeries(id)],
+    creates: teamSeries(id),
+    subject: {
+      teamId: id,
+      after: teamAsSaved(id, body, names, { createdAt: now, updatedAt: now }),
+    },
+    label: newTeamLabel(body),
+  }
+}
+
+/** Replaces a Team whole, as the API does: its fields and Pokémon builds. */
+export function editTeam(team: TeamView, body: TeamBody, names: BuildNames): WriteDraft {
+  const after = teamAsSaved(team.id, body, names, {
+    createdAt: team.createdAt,
+    updatedAt: new Date().toISOString(),
+  })
+  return {
+    id: newId(),
+    kind: 'edit-team',
+    request: { method: 'PUT', url: `/api/teams/${team.id}`, body },
+    series: [teamSeries(team.id)],
+    subject: { teamId: team.id, before: team, after },
+    label: changesLabel(after.name || team.name),
+  }
+}
+
+export function deleteTeam(team: TeamView): WriteDraft {
+  return {
+    id: newId(),
+    kind: 'delete-team',
+    request: { method: 'DELETE', url: `/api/teams/${team.id}` },
+    series: [teamSeries(team.id)],
+    subject: { teamId: team.id, before: team },
+    label: `Deleting ${team.name}`,
+  }
+}
+
+/**
+ * A rejected new or changed Team as the User fixed it in the Team builder, to send again in its
+ * place. A new Team keeps its ID, so a Tournament waiting on it still gets it.
+ */
+export function reviseTeam(write: OutboxWrite, body: TeamBody, names: BuildNames): WriteFix {
+  const id = write.subject.teamId!
+  const shown = write.subject.after as TeamView | undefined
+  const after = teamAsSaved(id, body, names, {
+    createdAt: shown?.createdAt ?? write.createdAt,
+    updatedAt: new Date().toISOString(),
+  })
+  if (write.kind === 'add-team')
+    return {
+      request: { ...write.request, body: { ...body, id } },
+      subject: { ...write.subject, after },
+      label: newTeamLabel(body),
+    }
+  return {
+    request: { ...write.request, body },
+    subject: { ...write.subject, after },
+    label: changesLabel(after.name),
   }
 }

@@ -2,14 +2,21 @@
 import type { TeamView } from '@myvgc/core/schema'
 import { searchTeams } from '@myvgc/core/search'
 import { useQuery } from '@tanstack/vue-query'
+import { teamRows } from '@/lib/outbox-view'
 
 definePageMeta({ listDetail: true })
 useHead({ title: 'Your Teams · MyVGC' })
 
 const teams = useQuery({ queryKey: ['teams'], queryFn: () => $fetch<TeamView[]>('/api/teams') })
+// Kept on the phone first, so a Team can be built, changed or deleted with no signal too (ADR 17).
+// One deleted on this phone stays in the list, struck through, until the server has it.
+const outbox = useOutbox()
+const shown = computed(() =>
+  teams.data.value ? teamRows(teams.data.value, outbox.state.value) : undefined,
+)
 const { query, searching, results, noMatches } = useListSearch(
   'teams',
-  () => teams.data.value,
+  () => shown.value,
   (items: TeamView[], q: string) => searchTeams(items, q),
 )
 </script>

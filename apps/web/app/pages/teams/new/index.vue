@@ -1,5 +1,9 @@
 <script setup lang="ts">
+import { useOnline } from '@vueuse/core'
+
 useHead({ title: 'New Team · MyVGC' })
+// Building works with no signal; importing and reading need the server (ADR 17).
+const online = useOnline()
 
 // Reading images is only offered when the install has it turned on (ADR 24).
 const imageReading = useImageReading()
@@ -37,6 +41,9 @@ const WAYS = computed(() => [
   <div class="mx-auto flex w-full max-w-3xl flex-col gap-6">
     <ListBackLink to="/teams">Your Teams</ListBackLink>
     <h1 class="text-2xl font-semibold">New Team</h1>
+    <p v-if="!online" class="text-muted-foreground text-sm" role="status">
+      No signal. You can still build a Team; importing a paste and reading a file need a connection.
+    </p>
     <ul class="grid grid-cols-1 gap-3 sm:grid-cols-2">
       <li v-for="way in WAYS" :key="way.to">
         <NuxtLink

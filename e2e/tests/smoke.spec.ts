@@ -880,3 +880,128 @@ test('an Opponent changed and another deleted with no signal are sent when the s
   await expect(list).not.toContainText('Delete Me')
   await expect(page.getByTestId('sync-mark')).toHaveCount(0)
 })
+
+// In the Team builder already on screen: names the Team and adds one Pokémon.
+async function startTeam(page: Page, name: string, species: string) {
+  await expect(page.getByRole('heading', { name: 'Build a Team' })).toBeVisible()
+  await page.getByLabel('Name', { exact: true }).fill(name)
+  await page.getByRole('button', { name: 'Add a Pokémon' }).first().click()
+  await page.getByRole('combobox', { name: 'Species' }).fill(species)
+  await page.getByRole('option', { name: species, exact: true }).click()
+  await page.getByRole('button', { name: 'Done' }).click()
+}
+
+async function saveTeam(page: Page, name: string) {
+  await page.getByRole('button', { name: 'Save Team' }).click()
+  await expect(page).toHaveURL(/\/teams\/[0-9a-f-]{36}$/)
+  await expect(page.getByTestId('team-name')).toHaveText(name)
+}
+
+test('a Team built with no signal, and a Tournament set to it, are sent when the signal returns', async ({
+  context,
+  page,
+}) => {
+  await signUp(page, 'smoke-outbox-team')
+  await createTournament(page, 'Team Open')
+  const nav = page.getByRole('navigation', { name: 'Main' })
+  // Built once with a signal, in the app rather than by reloading, so the Team builder and the
+  // names for its pickers are on the phone.
+  await nav.getByRole('link', { name: 'Teams' }).click()
+  await page.getByRole('link', { name: 'Add your first Team' }).click()
+  await page.getByRole('link', { name: /Build/ }).click()
+  await startTeam(page, 'Online Team', 'Garchomp')
+  await saveTeam(page, 'Online Team')
+  await nav.getByRole('link', { name: 'Teams' }).click()
+  await expect(page.getByRole('heading', { name: 'Your Teams' })).toBeVisible()
+
+  await context.setOffline(true)
+  await page.getByRole('link', { name: /^New( Team)?$/ }).click()
+  await expect(page.getByRole('status').filter({ hasText: 'No signal' })).toContainText(
+    'You can still build a Team',
+  )
+  await page.getByRole('link', { name: /Build/ }).click()
+  await startTeam(page, 'Venue Team', 'Incineroar')
+  // In place of the live check, which needs the server.
+  await expect(page.getByTestId('legality-note')).toHaveText(
+    'No signal. This Team will be checked when it syncs.',
+  )
+  await saveTeam(page, 'Venue Team')
+  // Its page opens at once, marked until the server has it.
+  await expect(page.getByTestId('checked-on-sync')).toBeVisible()
+  await expect(page.getByTestId('team-pokemon')).toContainText('Incineroar')
+  const row = page.getByTestId('teams-list').getByRole('link', { name: /Venue Team/ })
+  await nav.getByRole('link', { name: 'Teams' }).click()
+  await expect(row.getByTestId('sync-mark')).toHaveText('Not synced')
+
+  // It can be set as a Tournament's Team, which waits for it.
+  await nav.getByRole('link', { name: 'Tournaments' }).click()
+  await page
+    .getByTestId('tournaments-list')
+    .getByRole('link', { name: /Team Open/ })
+    .click()
+  await page.getByRole('button', { name: 'Link a Team' }).click()
+  await page.getByLabel('Which Team did you bring?').selectOption({ label: 'Venue Team (Reg M-C)' })
+  await page.getByRole('button', { name: 'Link Team' }).click()
+  await expect(page.getByTestId('team-snapshot-name')).toHaveText('Venue Team')
+  await expect(page.getByTestId('sync-bar')).toContainText('2 changes saved on this phone')
+
+  // Back online, the Team is sent first, then the Tournament waiting on it.
+  await context.setOffline(false)
+  await expect(page.getByTestId('sync-bar')).toContainText('All 2 changes sent')
+  await page.reload()
+  await expect(page.getByTestId('team-snapshot-name')).toHaveText('Venue Team')
+  await nav.getByRole('link', { name: 'Teams' }).click()
+  await expect(row).toBeVisible()
+  await expect(page.getByTestId('sync-mark')).toHaveCount(0)
+})
+
+test('a Team built with no signal that the server refuses comes back, to fix in the Team builder', async ({
+  context,
+  page,
+}) => {
+  await signUp(page, 'smoke-outbox-team-refused')
+  await page.goto('/teams/new/build')
+  await startTeam(page, 'Online Team', 'Garchomp')
+  await saveTeam(page, 'Online Team')
+  // A names list on the phone that the server's data no longer agrees with, as after an update.
+  await page.evaluate(() => {
+    const stored = JSON.parse(localStorage.getItem('myvgc-names-v3') ?? 'null')
+    stored.names.species.missingno = 'MissingNo'
+    localStorage.setItem('myvgc-names-v3', JSON.stringify(stored))
+  })
+  await page.goto('/teams/new/build')
+
+  await context.setOffline(true)
+  await startTeam(page, 'Glitch Team', 'MissingNo')
+  await saveTeam(page, 'Glitch Team')
+  await expect(page.getByTestId('checked-on-sync')).toBeVisible()
+
+  // Checked when it is sent: refused, and kept with the server's message.
+  await context.setOffline(false)
+  const message = '"missingno" is not a Pokémon in Pokémon Champions.'
+  await expect(page.getByTestId('sync-bar')).toContainText("1 change wasn't saved")
+  await page.getByTestId('sync-bar').click()
+  const change = page.getByTestId('changes-sheet').getByTestId('change')
+  await expect(change).toContainText('New Team Glitch Team')
+  await expect(change).toContainText(`Not saved: ${message}`)
+
+  // Fix opens the Team builder with the message on the Pokémon build it names.
+  await change.getByRole('button', { name: 'Fix' }).click()
+  await expect(page.getByRole('heading', { name: 'Fix Team' })).toBeVisible()
+  await expect(page.getByTestId('rejected-banner')).toContainText(message)
+  await expect(page.getByTestId('build-slot')).toContainText(message)
+  await page
+    .getByTestId('build-slot')
+    .getByRole('button', { name: /MissingNo/ })
+    .click()
+  await page.getByTestId('build-species-choice').getByRole('button', { name: 'Change' }).click()
+  await page.getByRole('combobox', { name: 'Species' }).fill('Incineroar')
+  await page.getByRole('option', { name: 'Incineroar', exact: true }).click()
+  await page.getByRole('button', { name: 'Done' }).click()
+  await saveTeam(page, 'Glitch Team')
+
+  await page.reload()
+  await expect(page.getByTestId('team-name')).toHaveText('Glitch Team')
+  await expect(page.getByTestId('team-pokemon')).toContainText('Incineroar')
+  await expect(page.getByTestId('sync-mark')).toHaveCount(0)
+})

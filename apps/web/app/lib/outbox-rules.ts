@@ -27,6 +27,9 @@ export type WriteKind =
   | 'delete-tournament'
   | 'link-tournament-team'
   | 'unlink-tournament-team'
+  | 'add-team'
+  | 'edit-team'
+  | 'delete-team'
   | 'save-player-details'
   | 'save-list-styles'
 
@@ -60,8 +63,9 @@ export interface OutboxWrite {
    */
   series: string[]
   /**
-   * The series of the record it creates, such as `tournament:<id>` for a new Tournament, or
-   * `opponent:<id>` for a new Opponent, added on their own or with a Round. The
+   * The series of the record it creates, such as `tournament:<id>` for a new Tournament,
+   * `team:<id>` for a new Team, or `opponent:<id>` for a new Opponent, added on their own or with
+   * a Round. The
    * writes in that series wait for it even once it is refused, and go with it when it is
    * discarded, since the server never has what they change.
    */
@@ -80,11 +84,17 @@ export interface WriteSubject {
   /** The Opponent's display name, for a Round shown before the server has it. */
   opponentName?: string
   noteEntryId?: string
-  /** The Team a write links to a Tournament, which may itself be waiting to be created. */
+  /**
+   * The Team a write creates, changes or deletes, or links to a Tournament, which may itself be
+   * waiting to be created.
+   */
   teamId?: string
   /** The record as it was before the change, so discarding the change can put it back. */
   before?: unknown
-  /** What the change makes, where the request alone can't show it, such as a Team snapshot. */
+  /**
+   * What the change makes, where the request alone can't show it, such as a Team snapshot, or a
+   * Team with the display names of its Pokémon builds.
+   */
   after?: unknown
 }
 

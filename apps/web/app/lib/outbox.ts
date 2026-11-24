@@ -16,8 +16,8 @@ import {
   type WriteRequest,
 } from './outbox-rules'
 
-// The outbox (ADR 17): the Tournaments, Rounds, Opponents, Note entries and account settings a
-// User saves are kept on the device first, then sent to the server, in order, whenever it can be
+// The outbox (ADR 17): the Tournaments, Rounds, Opponents, Note entries, Teams and account
+// settings a User saves are kept on the device first, then sent to the server, in order, whenever it can be
 // reached. Nothing in it expires, and clearing the query cache never touches it. Its rules are in
 // outbox-rules.ts.
 

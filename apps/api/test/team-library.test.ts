@@ -137,28 +137,28 @@ describe('Team library', () => {
       ])
     })
 
-    it("answers 404 for another User's Team and leaves it alone", async () => {
+    // Deletes are idempotent (ADR 17): a replayed delete, or one of another User's Team, answers
+    // as done and removes nothing of anyone else's.
+    it("answers as done for another User's Team and leaves it alone", async () => {
       await setUp()
       const created = await create(ash, 'Rain', RAIN)
 
       const res = await del(`/api/teams/${created.id}`, misty)
-      expect(res.status).toBe(404)
+      expect(res.status).toBe(204)
       expect((await get(`/api/teams/${created.id}`, ash)).status).toBe(200)
     })
 
-    it.each(['00000000-0000-4000-8000-000000000000', 'not-a-uuid'])(
-      'answers 404 for %s',
-      async (id) => {
-        await setUp()
-        expect((await del(`/api/teams/${id}`, ash)).status).toBe(404)
-      },
-    )
+    it('answers as done for a Team that never existed, and 404 for an ID that cannot exist', async () => {
+      await setUp()
+      expect((await del('/api/teams/00000000-0000-4000-8000-000000000000', ash)).status).toBe(204)
+      expect((await del('/api/teams/not-a-uuid', ash)).status).toBe(404)
+    })
 
-    it('answers 404 the second time', async () => {
+    it('answers as done the second time', async () => {
       await setUp()
       const created = await create(ash, 'Rain', RAIN)
       expect((await del(`/api/teams/${created.id}`, ash)).status).toBe(204)
-      expect((await del(`/api/teams/${created.id}`, ash)).status).toBe(404)
+      expect((await del(`/api/teams/${created.id}`, ash)).status).toBe(204)
     })
 
     it('answers 401 without a session', async () => {

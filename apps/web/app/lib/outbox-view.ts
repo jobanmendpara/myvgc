@@ -3,21 +3,24 @@ import {
   type NoteEntryView,
   type OpponentView,
   type RoundView,
+  type TeamView,
   type TournamentView,
 } from '@myvgc/core/schema'
 import {
   addedOpponent,
+  addedTeam,
   addedTournament,
   applyToTournamentView,
   isRoundWrite,
+  isTeamWrite,
   isTournamentWrite,
   withWrite,
 } from './outbox-apply'
 import { discardedWith, inOrder, type OutboxState, type OutboxWrite } from './outbox-rules'
 
 // What the page shows of the outbox (ADR 17, DEV-167): the bar at the bottom of the screen, the
-// marks on Tournaments, Rounds, Note entries and Opponents not yet synced, and the list of changes on this
-// phone. Pure, so it is tested without a browser. A change a page is still saving shows as
+// marks on Tournaments, Rounds, Note entries, Opponents and Teams not yet synced, and the list of
+// changes on this phone. Pure, so it is tested without a browser. A change a page is still saving shows as
 // saving there, never here, so nothing changes for a User whose writes go straight through.
 
 /** The pending writes the User sees as waiting on this phone: all but those a page is saving. */
@@ -330,6 +333,47 @@ export const notYetCreated = (state: OutboxState, tournamentId: string) =>
     (write) => write.kind === 'add-tournament' && write.subject.tournamentId === tournamentId,
   )
 
+/** The Teams built, changed or deleted on this phone and not yet synced. */
+export function teamMarks(state: OutboxState): Map<string, ItemMark> {
+  return marksBy(state, (write) => (isTeamWrite(write) ? write.subject.teamId : undefined))
+}
+
+/**
+ * The Teams list as it shows: the Teams a waiting delete still shows, struck through, and the new
+ * Teams the server refused, so nothing disappears before the server has it.
+ */
+export function teamRows(list: TeamView[], state: OutboxState): TeamView[] {
+  const extra: TeamView[] = []
+  for (const [id, mark] of teamMarks(state)) {
+    if (list.some((t) => t.id === id)) continue
+    const team =
+      mark.status === 'deleting'
+        ? (mark.write.subject.before as TeamView | undefined)
+        : mark.status === 'rejected'
+          ? addedTeam(mark.write)
+          : undefined
+    if (team) extra.push(team)
+  }
+  if (!extra.length) return list
+  return [...list, ...extra].sort(
+    (a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id),
+  )
+}
+
+/** The rejected new or changed Team to fix in the Team builder, if there is one. */
+export function rejectedTeam(state: OutboxState, teamId: string): OutboxWrite | undefined {
+  return state.rejected.findLast(
+    (write) =>
+      (write.kind === 'add-team' || write.kind === 'edit-team') && write.subject.teamId === teamId,
+  )
+}
+
+/** Whether the server doesn't have this Team yet: it was built on this phone and not yet sent. */
+export const teamNotYetCreated = (state: OutboxState, teamId: string) =>
+  [...state.pending, ...state.rejected].some(
+    (write) => write.kind === 'add-team' && write.subject.teamId === teamId,
+  )
+
 /** What a change is, in a few words, such as "New Round 4 in Portland Regional". */
 export function changeTitle(write: OutboxWrite): string {
   if (write.kind !== 'log-round' && write.kind !== 'add-note-entry') return write.label
@@ -432,6 +476,17 @@ export function discardText(
           'the Tournament',
           ...(rounds ? [`the ${counted(rounds, 'Round', 'Rounds')} logged in it`] : []),
           ...(others ? [`${counted(others, 'other change', 'other changes')} to it`] : []),
+        ]),
+      }
+    }
+    case 'add-team': {
+      // Setting it as a Tournament's Team, or changing it, waits for it and goes with it.
+      const along = discardedWith(writes, write).length - 1
+      return {
+        title,
+        body: never([
+          'the Team',
+          ...(along ? [`${counted(along, 'other change', 'other changes')} to it`] : []),
         ]),
       }
     }

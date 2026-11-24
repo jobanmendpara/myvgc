@@ -9,18 +9,24 @@ import {
   teamSchema,
 } from '@myvgc/core/schema'
 import { useMediaQuery } from '@vueuse/core'
-import { useMutation, useQueryClient } from '@tanstack/vue-query'
+import { useMutation } from '@tanstack/vue-query'
 import { fieldErrorsOf, saveFailureMessage } from '@/lib/api'
 import { teamPath } from '@/lib/paths'
 import { blankBuild, draftErrors, draftToBody, readTeamToDraft, teamToDraft } from '@/lib/team-form'
 
-/** The one form that creates and edits a Team. `save` sends it; this form does the rest. */
+/**
+ * The one form that creates and edits a Team. `save` keeps it (through the outbox, so it works
+ * with no signal too) and gives the ID of the Team to open, or nothing when the server refused it
+ * again; this form does the rest.
+ */
 const props = defineProps<{
   initial?: TeamView
   /** A draft read from a file (ADR 24), to review before it's saved. */
   read?: ReadTeamView
-  save: (body: TeamBody) => Promise<TeamView>
+  save: (body: TeamBody) => Promise<string | undefined>
   cancelTo: string
+  /** What the server said about each field of a change it refused, shown until it is sent again. */
+  serverErrors?: Record<string, string>
 }>()
 
 const draft = reactive(props.read ? readTeamToDraft(props.read) : teamToDraft(props.initial))
@@ -59,23 +65,22 @@ function drop(to: number) {
   dragging.value = null
 }
 
-// Warnings only: nothing here stops a save (ADR 18).
-const legality = useTeamLegality(draft)
+// Warnings only: nothing here stops a save (ADR 18). With no signal the server can't judge the
+// Team, so it is checked when it is sent (ADR 17).
+const { legality, checkedOnSync } = useTeamLegality(draft)
 const problemsOf = (index: number) => (legality.value ? buildProblems(legality.value, index) : [])
 
-const queryClient = useQueryClient()
 const saved = ref(false)
 const save = useMutation({
   mutationFn: props.save,
-  // Teams are online only (ADR 17): say so now, rather than saving whenever a signal returns.
+  // Runs with no signal too, as the outbox keeps the change (ADR 17).
   networkMode: 'always',
-  onSuccess: async (team) => {
+  onSuccess: async (id) => {
+    // Refused again: the form shows the server's new message.
+    if (!id) return
     saved.value = true
-    queryClient.setQueryData(['team', team.id], team)
-    await queryClient.invalidateQueries({ queryKey: ['teams'] })
-    await queryClient.invalidateQueries({ queryKey: ['team', team.id, 'paste'] })
-    useImportWarnings(team.id).value = []
-    await navigateTo(teamPath(team.id))
+    useImportWarnings(id).value = []
+    await navigateTo(teamPath(id))
   },
 })
 
@@ -88,7 +93,7 @@ const errors = computed<Record<string, string>>(() => ({
     : Object.fromEntries(
         Object.entries(localErrors.value).filter(([field]) => /\.(statPoints|moves)/.test(field)),
       )),
-  ...fieldErrorsOf(save.error.value),
+  ...(save.error.value ? fieldErrorsOf(save.error.value) : props.serverErrors),
 }))
 const slotError = (index: number) =>
   Object.entries(errors.value).find(
@@ -195,6 +200,9 @@ const { DiscardDialog } = useDiscardGuard(dirty, 'this Team')
       >
       <template v-else-if="legality?.status === 'unchecked'"
         >MyVGC has no rules for {{ legality.regulation }}, so this Team isn't checked.</template
+      >
+      <template v-else-if="checkedOnSync"
+        >No signal. This Team will be checked when it syncs.</template
       >
     </p>
 
