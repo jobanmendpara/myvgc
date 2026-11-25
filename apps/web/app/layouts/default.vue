@@ -68,5 +68,6 @@ const shownBar = computed(() => (onRoundForm.value ? undefined : bar.value))
     </main>
     <SyncBar v-if="shownBar" :bar="shownBar" :online="online" />
     <ChangesSheet />
+    <PrototypeSwitcher />
   </div>
 </template>

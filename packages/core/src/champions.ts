@@ -135,6 +135,19 @@ export function championsNames(): ChampionsNames {
     abilities: table((modDex) => modDex.abilities.all()),
     abilitiesBySpecies: abilitiesBySpecies(),
     baseStats: baseStatsBySpecies(),
+    // PROTOTYPE (DEV-218): types for the Type icon prototype. Not the real implementation.
+    typesBySpecies: Object.fromEntries(
+      allDexes
+        .flatMap((modDex) => modDex.species.all())
+        .filter((species) => inChampions(species))
+        .map((species) => [species.id, species.types.map((type) => type.toLowerCase())]),
+    ),
+    moveTypes: Object.fromEntries(
+      allDexes
+        .flatMap((modDex) => modDex.moves.all())
+        .filter((move) => inChampions(move))
+        .map((move) => [move.id, move.type.toLowerCase()]),
+    ),
   }
   return names
 }

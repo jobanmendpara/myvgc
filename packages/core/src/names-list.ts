@@ -27,6 +27,10 @@ export type NamesTable = Record<string, string>
 export type ChampionsNames = Record<NameKind, NamesTable> & {
   abilitiesBySpecies: Record<string, string[]>
   baseStats: Record<string, BaseStats>
+  /** PROTOTYPE (DEV-218) */
+  typesBySpecies?: Record<string, string[]>
+  /** PROTOTYPE (DEV-218) */
+  moveTypes?: Record<string, string>
 }
 
 /** Folds text the way Showdown builds IDs: lower case, letters and digits only. */
