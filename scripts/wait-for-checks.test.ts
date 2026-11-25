@@ -12,8 +12,13 @@ const TIMEOUT = 3
 // SECONDS counts whole seconds, and a busy runner starts processes slowly.
 const SLACK = 2
 
+// What `gh pr view` prints after its --jq filter: state, whether auto-merge is queued,
+// mergeStateStatus and the merge commit (empty until the PR is merged).
+const QUEUED = 'OPEN\\ttrue\\tBLOCKED\\t'
+const DIRTY = 'OPEN\\ttrue\\tDIRTY\\t'
+
 // `gh pr checks` and `gh pr view` as the script calls them, printing what gh would after its --jq
-// filter. GH_HANG names the one that never answers; `exec` keeps it a single process, as the real
+// filter (`gh pr view` prints QUEUED unless GH_VIEW is set). GH_HANG names the one that never answers; `exec` keeps it a single process, as the real
 // gh is.
 const GH_STUB = `#!/usr/bin/env bash
 command="$1 $2"
@@ -27,7 +32,7 @@ case $command in
     fi
     printf '%b' "\${GH_CHECKS:-}"
     ;;
-  'pr view') printf '%b\\n' "\${GH_VIEW:-}" ;;
+  'pr view') printf '%b\\n' "\${GH_VIEW-${QUEUED}}" ;;
 esac
 `
 
@@ -97,13 +102,13 @@ function run(env: Record<string, string>): Promise<Run> {
 
 describe.concurrent('wait-for-checks.sh', { timeout: 20_000 }, () => {
   test('exits 0 with the merge commit once the PR is merged', async () => {
-    const result = await run({ GH_CHECKS: PASSING, GH_VIEW: 'MERGED\\tfalse\\tabc123' })
+    const result = await run({ GH_CHECKS: PASSING, GH_VIEW: 'MERGED\\tfalse\\tUNKNOWN\\tabc123' })
     expect(result.code).toBe(0)
     expect(result.output).toContain('PR #7 merged as abc123')
   })
 
   test('exits 0 when both checks pass and no auto-merge is queued', async () => {
-    const result = await run({ GH_CHECKS: PASSING, GH_VIEW: 'OPEN\\tfalse\\t' })
+    const result = await run({ GH_CHECKS: PASSING, GH_VIEW: 'OPEN\\tfalse\\tCLEAN\\t' })
     expect(result.code).toBe(0)
     expect(result.output).toContain('no auto-merge queued')
   })
@@ -112,6 +117,22 @@ describe.concurrent('wait-for-checks.sh', { timeout: 20_000 }, () => {
     const result = await run({ GH_CHECKS: 'fail\\tcheck\\npass\\tsmoke / smoke\\n' })
     expect(result.code).toBe(1)
     expect(result.output).toContain('A check failed')
+  })
+
+  // GitHub runs no checks on a conflicting PR, so they stay pending.
+  test.each([
+    ['checks are pending', SMOKE_PASSED],
+    ['auto-merge is queued', PASSING],
+  ])('exits 4 when the PR conflicts with main while %s', async (_, checks) => {
+    const result = await run({ GH_CHECKS: checks, GH_VIEW: DIRTY })
+    expect(result.code).toBe(4)
+    expect(result.output).toContain('conflicts with main')
+    expect(result.output).toContain('Rebase onto origin/main')
+  })
+
+  test('exits 1, not 4, when a check fails on a conflicting PR', async () => {
+    const result = await run({ GH_CHECKS: 'fail\\tcheck\\n', GH_VIEW: DIRTY })
+    expect(result.code).toBe(1)
   })
 
   test('exits 3 when gh fails', async () => {
@@ -130,9 +151,10 @@ describe.concurrent('wait-for-checks.sh', { timeout: 20_000 }, () => {
   test.each([
     ['a check is still pending', { GH_CHECKS: SMOKE_PASSED }],
     ['no checks are reported yet', { GH_CHECKS_ERROR: 'no checks reported on the branch' }],
-    ['the auto-merge is still pending', { GH_CHECKS: PASSING, GH_VIEW: 'OPEN\\ttrue\\t' }],
+    ['the auto-merge is still pending', { GH_CHECKS: PASSING }],
     ['gh pr checks hangs', { GH_HANG: 'pr checks' }],
     ['gh pr view hangs', { GH_CHECKS: PASSING, GH_HANG: 'pr view' }],
+    ['gh pr view hangs while a check is pending', { GH_CHECKS: SMOKE_PASSED, GH_HANG: 'pr view' }],
   ])('exits 2 by the deadline when %s', async (_, env) => {
     const result = await run(env)
     expect(result.code).toBe(2)
@@ -142,8 +164,8 @@ describe.concurrent('wait-for-checks.sh', { timeout: 20_000 }, () => {
 
   // The wait after the first poll overruns the deadline, as when the machine sleeps through it.
   test.each([
-    ['the checks', { GH_CHECKS: SMOKE_PASSED }, 1],
-    ['the auto-merge', { GH_CHECKS: PASSING, GH_VIEW: 'OPEN\\ttrue\\t' }, 2],
+    ['the checks', { GH_CHECKS: SMOKE_PASSED }, 2],
+    ['the auto-merge', { GH_CHECKS: PASSING }, 2],
   ])(
     'asks gh nothing more once it wakes past the deadline waiting for %s',
     async (_, env, ghCalls) => {

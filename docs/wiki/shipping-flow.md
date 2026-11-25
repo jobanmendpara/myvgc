@@ -81,13 +81,17 @@ From the implementers' reports and the chief-of-staff, 2026-11-24. See [sprites 
 - On 2026-11-24 the maintainer approved the change. CLAUDE.md's "Tracking" bullet now says both halves: write "Closes DEV-N" in the PR body for the issue the PR finishes, and "Related to" or "Part of" before any issue it doesn't. It landed in PR #334. The `pr` skill and the repo (no PR template) had no rule of their own to align.
 - `scripts/wait-for-checks.sh` returns after about 125 seconds, while CI's `check` takes 7 to 8 minutes, so each PR needed 3 to 4 calls (2026-11-24), as on 2026-11-18 above.
 - Now and then `gh pr merge --auto` and `scripts/wait-for-checks.sh` (exit 3) failed with a GitHub GraphQL error (2026-11-24). Running the command again fixed it.
-- As of 2026-11-24 [DEV-181](https://linear.app/mendpara/issue/DEV-181) (report a `DIRTY` PR, see "Sprites round" above) is still in Backlog.
+- As of 2026-11-24 [DEV-181](https://linear.app/mendpara/issue/DEV-181) (report a `DIRTY` PR, see "Sprites round" above) is still in Backlog. (Superseded 2026-11-25, see "Conflicts exit 4" below.)
 
 ## DEV-213 and DEV-223 (2026-11-25)
 
 From the DEV-223 agent's report, 2026-11-25.
 
-- DEV-223's PR #375 went `DIRTY` after DEV-213's PR #374 merged first (`jobanmendpara/myvgc@fd524c0`); the only conflict was in a shared `<dt>`. Its brief told it to check `mergeStateStatus` while waiting, so the agent saw it, rebased and force-pushed with `--force-with-lease`, and #375 merged as `jobanmendpara/myvgc@42c7e3e`. That brief line is a workaround for [DEV-181](https://linear.app/mendpara/issue/DEV-181) (see "Sprites round" above), still in Backlog on 2026-11-25.
+- DEV-223's PR #375 went `DIRTY` after DEV-213's PR #374 merged first (`jobanmendpara/myvgc@fd524c0`); the only conflict was in a shared `<dt>`. Its brief told it to check `mergeStateStatus` while waiting, so the agent saw it, rebased and force-pushed with `--force-with-lease`, and #375 merged as `jobanmendpara/myvgc@42c7e3e`. That brief line is a workaround for [DEV-181](https://linear.app/mendpara/issue/DEV-181) (see "Sprites round" above), still in Backlog on 2026-11-25. (Superseded 2026-11-25, see "Conflicts exit 4" below.)
+
+## Conflicts exit 4 (2026-11-25)
+
+- On 2026-11-25 DEV-181's PR #379 changed `scripts/wait-for-checks.sh` to ask `gh pr view` for `mergeStateStatus` while checks are pending and while auto-merge is queued. When it is `DIRTY` the script says the PR conflicts with `main`, tells the agent to rebase onto `origin/main` and push with `--force-with-lease`, and exits 4. A failed check still exits 1 first; exits 0, 1, 2 and 3 are unchanged, and the script's header lists every code. CLAUDE.md's "Shipping" section names exit 4. GitHub runs no checks on a conflicting PR, so before this the script reported pending checks or pending auto-merge until the agent looked.- From this PR, briefs no longer need to tell agents to check `mergeStateStatus` while they wait, as the DEV-223 brief above did.
 
 ## Screenshots stay out of PRs (2026-11-25)
 

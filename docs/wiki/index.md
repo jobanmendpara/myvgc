@@ -15,7 +15,7 @@ The chief-of-staff's record of decisions, recurring problems and preferences. It
 
 ## Preferences
 
-- [Shipping flow](shipping-flow.md): how the user wants agent work committed, reviewed and merged, and from 2026-11-15 branch protection with auto-merge on `main`, and from 2026-11-17 GitHub deleting merged branches; releases, from v0.2.0 on 2026-11-19; from 2026-11-23, a conflicting PR left pending silently under auto-merge (DEV-181, still Backlog on 2026-11-24), and starting a blocked issue's agent early; from 2026-11-24, "Closes DEV-N" in briefs for the finished issue after "Related to" left five issues open, and rerunning on GitHub GraphQL errors; from 2026-11-25, no screenshots in PRs, and DEV-223's PR caught going `DIRTY` by checking `mergeStateStatus` (a workaround for DEV-181).
+- [Shipping flow](shipping-flow.md): how the user wants agent work committed, reviewed and merged, and from 2026-11-15 branch protection with auto-merge on `main`, and from 2026-11-17 GitHub deleting merged branches; releases, from v0.2.0 on 2026-11-19; from 2026-11-23, a conflicting PR left pending silently under auto-merge (DEV-181), and starting a blocked issue's agent early; from 2026-11-24, "Closes DEV-N" in briefs for the finished issue after "Related to" left five issues open, and rerunning on GitHub GraphQL errors; from 2026-11-25, no screenshots in PRs, and DEV-223's PR caught going `DIRTY` by checking `mergeStateStatus` (a workaround for DEV-181), until DEV-181 made `scripts/wait-for-checks.sh` exit 4 on a conflicting PR, so briefs no longer need that check.
 
 ## Subsystems
 

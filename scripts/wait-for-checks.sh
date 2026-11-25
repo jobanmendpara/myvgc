@@ -4,10 +4,19 @@
 #
 #   scripts/wait-for-checks.sh <pr number>
 #
-# Exits 0 when both pass and the PR is merged (it prints the merge commit), or when both pass and
-# no auto-merge is queued; 1 when one fails (or is cancelled or skipped); and 2 when a check or the
-# queued merge is still pending at the deadline, or `gh` hasn't answered by then: call it again.
-# Any other exit code is an error, such as a bad PR number (64) or a `gh` failure (3).
+# Exit codes:
+#   0   both checks passed and the PR is merged (it prints the merge commit), or both passed and no
+#       auto-merge is queued.
+#   1   a check failed (or was cancelled or skipped): fix it and push.
+#   2   a check or the queued merge is still pending at the deadline, or `gh` hasn't answered by
+#       then: call it again.
+#   3   `gh` failed, as with a GitHub GraphQL error, or another unexpected error: call it again.
+#   4   the PR conflicts with main (`mergeStateStatus` is `DIRTY`), so auto-merge can't land: rebase
+#       onto origin/main, push with `--force-with-lease`, and call it again.
+#   64  a bad PR number or setting.
+# A failed check is reported before a conflict. While checks are pending, and while auto-merge is
+# queued, it also asks `gh pr view` whether the PR has gone `DIRTY`, as when another PR merged first
+# (DEV-181).
 #
 # Agents run it in the foreground, again and again, until it exits 0 or 1. A Monitor or a
 # background `gh pr checks --watch` lets the agent's turn end, which the harness takes as its
@@ -108,6 +117,33 @@ poll() {
   done
 }
 
+# Asks gh about the PR and sets state and queued. Exits 0 when the PR is merged (printing the merge
+# commit), 4 when it conflicts with main, 3 when gh fails, and 2, saying <pending>, when gh hasn't
+# answered by the deadline.
+view() {
+  local output commit merge_state status=0
+  output=$(by_deadline gh pr view "$pr" --json state,autoMergeRequest,mergeCommit,mergeStateStatus \
+    --jq '[.state, (.autoMergeRequest != null), .mergeStateStatus, (.mergeCommit.oid // "")] | @tsv') \
+    || status=$?
+  if ((status == 124)); then out_of_time "$1"; fi
+  if ((status != 0)); then exit 3; fi
+  # The merge commit, which may be empty, comes last: `read` merges runs of tabs.
+  IFS=$'\t' read -r state queued merge_state commit <<<"$output"
+  if [[ -z $state ]]; then
+    echo "gh pr view gave no state for PR #$pr." >&2
+    exit 3
+  fi
+  if [[ $state == MERGED ]]; then
+    echo "PR #$pr merged as $commit."
+    exit 0
+  fi
+  if [[ $state == OPEN && $merge_state == DIRTY ]]; then
+    echo "PR #$pr conflicts with main (mergeStateStatus DIRTY), so auto-merge can't land."
+    echo "Rebase onto origin/main, push with --force-with-lease, and run this script again."
+    exit 4
+  fi
+}
+
 while true; do
   # Already past the deadline, as when the machine slept: don't start another gh call.
   if ((SECONDS >= deadline)); then out_of_time 'Still pending'; fi
@@ -122,25 +158,15 @@ while true; do
     echo "Both checks passed on PR #$pr."
     break
   fi
+  # A check is pending; one reason is a conflict, since GitHub runs no checks on a DIRTY PR.
+  if ((SECONDS >= deadline)); then out_of_time 'Still pending'; fi
+  view "gh pr view didn't answer, so a check may be pending"
   pause "$interval" 'Still pending'
 done
 
 while true; do
   if ((SECONDS >= deadline)); then out_of_time 'Auto-merge still pending'; fi
-  status=0
-  view=$(by_deadline gh pr view "$pr" --json state,autoMergeRequest,mergeCommit \
-    --jq '[.state, (.autoMergeRequest != null), (.mergeCommit.oid // "")] | @tsv') || status=$?
-  if ((status == 124)); then out_of_time "gh pr view didn't answer, so auto-merge may be pending"; fi
-  if ((status != 0)); then exit 3; fi
-  IFS=$'\t' read -r state queued commit <<<"$view"
-  if [[ -z $state ]]; then
-    echo "gh pr view gave no state for PR #$pr." >&2
-    exit 3
-  fi
-  if [[ $state == MERGED ]]; then
-    echo "PR #$pr merged as $commit."
-    exit 0
-  fi
+  view "gh pr view didn't answer, so auto-merge may be pending"
   if [[ $state != OPEN || $queued != true ]]; then
     echo "PR #$pr is $state with no auto-merge queued."
     exit 0
