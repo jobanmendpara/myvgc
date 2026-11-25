@@ -1,6 +1,6 @@
 # 17. Offline-tolerant web app with a queued-write outbox
 
-Date: 2026-11-04 (amended 2026-11-05 for each species' own abilities, DEV-51, and base stats, DEV-50, and Note entries, DEV-35, and Data export, DEV-39; amended 2026-11-11 for list search, DEV-82; amended 2026-11-23 for v0.3.0's scope, the outbox's own store, updates and iOS, DEV-160; amended 2026-11-24 for a wider offline scope, DEV-202)
+Date: 2026-11-04 (amended 2026-11-05 for each species' own abilities, DEV-51, and base stats, DEV-50, and Note entries, DEV-35, and Data export, DEV-39; amended 2026-11-11 for list search, DEV-82; amended 2026-11-23 for v0.3.0's scope, the outbox's own store, updates and iOS, DEV-160; amended 2026-11-24 for a wider offline scope, DEV-202; amended 2026-11-25 for types and move power and accuracy in the names list, DEV-217 and DEV-222)
 Status: Accepted
 
 ## Context
