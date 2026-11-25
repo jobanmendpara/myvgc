@@ -34,6 +34,13 @@ From the implementers' reports, 2026-11-24. Times are merge times from `gh pr vi
 - [DEV-198](https://linear.app/mendpara/issue/DEV-198), PR #315, 09:43, `jobanmendpara/myvgc@096d460`: `pnpm screenshots --click` clicks labels before a shot, `--sprite-style` picks the Sprite style, shots wait for images to load, file names are unique with a hash, tall pages are cut into 1,600 px slices, and the root script runs `node` directly.
 - [DEV-199](https://linear.app/mendpara/issue/DEV-199), PR #323, 10:12, `jobanmendpara/myvgc@a49030d`: `--dark`, `--2x` and `--help` (exits 0), and the Riley Park Round with Cramorant-Gulping in the Leads and an Opponent's Team with moves (described under "What it does" above). DEV-199 closed on merge, see [shipping flow](shipping-flow.md).
 
+## Screenshots in PRs (2026-11-25)
+
+- Until 2026-11-25 the `pr` skill called screenshots the best Evidence, and agents put them in PR bodies. DEV-213's PR #374 (merged 2026-11-25 as `jobanmendpara/myvgc@fd524c0`) hosted its images on a branch, `screenshots/dev-213`. The same day the [DEV-223](https://linear.app/mendpara/issue/DEV-223) agent uploaded its shots to the Linear issue instead.
+- On 2026-11-25 the maintainer decided that PRs no longer embed screenshots, and that no GitHub branch hosts PR images. For a visual change the agent still takes screenshots with `pnpm screenshots` and looks at them itself, then writes in the PR's Evidence section what it checked (widths, themes, Sprite styles, edge cases). When the maintainer may want to see them, the agent attaches them to the Linear issue. The `pr` skill's "Evidence" section says this from 2026-11-25, on the branch `chore/screenshot-standard-2026-11-25`.
+- Why, as the maintainer gave it on 2026-11-25: PRs auto-merge with no reviewer (see [shipping flow](shipping-flow.md)), the only maintainer is always logged in to Linear, and images hosted on a branch break once that branch is deleted.
+- As of 2026-11-25, [DEV-224](https://linear.app/mendpara/issue/DEV-224), [DEV-225](https://linear.app/mendpara/issue/DEV-225) and [DEV-226](https://linear.app/mendpara/issue/DEV-226) (Backlog) still say in "Done when" that the PR includes screenshots. They were left unedited.
+
 ## Tips
 
 From the implementers' reports, 2026-11-24:
@@ -45,5 +52,6 @@ From the implementers' reports, 2026-11-24:
 ## Known issues
 
 - As of `jobanmendpara/myvgc@a49030d` (2026-11-24), the seeded Tournament starts today, whatever day the seed runs.
+- On 2026-11-25 the DEV-213 agent found that `pnpm screenshots /teams/<id>/edit --click Dragonite` stops on the desktop shot, because two elements match there (the list pane and the Team's Pokémon list). The phone shot, taken first, is saved. Filed as [DEV-227](https://linear.app/mendpara/issue/DEV-227) the same day.
 
 Related: [up:local shares the dev DB](up-local-shares-dev-db.md), [sprites rollout](sprites-rollout.md), [parallel agents](parallel-agents.md).

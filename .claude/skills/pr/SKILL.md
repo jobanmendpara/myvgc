@@ -18,8 +18,9 @@ Use this template for writing the PR body:
 
 ## Evidence
 
-- **Before:** <screenshot/output/failing test run>
-  **After:** <screenshot/output/passing test run>
+- **Before:** <output/failing test run>
+  **After:** <output/passing test run>
+- **Checked in screenshots:** <for a visual change: widths, themes, Sprite styles, edge cases>
 
 ## Merge Danger
 
@@ -159,7 +160,7 @@ You may use one of these, you may use several, it is unlikely you will use all o
 
 Concrete evidence that the change works. Show a before and after.
 
-Screenshots are S-tier - when the environment is set up for it and the change is visual.
+For a visual change, take screenshots with `pnpm screenshots`, look at them yourself, and write what you checked: the widths, themes, Sprite styles and edge cases. The PR body carries text only; host no images on a branch. When the maintainer may want to see the shots, attach them to the Linear issue. Why: PRs auto-merge with no reviewer, the maintainer reads Linear, and images hosted on a branch break once that branch is deleted.
 
 Execution-based evidence is A-tier. Test results, console output. Show the exact test that now fails and passes, using pseudocode.
 
