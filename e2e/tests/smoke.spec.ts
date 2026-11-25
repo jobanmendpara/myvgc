@@ -47,6 +47,14 @@ async function createTournament(page: Page, name: string) {
   await submitNewTournament(page, name)
 }
 
+// Cuts the signal, once the service worker has kept the app's files on the device. It installs in
+// the background after the first page load, fetching some 700 files; cut off before it finishes,
+// it never becomes active, and a page whose code it hadn't reached yet can't open (DEV-231).
+async function goOffline(page: Page) {
+  await page.evaluate(() => navigator.serviceWorker.ready)
+  await page.context().setOffline(true)
+}
+
 test('sign up, import a Team and see its six Pokémon', async ({ page }) => {
   // Each step waits for its page's heading before using the form: the route guard checks the
   // session before every page change, so the previous page can still be on screen.
@@ -548,7 +556,7 @@ test('the chosen List style survives a reload, and changes with no signal too', 
   await expect(list.getByRole('heading', { name: 'A' })).toBeVisible()
 
   // Offline, the List style still changes at once, and is sent when the signal returns (DEV-205).
-  await page.context().setOffline(true)
+  await goOffline(page)
   await listStyle.getByTitle('Compact').click()
   await expect(listStyle.getByRole('radio', { name: 'Compact' })).toBeChecked()
   await expect(list.getByRole('heading')).toHaveCount(0)
@@ -769,7 +777,7 @@ test('a Round logged with no signal is kept on the phone and sent when the signa
   await page.goBack()
   await expect(page.getByTestId('tournament-name')).toHaveText('Outbox Open')
 
-  await context.setOffline(true)
+  await goOffline(page)
   await page.getByRole('link', { name: 'Log Round' }).click()
   await expect(page.getByRole('heading', { name: 'Log a Round' })).toBeVisible()
   await page.getByRole('combobox', { name: 'Opponent' }).fill('Offline Opponent')
@@ -818,7 +826,7 @@ test('with no signal, the Round form suggests Opponents from the cached list', a
   await expect(page.getByTestId('tournament-name')).toHaveText('Picker Open')
 
   // Offline, navigator.onLine is false: the picker still searches, and finds them (DEV-201).
-  await context.setOffline(true)
+  await goOffline(page)
   await page.getByRole('link', { name: 'Log Round' }).click()
   await expect(page.getByRole('heading', { name: 'Log a Round' })).toBeVisible()
   await page.getByRole('combobox', { name: 'Opponent' }).fill('Cached')
@@ -842,7 +850,7 @@ test('a Tournament created with no signal, and a Round logged in it, are sent wh
     .click()
   await expect(page.getByRole('heading', { name: 'Your Tournaments' })).toBeVisible()
 
-  await context.setOffline(true)
+  await goOffline(page)
   await page.getByRole('link', { name: /^New( Tournament)?$/ }).click()
   await submitNewTournament(page, 'Venue Open')
 
@@ -889,7 +897,7 @@ test('a Tournament created and deleted with no signal is never sent', async ({ c
     .click()
   await expect(page.getByRole('heading', { name: 'Your Tournaments' })).toBeVisible()
 
-  await context.setOffline(true)
+  await goOffline(page)
   await page.getByRole('link', { name: 'Log your first Tournament' }).click()
   await submitNewTournament(page, 'Never Sent Open')
   await expect(page.getByTestId('sync-bar')).toContainText('1 change saved on this phone')
@@ -937,7 +945,7 @@ test('an Opponent changed and another deleted with no signal are sent when the s
   await list.getByRole('link', { name: /Rename Me/ }).click()
   await expect(page.getByTestId('opponent-name')).toHaveText('Rename Me')
 
-  await context.setOffline(true)
+  await goOffline(page)
   await page.getByRole('button', { name: 'Edit' }).click()
   await page.getByLabel('Display name').fill('Renamed Rival')
   await page.getByRole('button', { name: 'Save' }).click()
@@ -1000,7 +1008,7 @@ test('a Team built with no signal, and a Tournament set to it, are sent when the
   await nav.getByRole('link', { name: 'Teams' }).click()
   await expect(page.getByRole('heading', { name: 'Your Teams' })).toBeVisible()
 
-  await context.setOffline(true)
+  await goOffline(page)
   await page.getByRole('link', { name: /^New( Team)?$/ }).click()
   await expect(page.getByRole('status').filter({ hasText: 'No signal' })).toContainText(
     'You can still build a Team',
@@ -1057,7 +1065,7 @@ test('a Team built with no signal that the server refuses comes back, to fix in 
   })
   await page.goto('/teams/new/build')
 
-  await context.setOffline(true)
+  await goOffline(page)
   await startTeam(page, 'Glitch Team', 'MissingNo')
   await saveTeam(page, 'Glitch Team')
   await expect(page.getByTestId('checked-on-sync')).toBeVisible()
