@@ -11,4 +11,7 @@ Tests that have failed and then passed on a rerun with no change. Record each si
 - On 2026-11-17 the DEV-142 agent's first local run of the API tests had 7 tests time out at 30 s, in data-export, opponent-teams, opponents, replays, rounds, teams and tournaments. All passed on a rerun with no change. Three implementers were running at once (see the [2026-11-17 Refactor round](refactor-round-2026-11-17.md)).
   - This time the agent kept the full log before filtering, as the brief asked, so the cause is confirmed: tests timing out on a busy machine, with no wrong result. This is the DEV-101 shared-CPU pattern above, now hitting the API's 30 s limit for PGlite. Added to [DEV-146](https://linear.app/mendpara/issue/DEV-146) (cut CI time for the API tests) as evidence on 2026-11-17.
 
+- On 2026-11-25 the DEV-222 agent saw the smoke test "a Tournament created and deleted with no signal is never sent" (desktop) fail once in CI on PR #380, then pass on Playwright's retry. The same run also failed for a real reason: the smoke test read the names cache key `myvgc-names-v3` by name (fixed in the PR). Nothing was filed for the flake. It is the first sighting.
+- On 2026-11-25 the DEV-224 agent saw the same smoke test fail on the phone project of PR #384's first run, on the first try and on Playwright's retry: the Tournament page never loaded offline. Rerunning the failed job passed. Two sightings on unrelated PRs in one day, so the chief-of-staff filed [DEV-231](https://linear.app/mendpara/issue/DEV-231).
+
 Related: [parallel agents](parallel-agents.md).
