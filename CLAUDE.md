@@ -18,7 +18,7 @@
 
 - **Branch off `origin/main`.** When you open the PR, compare your files with `origin/main`'s newer commits (`git diff --name-only <merge-base>..origin/main`); rebase only if they overlap.
 - **Queue the merge** straight after `gh pr create`: `gh pr merge <n> --auto --merge --delete-branch`. Never run a plain `gh pr merge`: the admin token merges at once and skips the required checks.
-- **Wait in the foreground.** Run `scripts/wait-for-checks.sh <n>` again and again until it exits 0 (merged; it prints the merge commit) or 1 (a check failed: fix it and push).
+- **Wait in the foreground.** Run `scripts/wait-for-checks.sh <n>` again and again until it exits 0 (merged; it prints the merge commit) or 1 (a check failed: fix it and push). Exit 4 means the PR conflicts with `main` (`DIRTY`): rebase onto `origin/main`, push with `--force-with-lease`, and run it again. Exits 2 (still pending) and 3 (a `gh` error) mean run it again.
 - **History** of this flow is in `docs/wiki/shipping-flow.md`.
 
 ## Layout
