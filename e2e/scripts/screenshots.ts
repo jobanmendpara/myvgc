@@ -2,7 +2,8 @@
 // `pnpm preview` (DEV-184), at phone width (375 px) and desktop width (1280 px), logged in as the
 // preview User. Each path can be followed by page settings to store before the page loads, such as
 // a Sprite style (DEV-198), the dark theme or 2× pixel ratio (DEV-199), and clicks to make first,
-// such as opening a dialog (DEV-186), each optionally within a region (DEV-227). Options before
+// such as opening a dialog (DEV-186), each optionally within a region (DEV-227) or the nth of
+// several matches (DEV-232). Options before
 // the first path apply to every path (DEV-228). `--help` lists them. With no path, the shot is the
 // preview User's Team. Each shot starts afresh, so nothing carries over to the next. A shot holds
 // the whole page, including any pane that scrolls on its own, once its images have loaded or
@@ -203,7 +204,8 @@ async function describe(elements: Locator): Promise<Match[]> {
 
 // The one visible element with this exact text or accessible name, inside the click's region if
 // it names one: a button, link, form field, or any other element with that text, in that order.
-// Waits for it to appear. When several match, says where each is and how to pick it.
+// Waits for it to appear. When several match, takes the click's `--nth` of them, or else says
+// where each is and how to pick it.
 async function target(page: Page, click: Click): Promise<Locator> {
   const scope = click.within ? await region(page, click.within) : page
   const { text } = click
@@ -218,8 +220,15 @@ async function target(page: Page, click: Click): Promise<Locator> {
   const found = await firstMatch(page, kinds)
   const where = click.within ? ` within ${click.within}` : ''
   if (!found) throw new Error(`Nothing on ${page.url()}${where} has the text or name "${text}".`)
-  if ((await found.count()) > 1)
-    throw new Error(ambiguousClick(page.url(), click, await describe(found)))
+  const count = await found.count()
+  if (click.nth) {
+    if (click.nth > count)
+      throw new Error(
+        `--nth ${click.nth} --click "${text}"${where}: only ${count} element${count === 1 ? '' : 's'} on ${page.url()} match.`,
+      )
+    return found.nth(click.nth - 1)
+  }
+  if (count > 1) throw new Error(ambiguousClick(page.url(), click, await describe(found)))
   return found
 }
 

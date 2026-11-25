@@ -53,6 +53,40 @@ describe('parseShots', () => {
     ])
   })
 
+  test('picks the match of the click that follows --nth, with --within in either order', () => {
+    expect(
+      parseShots([
+        '/teams/new/build',
+        '--nth',
+        '1',
+        '--click',
+        'Add a Pokémon',
+        '--within',
+        'main',
+        '--nth',
+        '3',
+        '--click',
+        'Change',
+        '--nth',
+        '2',
+        '--within',
+        'dialog',
+        '--click',
+        'Held item',
+      ]),
+    ).toEqual([
+      {
+        path: '/teams/new/build',
+        clicks: [
+          { text: 'Add a Pokémon', nth: 1 },
+          { text: 'Change', within: 'main', nth: 3 },
+          { text: 'Held item', within: 'dialog', nth: 2 },
+        ],
+        settings: {},
+      },
+    ])
+  })
+
   test('gives a Sprite style before the first path to every path that shows Sprites', () => {
     expect(
       parseShots(['--sprite-style', 'stacked-tiles', '/teams/abc/edit', '/settings', '/opponents']),
@@ -131,6 +165,13 @@ describe('parseShots', () => {
     [['--within'], /--within needs the region/],
     [['--within', 'main'], /--within main needs a --click right after it/],
     [['--within', 'main', '--dark', '--click', 'x'], /needs a --click right after it/],
+    [['--nth'], /--nth needs a whole number from 1/],
+    [['--nth', '0', '--click', 'x'], /--nth needs a whole number from 1/],
+    [['--nth', 'two', '--click', 'x'], /--nth needs a whole number from 1/],
+    [['--nth', '2'], /--nth 2 needs a --click right after it/],
+    [['--nth', '2', '--within', 'main', '--dark'], /--within main needs a --click right after it/],
+    [['--nth', '2', '--nth', '3', '--click', 'x'], /--nth is given twice for one --click/],
+    [['--within', 'a', '--within', 'b', '--click', 'x'], /--within is given twice/],
     [['teams'], /start with \//],
     [['--full'], /Unknown option --full/],
   ])('refuses %j', (args, message) => {
@@ -149,6 +190,7 @@ describe('USAGE', () => {
     )
     expect(USAGE).toMatch(/--move-layout <value> +the Move layout: one-column, two-columns/)
     expect(USAGE).toMatch(/--within <region>/)
+    expect(USAGE).toMatch(/--nth <n>/)
   })
 })
 
@@ -222,6 +264,13 @@ describe('shotName', () => {
         'phone',
       ),
     ).toBe('settings-pokemon-dragonite-phone')
+    expect(
+      shotName(
+        { clicks: [{ text: 'Change', within: 'main', nth: 3 }], settings: {} },
+        '/settings',
+        'phone',
+      ),
+    ).toBe('settings-main-nth-3-change-phone')
   })
 
   test('cuts a long name and adds a hash of the whole shot, so long shots never share a file', () => {
@@ -258,14 +307,24 @@ describe('ambiguousClick', () => {
     )
   })
 
-  test('says when no region tells a match apart', () => {
+  test('names the --nth that picks a match no region tells apart', () => {
     expect(
       ambiguousClick('u', { text: 'Save', within: 'main' }, [
         { kind: 'a button', regions: ['main'] },
         { kind: 'a button', regions: ['main'] },
       ]),
-    ).toMatch(
-      /match --click "Save" within main:\n {2}1\. a button in main: no region tells it apart/,
+    ).toBe(
+      [
+        '2 elements on u match --click "Save" within main:',
+        '  1. a button in main: pick it with --within main --nth 1 --click Save',
+        '  2. a button in main: pick it with --within main --nth 2 --click Save',
+      ].join('\n'),
     )
+    expect(
+      ambiguousClick('u', { text: 'Add a Pokémon' }, [
+        { kind: 'a button', regions: [] },
+        { kind: 'a button', regions: [] },
+      ]),
+    ).toMatch(/2\. a button: pick it with --nth 2 --click "Add a Pokémon"$/)
   })
 })

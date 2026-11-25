@@ -1,4 +1,5 @@
-// Reads `pnpm screenshots`'s arguments into shots (DEV-186, DEV-198, DEV-199, DEV-227, DEV-228),
+// Reads `pnpm screenshots`'s arguments into shots (DEV-186, DEV-198, DEV-199, DEV-227, DEV-228,
+// DEV-232),
 // and names their files. Kept apart from screenshots.ts so it can be tested without a browser or
 // a running preview.
 import { createHash } from 'node:crypto'
@@ -76,11 +77,16 @@ export type PageSettingFlag = keyof typeof PAGE_SETTINGS
 const FLAGS = Object.keys(PAGE_SETTINGS) as PageSettingFlag[]
 const settingOf = (flag: PageSettingFlag): PageSetting => PAGE_SETTINGS[flag]
 
-/** A click: the element's visible text or accessible name, and the region it's in, if given. */
+/**
+ * A click: the element's visible text or accessible name, the region it's in, if given, and which
+ * of several matches it is, if given.
+ */
 export interface Click {
   text: string
   /** A landmark's role (`main`, `complementary`) or a region's accessible name. */
   within?: string
+  /** Counting from 1, in page order, among the elements that match (DEV-232). */
+  nth?: number
 }
 
 /** One screenshot: a page, how the device is set up before it loads, and what to click first. */
@@ -113,7 +119,10 @@ export const USAGE = [
   '  --within <region>       look for the next --click only inside this region: a landmark (main,',
   '                          complementary for the list pane, navigation, dialog) or a region’s',
   '                          accessible name. When several elements match a click, the error',
-  '                          names a --within for each',
+  '                          names a --within or --nth for each',
+  '  --nth <n>               click the nth element, counting from 1 in page order, that matches the',
+  '                          next --click, such as a picker on a build page: --nth 3 --click Change',
+  '                          --click "Held item". Goes before the --click, with or without --within',
   'Page settings, stored before the page loads; every shot of a page that has one names it in',
   'its file name, the default too. Given after one path, give it for every path that has it:',
   ...FLAGS.map((flag) => {
@@ -144,19 +153,32 @@ export function parseShots(args: string[]): Shot[] | typeof HELP {
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]!
     if (arg === '--') continue
-    if (arg === '--click' || arg === '--within') {
-      let within: string | undefined
-      if (arg === '--within') {
-        within = args[++i]
-        if (within === undefined || within.startsWith('--') || within.trim() === '')
-          throw new Error('--within needs the region to look in, such as --within main.')
-        if (args[++i] !== '--click')
-          throw new Error(`--within ${within} needs a --click right after it.`)
+    if (arg === '--click' || arg === '--within' || arg === '--nth') {
+      // `--within` and `--nth`, in either order, go before the --click they're for.
+      const step: Partial<Click> = {}
+      let option = arg
+      while (option !== '--click') {
+        const value = args[++i]
+        if (option === '--within') {
+          if (step.within !== undefined) throw new Error('--within is given twice for one --click.')
+          if (value === undefined || value.startsWith('--') || value.trim() === '')
+            throw new Error('--within needs the region to look in, such as --within main.')
+          step.within = value
+        } else {
+          if (step.nth !== undefined) throw new Error('--nth is given twice for one --click.')
+          if (value === undefined || !/^[1-9]\d*$/.test(value))
+            throw new Error('--nth needs a whole number from 1, such as --nth 2.')
+          step.nth = Number(value)
+        }
+        const given = `${option} ${value}`
+        option = args[++i]!
+        if (option !== '--click' && option !== '--within' && option !== '--nth')
+          throw new Error(`${given} needs a --click right after it.`)
       }
       const text = args[++i]
       if (text === undefined || text.startsWith('--') || text.trim() === '')
         throw new Error('--click needs the text of what to click, such as --click Badges.')
-      part.clicks.push(within === undefined ? { text } : { text, within })
+      part.clicks.push({ text, ...step })
     } else if (arg.startsWith('--') && FLAGS.includes(arg.slice(2) as PageSettingFlag)) {
       const flag = arg.slice(2) as PageSettingFlag
       const setting = settingOf(flag)
@@ -237,7 +259,7 @@ const MAX_NAME = 100
  * The file name for a shot of `path` at a width, without `.png`: the page, then each page setting
  * it has (the default when none is given), `dark` and `2x`, then each click, then the width, such
  * as `teams-abc-sprite-stacked-tiles-dark-sprite-style-phone`. A click given `--within` adds the
- * region before its text. A name too long to keep whole is cut and ends in a hash of the whole
+ * region before its text, and one given `--nth` adds `nth-<n>`. A name too long to keep whole is cut and ends in a hash of the whole
  * shot, so shots never share a file.
  */
 export function shotName(shot: Shot, path: string, width: string): string {
@@ -258,7 +280,9 @@ export function shotName(shot: Shot, path: string, width: string): string {
     ...settings,
     shot.dark && 'dark',
     shot.double && '2x',
-    ...shot.clicks.map((click) => slug([click.within, click.text].filter(Boolean).join(' '))),
+    ...shot.clicks.map((click) =>
+      slug([click.within, click.nth && `nth ${click.nth}`, click.text].filter(Boolean).join(' ')),
+    ),
   ]
   const name = parts.filter(Boolean).join('-')
   if (name.length <= MAX_NAME) return `${name}-${width}`
@@ -277,7 +301,7 @@ export interface Match {
 
 /**
  * The error for a click that matches several elements: each match, and the `--within` that picks
- * it, the innermost region no other match is in.
+ * it, the innermost region no other match is in, or else the `--nth` that does.
  */
 export function ambiguousClick(url: string, click: Click, matches: Match[]): string {
   const lines = matches.map((match, index) => {
@@ -286,7 +310,7 @@ export function ambiguousClick(url: string, click: Click, matches: Match[]): str
     const place = match.regions.length ? ` in ${match.regions.join(' in ')}` : ''
     const how = pick
       ? `pick it with --within ${quote(pick)} --click ${quote(click.text)}`
-      : 'no region tells it apart'
+      : `pick it with ${click.within ? `--within ${quote(click.within)} ` : ''}--nth ${index + 1} --click ${quote(click.text)}`
     return `  ${index + 1}. ${match.kind}${place}: ${how}`
   })
   const scope = click.within ? ` within ${click.within}` : ''

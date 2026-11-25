@@ -212,7 +212,7 @@ function summary(state: PreviewState) {
     'Screenshots: pnpm screenshots [options for every path] [path [its options]]...',
     '             --sprite-style <inline|leading-slot|stacked-tiles> --dark --2x',
     '             --type-icon-style <compact|badges|labelled> --move-layout <one-column|two-columns>',
-    '             [--within <region>] --click <text>   (--help for more)',
+    '             [--within <region>] [--nth <n>] --click <text>   (--help for more)',
     'Stop: pnpm preview:stop',
   ].join('\n')
 }
