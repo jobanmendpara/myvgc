@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { itemIconUrl, typeIconUrl, typeName } from '../app/lib/icons'
+import { itemIconUrl, powerAccuracyLabel, powerAccuracyText, typeIconUrl } from '../app/lib/icons'
 
 describe('Item icon files', () => {
   it("serves an item's Item icon from its Showdown ID", () => {
@@ -11,15 +11,23 @@ describe('Type icon files', () => {
   it("serves a type's Type icon from its Showdown ID", () => {
     expect(typeIconUrl('fire')).toBe('/type-icons/fire.webp')
   })
-
-  it('serves the same file for a type written as Showdown writes it', () => {
-    expect(typeIconUrl('Fire')).toBe('/type-icons/fire.webp')
-  })
 })
 
-describe('Type names', () => {
-  it('names a type from its Showdown ID or its display name', () => {
-    expect(typeName('fairy')).toBe('Fairy')
-    expect(typeName('Fairy')).toBe('Fairy')
+describe("A move's power and accuracy", () => {
+  it('shows both numbers', () => {
+    expect(powerAccuracyText({ power: 120, accuracy: 100 })).toBe('120/100')
+    expect(powerAccuracyLabel({ power: 120, accuracy: 100 })).toBe('Power 120, accuracy 100')
+  })
+
+  it('shows a dash for a move that never misses', () => {
+    expect(powerAccuracyText({ power: 85, accuracy: null })).toBe('85/—')
+    expect(powerAccuracyLabel({ power: 85, accuracy: null })).toBe(
+      'Power 85, accuracy never misses',
+    )
+  })
+
+  it('shows a dash for power that varies', () => {
+    expect(powerAccuracyText({ power: null, accuracy: 100 })).toBe('—/100')
+    expect(powerAccuracyLabel({ power: null, accuracy: 100 })).toBe('Power varies, accuracy 100')
   })
 })

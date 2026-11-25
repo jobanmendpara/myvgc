@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { TYPE_ICON_SIZE, typeIconUrl, typeName } from '@/lib/icons'
+import { type TypeId, typeName } from '@myvgc/core/schema'
+import { TYPE_ICON_SIZE, typeIconUrl } from '@/lib/icons'
 
 /**
  * A type's Type icon (ADR 32). Unlike a Sprite it carries information, so it has the type's
@@ -9,8 +10,8 @@ import { TYPE_ICON_SIZE, typeIconUrl, typeName } from '@/lib/icons'
  */
 const props = withDefaults(
   defineProps<{
-    /** The type's Showdown ID or display name, such as `fire` or `Fire`. */
-    type?: string
+    /** The type's Showdown ID, such as `fire`; none while it isn't known. */
+    type?: TypeId
     /** In CSS px. */
     size?: number
   }>(),

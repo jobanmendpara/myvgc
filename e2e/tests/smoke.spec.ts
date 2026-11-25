@@ -89,6 +89,23 @@ test('sign up, import a Team and see its six Pokémon', async ({ page }) => {
     .poll(() => sprite.evaluate((img: HTMLImageElement) => (img.complete ? img.naturalWidth : 0)))
     .toBeGreaterThan(0)
 
+  // Its held item's Item icon, its Type icons, and each move's Type icon and power/accuracy
+  // (DEV-224). Kowtow Cleave never misses and Low Kick's power varies.
+  await expect(builds.nth(2).getByTestId('item-icon')).toHaveAttribute(
+    'src',
+    '/item-icons/chopleberry.webp',
+  )
+  const types = builds.nth(2).getByTestId('build-types').getByRole('img')
+  await expect(types).toHaveCount(2)
+  await expect(types.nth(0)).toHaveAccessibleName('Dark')
+  await expect(types.nth(1)).toHaveAccessibleName('Steel')
+  const kingambitMoves = builds.nth(2).getByRole('list', { name: 'Moves' }).locator(':scope > li')
+  await expect(kingambitMoves.filter({ hasText: 'Kowtow Cleave' })).toContainText('85/—')
+  await expect(kingambitMoves.filter({ hasText: 'Low Kick' })).toContainText('—/100')
+  await expect(
+    kingambitMoves.filter({ hasText: 'Kowtow Cleave' }).getByRole('img', { name: 'Dark' }),
+  ).toBeVisible()
+
   // Each page's Sprite style is a Device setting picked from the header, Inline until then
   // (DEV-180). It applies at once and stays on the device.
   await expect(sprite).toHaveAttribute('width', '32')
