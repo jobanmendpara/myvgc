@@ -41,9 +41,17 @@ function staleAfter(write: OutboxWrite): unknown[][] {
       // The Rounds against them show their display name.
       return [['opponents'], ['tournament']]
     case 'add-team':
-    case 'edit-team':
       // Its page and its paste, now judged by the server.
       return [['teams'], ['team', write.subject.teamId]]
+    case 'edit-team':
+      // Also the Tournaments its Team snapshots are on, which show its name (ADR 31).
+      return [
+        ['teams'],
+        ['team', write.subject.teamId],
+        ['tournament'],
+        ['tournaments'],
+        ['dashboard'],
+      ]
     case 'delete-team':
       // The Team snapshots made from it no longer link to it.
       return [['teams'], ['tournament'], ['tournaments']]

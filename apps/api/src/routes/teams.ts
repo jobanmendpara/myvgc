@@ -16,11 +16,11 @@ import {
   today,
   writePaste,
 } from '@myvgc/core'
-import { and, desc, eq } from 'drizzle-orm'
+import { and, desc, eq, ne } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import type { AppEnv } from '../app'
-import { team } from '../db/schema'
+import { team, tournament } from '../db/schema'
 import type { Database } from '../db/types'
 import { deleted, idTaken, invalid, isId, notFound, readBody } from './helpers'
 import { exportTeamsheet } from './teamsheet-export'
@@ -152,12 +152,28 @@ export function teamRoutes(db: Database) {
         const issues = checkPokemon(input.data.pokemon)
         if (issues.length > 0) return invalid(c, issues)
 
-        // Team snapshots are copies (ADR 9), so they don't change. The last save wins.
-        const [row] = await db
-          .update(team)
-          .set(input.data)
-          .where(ownTeam(id, c.get('user').id))
-          .returning()
+        // Team snapshots keep their Pokémon builds (ADR 9) but take the Team's new name (ADR 31).
+        // The last save wins.
+        const ownerId = c.get('user').id
+        const row = await db.transaction(async (tx) => {
+          const [saved] = await tx
+            .update(team)
+            .set(input.data)
+            .where(ownTeam(id, ownerId))
+            .returning()
+          if (!saved) return undefined
+          await tx
+            .update(tournament)
+            .set({ teamName: saved.name })
+            .where(
+              and(
+                eq(tournament.ownerId, ownerId),
+                eq(tournament.teamId, saved.id),
+                ne(tournament.teamName, saved.name),
+              ),
+            )
+          return saved
+        })
         if (!row) return notFound(c)
         return c.json(toView(row))
       })

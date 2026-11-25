@@ -1,7 +1,7 @@
 # 9. Tournaments and Rounds keep snapshots of Teams
 
 Date: 2026-11-03
-Status: Accepted. The Opponent's Team part is superseded by ADR 22.
+Status: Accepted. The Opponent's Team part is superseded by ADR 22. The name is amended by ADR 31: a Team snapshot takes its Team's current name.
 
 ## Context
 Users tweak Teams between events, but a Tournament should remember the Team exactly as it was brought.
