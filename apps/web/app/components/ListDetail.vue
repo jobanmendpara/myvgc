@@ -10,6 +10,11 @@
 const props = defineProps<{
   /** The area's path, such as `/tournaments`. */
   base: string
+  /**
+   * The list's accessible name, such as "Tournaments": the list column's on wide screens, and
+   * the region around the list on phones, so one name finds the list at either width.
+   */
+  label: string
   /** What the empty pane says, such as "Select a Tournament". */
   placeholder: string
 }>()
@@ -38,7 +43,7 @@ watch(
 
 <template>
   <div v-if="wide" class="grid h-full grid-cols-[auto_1fr]">
-    <aside ref="column" class="flex min-h-0 flex-col border-r">
+    <aside ref="column" :aria-label="label" class="flex min-h-0 flex-col border-r">
       <slot name="list" :wide="true" />
     </aside>
     <div ref="pane" class="min-h-0 overflow-y-auto p-4 pb-16">
@@ -52,6 +57,8 @@ watch(
       <slot v-else />
     </div>
   </div>
-  <slot v-else-if="atBase" name="list" :wide="false" />
+  <section v-else-if="atBase" :aria-label="label">
+    <slot name="list" :wide="false" />
+  </section>
   <slot v-else />
 </template>

@@ -22,7 +22,7 @@ const { query, searching, results, noMatches } = useListSearch(
 </script>
 
 <template>
-  <ListDetail base="/teams" placeholder="Select a Team">
+  <ListDetail base="/teams" label="Teams" placeholder="Select a Team">
     <template #list="{ wide }">
       <ListColumn
         v-model:query="query"
