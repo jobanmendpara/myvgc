@@ -19,11 +19,17 @@ const DIRTY = 'OPEN\\ttrue\\tDIRTY\\t'
 
 // `gh pr checks` and `gh pr view` as the script calls them, printing what gh would after its --jq
 // filter (`gh pr view` prints QUEUED unless GH_VIEW is set). GH_HANG names the one that never answers; `exec` keeps it a single process, as the real
-// gh is.
+// gh is. GH_GRAPHQL names one that fails with GitHub's transient GraphQL error the first
+// GH_GRAPHQL_TIMES times it is called (default 1).
 const GH_STUB = `#!/usr/bin/env bash
 command="$1 $2"
 echo "$command" >>"$GH_CALLS"
 if [[ $command == "\${GH_HANG:-}" ]]; then exec sleep 60; fi
+if [[ $command == "\${GH_GRAPHQL:-}" ]] &&
+  (($(grep -cx "$command" "$GH_CALLS") <= \${GH_GRAPHQL_TIMES:-1})); then
+  echo 'GraphQL: Something went wrong while executing your query. Please include \`ABCD:1234\` when reporting this issue.' >&2
+  exit 1
+fi
 case $command in
   'pr checks')
     if [[ -n \${GH_CHECKS_ERROR:-} ]]; then
@@ -67,6 +73,7 @@ interface Run {
   output: string
   seconds: number
   ghCalls: number
+  calls: string[]
 }
 
 function run(env: Record<string, string>): Promise<Run> {
@@ -84,6 +91,7 @@ function run(env: Record<string, string>): Promise<Run> {
           GH_CALLS: calls,
           WAIT_FOR_CHECKS_TIMEOUT: String(TIMEOUT),
           WAIT_FOR_CHECKS_INTERVAL: '1',
+          WAIT_FOR_CHECKS_RETRY_DELAY: '1',
           ...env,
         },
       },
@@ -94,6 +102,7 @@ function run(env: Record<string, string>): Promise<Run> {
           output: stdout + stderr,
           seconds: (Date.now() - started) / 1000,
           ghCalls: lines.length,
+          calls: lines,
         })
       },
     )
@@ -135,10 +144,49 @@ describe.concurrent('wait-for-checks.sh', { timeout: 20_000 }, () => {
     expect(result.code).toBe(1)
   })
 
-  test('exits 3 when gh fails', async () => {
+  test('exits 3 when gh fails, without retrying', async () => {
     const result = await run({ GH_CHECKS_ERROR: 'HTTP 401: Bad credentials' })
     expect(result.code).toBe(3)
     expect(result.output).toContain('HTTP 401')
+    expect(result.ghCalls).toBe(1)
+  })
+
+  // GitHub's "GraphQL: Something went wrong" usually clears within seconds (DEV-236).
+  test.each(['pr checks', 'pr view'])(
+    'retries gh %s once after a GraphQL error and goes on',
+    async (command) => {
+      const result = await run({
+        GH_CHECKS: PASSING,
+        GH_VIEW: 'MERGED\\tfalse\\tUNKNOWN\\tabc123',
+        GH_GRAPHQL: command,
+      })
+      expect(result.code).toBe(0)
+      expect(result.output).toContain('retrying in 1s')
+      expect(result.output).toContain('PR #7 merged as abc123')
+      expect(result.calls.filter((call) => call === command)).toHaveLength(2)
+    },
+  )
+
+  test.each(['pr checks', 'pr view'])(
+    'exits 3 when gh %s fails with a GraphQL error again on the retry',
+    async (command) => {
+      const result = await run({ GH_CHECKS: PASSING, GH_GRAPHQL: command, GH_GRAPHQL_TIMES: '2' })
+      expect(result.code).toBe(3)
+      expect(result.output).toContain('GraphQL: Something went wrong')
+      expect(result.calls.filter((call) => call === command)).toHaveLength(2)
+    },
+  )
+
+  test('exits 2 when a GraphQL error leaves no time to retry before the deadline', async () => {
+    const result = await run({
+      GH_CHECKS: PASSING,
+      GH_GRAPHQL: 'pr view',
+      WAIT_FOR_CHECKS_RETRY_DELAY: '5',
+    })
+    expect(result.code).toBe(2)
+    expect(result.output).toContain('no time left to retry')
+    expect(result.ghCalls).toBe(2)
+    expect(result.seconds).toBeLessThanOrEqual(TIMEOUT + SLACK)
   })
 
   test('exits 3 when gh pr view gives no state', async () => {
