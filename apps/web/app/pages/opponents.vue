@@ -56,7 +56,7 @@ const addError = computed(
 </script>
 
 <template>
-  <ListDetail base="/opponents" placeholder="Select an Opponent">
+  <ListDetail base="/opponents" label="Opponents" placeholder="Select an Opponent">
     <template #list="{ wide }">
       <ListColumn
         v-model:query="query"

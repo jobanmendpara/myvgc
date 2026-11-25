@@ -154,6 +154,10 @@ test('sign up, import a Team and see its six Pokémon', async ({ page }) => {
   if (wide) {
     await expect(page.getByText('Select a Team')).toBeVisible()
     await expect(row).not.toHaveAttribute('aria-current')
+    // The list pane is named for its list (DEV-229).
+    await expect(
+      page.getByRole('complementary', { name: 'Teams' }).getByTestId('teams-list'),
+    ).toBeVisible()
   }
 })
 

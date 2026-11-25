@@ -24,7 +24,7 @@ const { query, searching, results, noMatches } = useListSearch(
 </script>
 
 <template>
-  <ListDetail base="/tournaments" placeholder="Select a Tournament">
+  <ListDetail base="/tournaments" label="Tournaments" placeholder="Select a Tournament">
     <template #list="{ wide }">
       <ListColumn
         v-model:query="query"
