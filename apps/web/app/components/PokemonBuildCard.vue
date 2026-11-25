@@ -92,12 +92,21 @@ const { style: spriteStyle } = useSpriteStyle()
         <div
           v-for="stat in STAT_IDS"
           :key="stat"
-          class="rounded border px-0.5 py-1"
+          class="rounded border py-1"
           :data-testid="`stat-${stat}`"
         >
-          <dt class="text-muted-foreground text-xs">
-            {{ STAT_LABELS[stat] }}
-            <StatAlignmentMark :stat-alignment="build.nature" :stat="stat" />
+          <!-- The ▲ or ▼ stays beside the label on one line (DEV-212). A stat box can be under
+               30 px wide inside, so the box has no side padding, there's only a hairline gap
+               and the mark is drawn a little smaller than the label. -->
+          <dt
+            class="text-muted-foreground flex items-center justify-center gap-px text-xs whitespace-nowrap"
+          >
+            {{ STAT_LABELS[stat]
+            }}<StatAlignmentMark
+              class="text-[0.625rem]"
+              :stat-alignment="build.nature"
+              :stat="stat"
+            />
           </dt>
           <dd class="font-medium tabular-nums">{{ values?.[stat] ?? '—' }}</dd>
           <dd
