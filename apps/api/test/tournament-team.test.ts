@@ -64,28 +64,61 @@ describe('A Tournament’s Team snapshot', () => {
     expect(body.warnings).toEqual([])
   })
 
-  it('keeps the snapshot as it was when the Team changes, until it is snapshotted again', async () => {
+  it('keeps the Pokémon builds as they were when the Team changes, until it is snapshotted again', async () => {
     const { teamId, tournamentId } = await setUp()
     await put(t.app, `/api/tournaments/${tournamentId}/team`, { teamId }, ash)
-    // There is no way to edit a Team yet, so change it directly.
-    await t.db.update(team).set({ name: 'Fairy rain v2' }).where(eq(team.id, teamId))
+    const saved = await json(await get(t.app, `/api/teams/${teamId}`, ash))
+    const pokemon = [{ ...saved.pokemon[0], item: 'leftovers' }]
+    expect((await put(t.app, `/api/teams/${teamId}`, { ...saved, pokemon }, ash)).status).toBe(200)
 
     const before = await json(await get(t.app, `/api/tournaments/${tournamentId}`, ash))
-    expect(before.team.name).toBe('Fairy rain')
+    expect(before.team.pokemon[0].item).toBe('floettite')
 
     const again = await json(
       await put(t.app, `/api/tournaments/${tournamentId}/team`, { teamId }, ash),
     )
-    expect(again.team.name).toBe('Fairy rain v2')
+    expect(again.team.pokemon[0].item).toBe('leftovers')
   })
 
-  it('keeps the snapshot when the Team is deleted', async () => {
+  it('takes the Team’s new name when the Team is renamed, even once the Tournament is over (ADR 31)', async () => {
+    const { teamId, tournamentId } = await setUp({
+      name: 'Old locals',
+      startDate: '2026-05-01',
+      eventTier: 'local',
+    })
+    await put(t.app, `/api/tournaments/${tournamentId}/team`, { teamId }, ash)
+    const saved = await json(await get(t.app, `/api/teams/${teamId}`, ash))
+    await put(t.app, `/api/teams/${teamId}`, { ...saved, name: 'Pixie rain' }, ash)
+
+    const body = await json(await get(t.app, `/api/tournaments/${tournamentId}`, ash))
+    expect(body.team).toMatchObject({ teamId, name: 'Pixie rain' })
+    expect(body.team.snapshotAt).toBeDefined()
+    const list = await json(await get(t.app, '/api/tournaments', ash))
+    expect(list[0].team.name).toBe('Pixie rain')
+  })
+
+  it('leaves other Users’ Tournaments alone when a Team is renamed', async () => {
     const { teamId, tournamentId } = await setUp()
     await put(t.app, `/api/tournaments/${tournamentId}/team`, { teamId }, ash)
+    const misty = (await signUp(t.app, 'misty@example.com')).cookie
+    const saved = await json(await get(t.app, `/api/teams/${teamId}`, ash))
+
+    expect(
+      (await put(t.app, `/api/teams/${teamId}`, { ...saved, name: 'Hijack' }, misty)).status,
+    ).toBe(404)
+    const body = await json(await get(t.app, `/api/tournaments/${tournamentId}`, ash))
+    expect(body.team.name).toBe('Fairy rain')
+  })
+
+  it('keeps the snapshot, with the Team’s last name, when the Team is deleted', async () => {
+    const { teamId, tournamentId } = await setUp()
+    await put(t.app, `/api/tournaments/${tournamentId}/team`, { teamId }, ash)
+    const saved = await json(await get(t.app, `/api/teams/${teamId}`, ash))
+    await put(t.app, `/api/teams/${teamId}`, { ...saved, name: 'Pixie rain' }, ash)
     expect((await del(t.app, `/api/teams/${teamId}`, ash)).status).toBe(204)
 
     const body = await json(await get(t.app, `/api/tournaments/${tournamentId}`, ash))
-    expect(body.team).toMatchObject({ teamId: null, name: 'Fairy rain' })
+    expect(body.team).toMatchObject({ teamId: null, name: 'Pixie rain' })
   })
 
   it('warns, without refusing, when the Team’s Regulation differs', async () => {

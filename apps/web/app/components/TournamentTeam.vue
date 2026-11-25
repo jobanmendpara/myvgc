@@ -175,7 +175,8 @@ const snapshotDate = computed(() =>
           </NativeSelectOption>
         </NativeSelect>
         <p class="text-muted-foreground text-xs">
-          MyVGC keeps a copy, so later changes to the Team don't change this Tournament.
+          MyVGC keeps a copy of its Pokémon, so later changes to them don't change this Tournament.
+          Renaming the Team renames it here too.
         </p>
       </template>
       <Alert v-if="link.isError.value" variant="destructive" role="alert">
