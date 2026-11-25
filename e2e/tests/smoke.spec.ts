@@ -47,11 +47,29 @@ async function createTournament(page: Page, name: string) {
   await submitNewTournament(page, name)
 }
 
-// Cuts the signal, once the service worker has kept the app's files on the device. It installs in
-// the background after the first page load, fetching some 700 files; cut off before it finishes,
-// it never becomes active, and a page whose code it hadn't reached yet can't open (DEV-231).
-async function goOffline(page: Page) {
+const NO_SERVICE_WORKER =
+  'No service worker: the offline tests need the built app (`pnpm up:local`); `nuxt dev` and `pnpm preview` have none.'
+
+// Waits until the service worker has kept the app's files on the device. It installs in the
+// background after the first page load, fetching some 700 files; cut off before it finishes, it
+// never becomes active, and a page whose code it hadn't reached yet can't open (DEV-231).
+// `nuxt dev` registers none, and waiting on `ready` then hangs until the test times out, so a page
+// with no registration a few seconds after it loaded stops the test and says why (DEV-235).
+async function serviceWorkerReady(page: Page) {
+  const registered = await page.evaluate(async () => {
+    for (let tries = 0; tries < 50; tries++) {
+      if (await navigator.serviceWorker.getRegistration()) return true
+      await new Promise((resolve) => setTimeout(resolve, 100))
+    }
+    return false
+  })
+  if (!registered) throw new Error(NO_SERVICE_WORKER)
   await page.evaluate(() => navigator.serviceWorker.ready)
+}
+
+// Cuts the signal, once the service worker has kept the app's files on the device.
+async function goOffline(page: Page) {
+  await serviceWorkerReady(page)
   await page.context().setOffline(true)
 }
 
@@ -597,7 +615,7 @@ test('a page visited before opens with no signal, and the API never comes from t
   await expect(page.getByRole('heading', { name: 'Log in' })).toBeVisible()
   expect((await session).fromServiceWorker()).toBe(false)
   // The service worker has kept the app's files on the device.
-  await page.evaluate(() => navigator.serviceWorker.ready)
+  await serviceWorkerReady(page)
   const manifest = await page.request.get('/manifest.webmanifest')
   expect(await manifest.json()).toMatchObject({ name: 'MyVGC', display: 'standalone' })
   await page.close()
@@ -640,7 +658,7 @@ test('with no signal, the app opens as the last known User with their cached pag
   await createTournament(page, 'Offline Open')
   await page.goto('/tournaments')
   await expect(page.getByText('Offline Open').first()).toBeVisible()
-  await page.evaluate(() => navigator.serviceWorker.ready)
+  await serviceWorkerReady(page)
   // The query cache is saved on the device a moment after it changes.
   const savedCaches = () =>
     page.evaluate(
@@ -705,7 +723,7 @@ test('a cold start with no signal shows the saved Tournaments and Opponents, als
   await expect(page.getByText('Cold Open').first()).toBeVisible()
   await nav.getByRole('link', { name: 'Opponents' }).click()
   await expect(page.getByTestId('opponents-list')).toContainText('Cold Rival')
-  await page.evaluate(() => navigator.serviceWorker.ready)
+  await serviceWorkerReady(page)
   await expect
     .poll(() => savedQueryKeys(page))
     .toEqual(expect.arrayContaining(['["tournaments"]', '["opponents","list"]']))
@@ -748,7 +766,7 @@ test('when the server can’t be reached on a connected phone, the saved lists s
   await createTournament(page, 'Venue Open')
   await page.goto('/tournaments')
   await expect(page.getByText('Venue Open').first()).toBeVisible()
-  await page.evaluate(() => navigator.serviceWorker.ready)
+  await serviceWorkerReady(page)
   await expect.poll(() => savedQueryKeys(page)).toContain('["tournaments"]')
   await page.close()
 
