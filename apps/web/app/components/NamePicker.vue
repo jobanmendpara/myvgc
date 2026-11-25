@@ -25,8 +25,9 @@ const choice = defineModel<string | null>({ required: true })
 
 const SUGGESTIONS = 8
 // PROTOTYPE (DEV-218)
-const { variant, moveType } = usePrototypeIcons()
-const pickerIcon = computed(() => (variant.value === 'A' ? 20 : variant.value === 'B' ? 24 : 18))
+// Pickers keep one look whatever the Type icon style: a 20 px icon before the name.
+const { moveType } = usePrototypeIcons()
+const pickerIcon = 20
 const names = useChampionsNames()
 const table = computed(() => names.data.value?.[props.kind])
 // Never loaded on this device, and the request failed or is waiting for a connection.
@@ -86,7 +87,7 @@ function onKeydown(event: KeyboardEvent) {
       <span class="flex min-w-0 items-center gap-2">
         <Sprite v-if="props.kind === 'species'" :species="choice" surface="species-picker-choice" />
         <PrototypeItemIcon v-if="props.kind === 'items'" :item="choice" :size="pickerIcon" />
-        <PrototypeTypeIcon v-if="props.kind === 'moves'" :type="moveType(choice)" :size="pickerIcon" :label="variant === 'C'" />
+        <PrototypeTypeIcon v-if="props.kind === 'moves'" :type="moveType(choice)" :size="pickerIcon" />
         <span class="min-w-0 break-words">{{ chosenName }}</span>
       </span>
       <Button type="button" variant="ghost" size="sm" @click="choice = null">Change</Button>
@@ -136,9 +137,8 @@ function onKeydown(event: KeyboardEvent) {
             surface="species-picker-option"
           />
           <PrototypeItemIcon v-if="props.kind === 'items'" :item="option.id" :size="pickerIcon" />
-          <PrototypeTypeIcon v-if="props.kind === 'moves' && variant !== 'C'" :type="moveType(option.id)" :size="pickerIcon" />
+          <PrototypeTypeIcon v-if="props.kind === 'moves'" :type="moveType(option.id)" :size="pickerIcon" />
           <span class="flex-1">{{ option.name }}</span>
-          <PrototypeTypeIcon v-if="props.kind === 'moves' && variant === 'C'" :type="moveType(option.id)" :size="16" label />
         </li>
       </ul>
     </div>

@@ -76,6 +76,8 @@ onMounted(() => {
         <p class="text-muted-foreground text-sm">Saved on this device only.</p>
       </div>
       <ThemePicker />
+      <!-- PROTOTYPE (DEV-218) -->
+      <PrototypeTypeIconStylePicker />
     </section>
 
     <footer class="text-muted-foreground flex flex-col gap-1 border-t pt-4 text-xs">

@@ -28,8 +28,31 @@ const spreadKnown = computed(
 const values = useStatValues(() => props.build)
 const { style: spriteStyle } = useSpriteStyle()
 // PROTOTYPE (DEV-218)
-const { variant, speciesTypes, moveType } = usePrototypeIcons()
+const { variant, moveLayout, speciesTypes, moveType } = usePrototypeIcons()
 const types = computed(() => speciesTypes(props.build.species) ?? [])
+// "Two columns when they fit": lay the moves out in two columns, and fall back to one column
+// when any move's name wouldn't fit on one line. Re-checked when the card is resized.
+const movesList = ref<HTMLElement>()
+const oneColumn = ref(false)
+function measure() {
+  const list = movesList.value
+  if (!list) return
+  if (moveLayout.value === 'list') return void (oneColumn.value = true)
+  oneColumn.value = false
+  nextTick(() => {
+    oneColumn.value = [...list.querySelectorAll<HTMLElement>('[data-move-name]')].some(
+      (name) => name.scrollWidth > name.clientWidth + 1,
+    )
+  })
+}
+let observer: ResizeObserver | undefined
+onMounted(() => {
+  observer = new ResizeObserver(measure)
+  if (movesList.value) observer.observe(movesList.value)
+  measure()
+})
+onUnmounted(() => observer?.disconnect())
+watch([moveLayout, variant, () => props.build.moves], measure)
 </script>
 
 <template>
@@ -101,21 +124,29 @@ const types = computed(() => speciesTypes(props.build.species) ?? [])
       </div>
     </header>
 
-    <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
-      <template v-if="build.names.ability">
-        <dt class="text-muted-foreground">Ability</dt>
-        <dd>{{ build.names.ability }}</dd>
-      </template>
-      <template v-if="build.names.nature">
-        <dt class="text-muted-foreground">
+    <!-- PROTOTYPE (DEV-218): each row on one line; a value that can't fit moves under its
+         label whole, rather than breaking. -->
+    <dl class="flex flex-col gap-y-1 text-sm">
+      <div v-if="build.names.ability" class="flex flex-wrap justify-between gap-x-3">
+        <dt class="text-muted-foreground whitespace-nowrap">Ability</dt>
+        <dd class="whitespace-nowrap">{{ build.names.ability }}</dd>
+      </div>
+      <div v-if="build.names.nature" class="flex flex-wrap justify-between gap-x-3">
+        <dt class="text-muted-foreground whitespace-nowrap">
           Stat Alignment <span class="font-normal">(Nature)</span>
         </dt>
-        <dd>{{ build.names.nature }}</dd>
-      </template>
+        <dd class="whitespace-nowrap">{{ build.names.nature }}</dd>
+      </div>
     </dl>
 
     <!-- PROTOTYPE (DEV-218): a Type icon before each move's name. -->
-    <ul v-if="build.names.moves.length" class="grid grid-cols-2 gap-1.5 text-sm" aria-label="Moves">
+    <ul
+      v-if="build.names.moves.length"
+      ref="movesList"
+      class="grid gap-1.5 text-sm"
+      :class="oneColumn ? 'grid-cols-1' : 'grid-cols-2'"
+      aria-label="Moves"
+    >
       <li
         v-for="(move, index) in build.names.moves"
         :key="index"
@@ -126,11 +157,11 @@ const types = computed(() => speciesTypes(props.build.species) ?? [])
           <span class="flex shrink-0 items-center bg-black/10 p-1 dark:bg-white/5">
             <PrototypeTypeIcon :type="moveType(build.moves[index]!)" :size="20" />
           </span>
-          <span class="flex min-w-0 items-center px-2 py-1">{{ move }}</span>
+          <span data-move-name class="flex min-w-0 items-center overflow-hidden px-2 py-1 whitespace-nowrap">{{ move }}</span>
         </span>
         <span v-else class="flex items-center gap-1.5">
           <PrototypeTypeIcon :type="moveType(build.moves[index]!)" :size="variant === 'C' ? 18 : 16" />
-          <span class="min-w-0">{{ move }}</span>
+          <span data-move-name class="min-w-0 overflow-hidden whitespace-nowrap">{{ move }}</span>
         </span>
         <LegalityWarnings v-if="moveWarnings[index]?.length" :problems="moveWarnings[index]!" />
       </li>
