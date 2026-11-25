@@ -1,4 +1,4 @@
-import type { DashboardView, TeamView, TournamentView } from '@myvgc/core/schema'
+import type { DashboardView, StatisticsView, TeamView, TournamentView } from '@myvgc/core/schema'
 import { describe, expect, it } from 'vitest'
 import { checkBeforeSaving } from '../app/lib/api'
 import type { WriteDraft } from '../app/lib/outbox'
@@ -8,6 +8,7 @@ import {
   OUTBOX_FORMAT,
   type OutboxState,
   type OutboxWrite,
+  unsentRecord,
 } from '../app/lib/outbox-rules'
 import {
   changeTitle,
@@ -253,6 +254,131 @@ describe('A Tournament deleted with no signal', () => {
     expect(tournamentRows(list, state).map((t) => t.id)).toEqual([SAVED.id])
     expect(tournamentMarks(state).get(SAVED.id)?.status).toBe('deleting')
     expect(revertWrite(['tournaments'], list, removal)).toEqual([SAVED])
+  })
+})
+
+describe('Deleting a Tournament the server never got (DEV-207)', () => {
+  const created = (write: OutboxWrite) =>
+    applyPending(['tournament', write.subject.tournamentId!], undefined, [write]) as TournamentView
+
+  it('takes its create and the writes on it off the phone, in place of sending the delete', () => {
+    const create = kept(addTournament(FIELDS))
+    const ref = { id: create.subject.tournamentId!, name: 'Portland Regional' }
+    const round = kept(logRound(ref, WIN, null))
+    const edit = kept(editTournament(created(create), { placement: 3 }))
+    const link = kept(linkTournamentTeam(created(create), TEAM))
+    const other = kept(logRound({ id: SAVED.id, name: SAVED.name }, WIN, null))
+    const removal = deleteTournament(created(create))
+    expect(unsentRecord([create, round, edit, link, other], removal)?.map((w) => w.id)).toEqual([
+      create.id,
+      round.id,
+      edit.id,
+      link.id,
+    ])
+    // Also while the server refuses its create.
+    const refusedCreate = { ...create, state: refused('No.') }
+    expect(unsentRecord([refusedCreate], removal)).toEqual([refusedCreate])
+  })
+
+  it('is sent as usual when the server has it, or a write on it also adds an Opponent', () => {
+    expect(unsentRecord([], deleteTournament(SAVED))).toBeUndefined()
+    const create = kept(addTournament(FIELDS))
+    const ref = { id: create.subject.tournamentId!, name: 'Portland Regional' }
+    // The new Opponent stays on the server after the Tournament is deleted.
+    const round = kept(
+      logRound(
+        ref,
+        { ...(WIN as object), opponentId: null, newOpponentName: 'Sam Ortiz' } as never,
+        'Sam Ortiz',
+      ),
+    )
+    const removal = deleteTournament(created(create))
+    expect(unsentRecord([create, round], removal)).toBeUndefined()
+  })
+})
+
+describe('Discarding a delete or an unlinked Team (DEV-207)', () => {
+  it('says the record stays', () => {
+    expect(discardText(kept(deleteTournament(SAVED)))).toEqual({
+      title: 'Discard deleting Vancouver Locals?',
+      body: 'The Tournament stays.',
+    })
+  })
+
+  it('says the Team stays the Tournament’s Team', () => {
+    const page = applyPending(['tournament', SAVED.id], SAVED, [
+      kept(linkTournamentTeam(SAVED, TEAM)),
+    ]) as TournamentView
+    expect(discardText(kept(unlinkTournamentTeam(page)))).toEqual({
+      title: 'Discard unlinking your Team from Vancouver Locals?',
+      body: 'Fairy rain stays your Team for this Tournament.',
+    })
+  })
+})
+
+describe('Statistics with Rounds not yet synced (DEV-207)', () => {
+  const statistics = (filters: Partial<StatisticsView['filters']> = {}) =>
+    ({
+      filters: {
+        regulation: 'all',
+        season: null,
+        from: null,
+        to: null,
+        eventTier: [],
+        setting: null,
+        team: null,
+        ...filters,
+      },
+      statistics: { rounds: {} },
+    }) as unknown as StatisticsView
+  const AGAINST = {
+    phase: 'swiss',
+    result: 'win',
+    bye: false,
+    notes: '',
+    opponentId: '00000000-0000-4000-8000-0000000000cc',
+    opponentTeam: [{ species: 'incineroar' }],
+    games: [
+      {
+        number: 1,
+        result: 'win',
+        leads: ['floetteeternal'],
+        brought: ['floetteeternal'],
+        opponentLeads: [],
+        opponentBrought: ['incineroar'],
+      },
+    ],
+  } as never
+
+  it('counts them from the cached Tournaments list, as the dashboard does', () => {
+    const round = kept(logRound({ id: SAVED.id, name: SAVED.name }, AGAINST, 'Aaron Zheng'))
+    const view = applyPending(['statistics', {}], statistics(), [round], {
+      tournaments: [SAVED],
+    }) as StatisticsView
+    expect(view.statistics.speciesFaced.rows).toMatchObject([
+      { species: 'incineroar', played: 1, wins: 1 },
+    ])
+    expect(view.statistics.user.leads.rows).toMatchObject([{ species: 'floetteeternal' }])
+    expect(view.statistics.rounds[round.subject.roundId!]).toMatchObject({
+      tournament: { id: SAVED.id, name: SAVED.name },
+      opponent: { displayName: 'Aaron Zheng' },
+    })
+  })
+
+  it('keeps to the filters, the Team included', () => {
+    const round = kept(logRound({ id: SAVED.id, name: SAVED.name }, AGAINST, 'Aaron Zheng'))
+    const view = applyPending(['statistics', {}], statistics({ team: TEAM.id }), [round], {
+      tournaments: [SAVED],
+    }) as StatisticsView
+    expect(view.statistics.speciesFaced.coverage.of).toBe(0)
+  })
+
+  it('stay as the server sent them with nothing pending, or no list cached', () => {
+    const view = statistics()
+    expect(applyPending(['statistics', {}], view, [], { tournaments: [SAVED] })).toBe(view)
+    const round = kept(logRound({ id: SAVED.id, name: SAVED.name }, AGAINST, null))
+    expect(applyPending(['statistics', {}], view, [round])).toBe(view)
+    expect(revertWrite(['statistics', {}], view, round)).toBe(view)
   })
 })
 

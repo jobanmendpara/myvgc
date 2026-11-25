@@ -14,7 +14,9 @@ import {
   roundResult,
   type RoundView,
   regulationOn,
+  type StatisticsView,
   settleRound,
+  statistics,
   summarize,
   type SummaryTournament,
   type TeamSnapshotView,
@@ -26,8 +28,8 @@ import {
 import type { OutboxWrite } from './outbox-rules'
 
 // What pending writes change on the pages before the server has them (ADR 17): the Tournament,
-// its details, Team snapshot, Rounds and Record, the Tournaments list, the dashboard, the
-// Opponents list, the Round form's Opponent suggestions, an Opponent's page and Note entries, the
+// its details, Team snapshot, Rounds and Record, the Tournaments list, the dashboard, Statistics,
+// the Opponents list, the Round form's Opponent suggestions, an Opponent's page and Note entries, the
 // Teams list and a Team's page, and the User's Player details and List styles.
 // Applying a write twice changes nothing more, so pending writes are applied again over each
 // answer from the server until they are sent. The server's answer replaces it all once they are.
@@ -411,6 +413,41 @@ export function applyToDashboard(
   return { ...view, summary: summarize(counted.map(toSummary)) }
 }
 
+/**
+ * Statistics as they will be once the pending writes on Tournaments and Rounds are sent, worked
+ * out from the cached Tournaments list as the dashboard is (DEV-207). Without that list, or with
+ * nothing pending on them, they stay as the server sent them.
+ */
+export function applyToStatistics(
+  view: StatisticsView,
+  tournaments: TournamentView[] | undefined,
+  writes: readonly OutboxWrite[],
+): StatisticsView {
+  const pending = writes.filter((w) => isPending(w) && (isRoundWrite(w) || isTournamentWrite(w)))
+  if (!pending.length || !Array.isArray(tournaments) || !view.filters) return view
+  const { team } = view.filters
+  const counted = applyToTournamentList(tournaments, pending)
+    .filter((t) => filteredIn(t, view.filters) && (!team || t.team?.teamId === team))
+    // As the server lists them: most recent first.
+    .sort(
+      (a, b) =>
+        b.startDate.localeCompare(a.startDate) ||
+        b.createdAt.localeCompare(a.createdAt) ||
+        b.id.localeCompare(a.id),
+    )
+  return {
+    ...view,
+    statistics: statistics(
+      counted.map((t) => ({
+        id: t.id,
+        name: t.name,
+        rounds: t.rounds,
+        opponentTeams: t.opponentTeams,
+      })),
+    ),
+  }
+}
+
 /** A new Opponent, as the Opponents list shows one the server doesn't have yet. */
 function newOpponent(id: string, displayName: string, createdAt: string): OpponentView {
   return {
@@ -700,6 +737,7 @@ type Target =
   | { kind: 'teams' }
   | { kind: 'team'; id: string }
   | { kind: 'dashboard' }
+  | { kind: 'statistics' }
   | { kind: 'tournaments' }
   | { kind: 'opponents' }
   | { kind: 'suggestions' }
@@ -714,6 +752,7 @@ function targetOf(key: readonly unknown[]): Target | undefined {
   if (key[0] === 'team' && typeof key[1] === 'string' && key.length === 2)
     return { kind: 'team', id: key[1] }
   if (key[0] === 'dashboard') return { kind: 'dashboard' }
+  if (key[0] === 'statistics') return { kind: 'statistics' }
   if (key[0] === 'opponents' && key[1] === 'list' && key.length === 2) return { kind: 'opponents' }
   if (key[0] === 'opponents' && key[1] === 'suggestions') return { kind: 'suggestions' }
   if (key[0] === 'opponents' && key[1] === 'detail' && typeof key[2] === 'string')
@@ -732,7 +771,10 @@ export const isOutboxTarget = (key: readonly unknown[]) => targetOf(key) !== und
 const sameIfUnchanged = <T>(before: T[], after: T[]) =>
   after.every((item, index) => item === before[index]) ? before : after
 
-/** Other cached data a query's data is worked out from: the dashboard needs the Tournaments list. */
+/**
+ * Other cached data a query's data is worked out from: the dashboard and Statistics need the
+ * Tournaments list.
+ */
 export interface ApplyContext {
   tournaments?: unknown
 }
@@ -766,6 +808,14 @@ export function applyPending(
             writes,
           )
         : data
+    case 'statistics':
+      return data
+        ? applyToStatistics(
+            data as StatisticsView,
+            context.tournaments as TournamentView[] | undefined,
+            writes,
+          )
+        : data
     case 'opponents':
       return Array.isArray(data) ? applyToOpponentList(data as OpponentView[], writes) : data
     case 'suggestions':
@@ -791,6 +841,7 @@ export function revertWrite(key: readonly unknown[], data: unknown, write: Outbo
     case 'team':
       return revertTeam(data as TeamView, write)
     case 'dashboard':
+    case 'statistics':
       // Worked out again from the Tournaments list, then asked of the server again.
       return data
     case 'opponents':

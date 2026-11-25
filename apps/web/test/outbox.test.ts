@@ -516,6 +516,53 @@ describe('Discarding a new record', () => {
   })
 })
 
+describe('Deleting a record the server never got (DEV-207)', () => {
+  const create = (id: string) => ({ ...draft(`tournament:${id}`), creates: `tournament:${id}` })
+  const removal = (id: string) => ({
+    ...draft(`tournament:${id}`, 'DELETE'),
+    deletes: `tournament:${id}`,
+  })
+
+  it('sends neither its create nor the delete, and takes both off the device', async () => {
+    const outbox = newOutbox()
+    await open(outbox, ASH)
+    server.answerAll({ status: 'unreachable' })
+    const tournament = await outbox.add(create('t1'))
+    const round = await outbox.add(draft('tournament:t1'))
+    const other = await outbox.add(draft('tournament:t2'))
+    const events: OutboxEvent[] = []
+    outbox.subscribe((event) => events.push(event))
+    server.sent.length = 0
+
+    expect(await saveChange(outbox, removal('t1'))).toEqual({ sent: true, body: undefined })
+    expect(server.sent).toEqual([])
+    expect(outbox.state.pending.map((w) => w.id)).toEqual([other.id])
+    expect(events.find((e) => e.type === 'withdrawn')).toMatchObject({
+      writes: [{ id: tournament.id }, { id: round.id }],
+    })
+    server.answerAll({ status: 200 })
+    const later = newOutbox()
+    await open(later, ASH)
+    expect(server.sent).toEqual([other.request.url])
+  })
+
+  it('sends the delete as usual once another tab has sent the create', async () => {
+    const outbox = newOutbox()
+    await open(outbox, ASH)
+    server.answerAll({ status: 'unreachable' })
+    const tournament = await outbox.add(create('t1'))
+    server.answerAll({ status: 200 })
+    await open(newOutbox(), ASH)
+    expect(server.sent.at(-1)).toBe(tournament.request.url)
+
+    const deleting = removal('t1')
+    server.answer(deleting.request.url, { status: 200, body: { deleted: true } })
+    expect(await saveChange(outbox, deleting)).toEqual({ sent: true, body: { deleted: true } })
+    expect(server.sent.at(-1)).toBe(deleting.request.url)
+    expect(outbox.writes).toEqual([])
+  })
+})
+
 describe('Saving a change from a page', () => {
   it('gives the page the answer when the server answers in time', async () => {
     const outbox = newOutbox()

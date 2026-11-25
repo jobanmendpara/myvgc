@@ -5,7 +5,8 @@ import { statisticsTables } from '@/lib/statistics-tables'
 
 useHead({ title: 'Statistics · MyVGC' })
 
-// Online-only, like the dashboard (ADR 17): offline, the last view loaded stays on screen.
+// Online-only, like the dashboard (ADR 17): offline, the last view loaded stays on screen, with
+// the changes still waiting on this phone counted in (DEV-207).
 const { query, setFilters } = useFilterQuery(['team'])
 const view = useQuery({
   queryKey: computed(() => ['statistics', query.value]),

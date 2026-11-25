@@ -14,6 +14,7 @@ import {
   OUTBOX_FORMAT,
   type OutboxState,
   type OutboxWrite,
+  unsentRecord,
 } from '../app/lib/outbox-rules'
 import {
   changeList,
@@ -265,5 +266,45 @@ describe('Account settings changed on the phone', () => {
     expect(applyPending(key, DETAILS, [turnedDown])).toBe(DETAILS)
     expect(rejectedPlayerDetails(stateOf([turnedDown]))?.id).toBe(save.id)
     expect(discardText(turnedDown).body).toBe('The server keeps its version.')
+  })
+})
+
+describe('A new Opponent the server never got (DEV-207)', () => {
+  const ROUND = { phase: 'swiss', result: 'win', bye: false, notes: '', games: [] }
+
+  it('takes the Rounds logged against them along when discarded', () => {
+    const add = kept(addOpponent('Kai Tanaka'))
+    const kai = add.subject.opponentId!
+    const round = kept(logRound(TOURNAMENT, { ...ROUND, opponentId: kai } as never, 'Kai Tanaka'))
+    const other = kept(logRound(TOURNAMENT, { ...ROUND, opponentId: WOLFE.id } as never, null))
+    expect(discardedWith([add, round, other], add).map((w) => w.id)).toEqual([add.id, round.id])
+  })
+
+  it('is taken off the phone with the changes to them when deleted, sending nothing', () => {
+    const add = kept(addOpponent('Kai Tanaka'))
+    const kai = opponent(add.subject.opponentId!, 'Kai Tanaka')
+    const edit = kept(editOpponent(kai, changes('Kai T.')))
+    const note = kept(addNoteEntry(kai, { date: '2026-11-24', text: 'Leads Sneasler.' }))
+    const removal = deleteOpponent(kai)
+    expect(unsentRecord([add, edit, note], removal)?.map((w) => w.id)).toEqual([
+      add.id,
+      edit.id,
+      note.id,
+    ])
+  })
+
+  it('is deleted as usual once a Round is logged against them, which the server keeps them for', () => {
+    const add = kept(addOpponent('Kai Tanaka'))
+    const kai = opponent(add.subject.opponentId!, 'Kai Tanaka')
+    const round = kept(
+      logRound(TOURNAMENT, { ...ROUND, opponentId: kai.id } as never, 'Kai Tanaka'),
+    )
+    expect(unsentRecord([add, round], deleteOpponent(kai))).toBeUndefined()
+    // Nor when they were added with a Round.
+    const withRound = kept(
+      logRound(TOURNAMENT, { ...ROUND, newOpponentName: 'Sam Ortiz' } as never, 'Sam Ortiz'),
+    )
+    const sam = opponent(withRound.subject.opponentId!, 'Sam Ortiz')
+    expect(unsentRecord([withRound], deleteOpponent(sam))).toBeUndefined()
   })
 })

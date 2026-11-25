@@ -13,6 +13,7 @@ import {
   readStoredWrite,
   type Settlement,
   settle,
+  unsentRecord,
   type WriteRequest,
 } from './outbox-rules'
 
@@ -267,12 +268,37 @@ export class Outbox {
   async discard(id: string) {
     const write = this.#writes.find((w) => w.id === id)
     if (!write) return
-    const gone = discardedWith(this.#writes, write)
+    await this.#withdraw(discardedWith(this.#writes, write))
+  }
+
+  async #withdraw(gone: OutboxWrite[]) {
     for (const each of gone) await this.#store.remove(each)
     const ids = new Set(gone.map((w) => w.id))
     this.#writes = this.#writes.filter((w) => !ids.has(w.id))
     this.#changed()
     this.#emit({ type: 'withdrawn', writes: gone })
+  }
+
+  /**
+   * Deletes a record the server never got by taking it off the device: its create and every
+   * write on it go, and the delete is never added, so nothing is sent (DEV-207). Runs when no
+   * pass is sending, so the create can't be on its way. False when the server may have the
+   * record, or another write keeps it: then the delete is sent as usual.
+   */
+  async withdrawUnsent(draft: Pick<WriteDraft, 'deletes'>): Promise<boolean> {
+    const userId = this.#userId
+    if (!userId || !draft.deletes) return false
+    return this.#exclusive(async () => {
+      // Where the browser has no locks, a pass in this tab may still be sending.
+      if (this.#sending) return false
+      // Another tab may have sent the create since this one last looked.
+      await this.#load(userId)
+      if (this.#userId !== userId || this.#sending) return false
+      const gone = unsentRecord(this.#writes, draft)
+      if (!gone) return false
+      await this.#withdraw(gone)
+      return true
+    })
   }
 
   /** Puts a rejected write back in line and tries to send it again. */
@@ -346,7 +372,10 @@ export class RejectedChange extends Error {
 
 /** What became of a change saved through the outbox. */
 export type SavedChange =
-  /** The server has it; `body` is its answer. */
+  /**
+   * The server has it; `body` is its answer. Also a delete of a record the server never got,
+   * which is done without sending anything, with no `body`.
+   */
   | { sent: true; body: unknown }
   /** It is kept on this device, to be sent when the server can be reached. */
   | { sent: false }
@@ -359,13 +388,15 @@ export const ANSWER_WAIT = 4_000
  * in time, the page gets the answer as usual; a refusal comes back as a {@link RejectedChange}
  * for the form to show, and the change leaves the outbox, since the User is there to fix it.
  * Otherwise it stays in the outbox, to be sent later. If the device can't keep it, it is sent
- * straight away instead.
+ * straight away instead. A delete of a record the server never got sends nothing: the record's
+ * writes leave the outbox instead.
  */
 export async function saveChange(
   outbox: Outbox,
   draft: WriteDraft,
   wait = ANSWER_WAIT,
 ): Promise<SavedChange> {
+  if (await outbox.withdrawUnsent(draft).catch(() => false)) return { sent: true, body: undefined }
   const offline = typeof navigator !== 'undefined' && navigator.onLine === false
   let added: Awaited<ReturnType<Outbox['addAndSend']>>
   try {

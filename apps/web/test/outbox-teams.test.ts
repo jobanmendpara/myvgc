@@ -9,6 +9,7 @@ import {
   type OutboxState,
   type OutboxWrite,
   settle,
+  unsentRecord,
 } from '../app/lib/outbox-rules'
 import {
   changeTitle,
@@ -290,5 +291,29 @@ describe('A Team deleted with no signal', () => {
     const removal = kept(deleteTeam(SAVED))
     expect(settle(removal, { status: 204 }).outcome).toBe('done')
     expect(settle(removal, { status: 404 }).outcome).toBe('done')
+  })
+})
+
+describe('Deleting a Team the server never got (DEV-207)', () => {
+  const built = (write: OutboxWrite) =>
+    applyPending(['team', write.subject.teamId!], undefined, [write]) as TeamView
+
+  it('takes its create and the changes to it off the phone, in place of sending the delete', () => {
+    const create = kept(addTeam(BODY, NAMES))
+    const edit = kept(editTeam(built(create), { ...BODY, name: 'Sun 2' }, NAMES))
+    const other = kept(editTeam(SAVED, BODY, NAMES))
+    const removal = deleteTeam(built(create))
+    expect(removal.deletes).toBe(`team:${create.subject.teamId}`)
+    expect(unsentRecord([create, edit, other], removal)?.map((w) => w.id)).toEqual([
+      create.id,
+      edit.id,
+    ])
+    expect(unsentRecord([other], deleteTeam(SAVED))).toBeUndefined()
+  })
+
+  it('is sent as usual once a Tournament is set to it, as its Team snapshot stays', () => {
+    const create = kept(addTeam(BODY, NAMES))
+    const link = kept(linkTournamentTeam(TOURNAMENT, built(create)))
+    expect(unsentRecord([create, link], deleteTeam(built(create)))).toBeUndefined()
   })
 })
