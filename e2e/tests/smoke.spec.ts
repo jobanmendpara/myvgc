@@ -162,9 +162,14 @@ test('build a one-Pokémon Team, then edit a move', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Build a Team' })).toBeVisible()
   await page.getByLabel('Name', { exact: true }).fill('Built Team')
 
+  // A move's option is also named by its Type icon, such as "Fire Flare Blitz" (DEV-225), so
+  // match the option by its text.
   const pick = async (label: string, search: string) => {
     await page.getByRole('combobox', { name: label }).fill(search)
-    await page.getByRole('option', { name: search, exact: true }).click()
+    await page
+      .getByRole('option')
+      .filter({ has: page.getByText(search, { exact: true }) })
+      .click()
   }
 
   await page.getByRole('button', { name: 'Add a Pokémon' }).first().click()
@@ -176,7 +181,25 @@ test('build a one-Pokémon Team, then edit a move', async ({ page }) => {
   await pick('Ability', 'Levitate')
   const warning = "Incineroar can't have Levitate."
   await expect(page.getByTestId('build-editor')).toContainText(warning)
+  // Each move option and the chosen move show the move's Type icon (DEV-225).
+  await page.getByRole('combobox', { name: 'Move 1' }).fill('Fake Out')
+  await expect(
+    page.getByRole('option').filter({ hasText: 'Fake Out' }).getByRole('img', { name: 'Normal' }),
+  ).toBeVisible()
   await pick('Move 1', 'Fake Out')
+  await expect(
+    page.getByTestId('build-move-1-choice').getByRole('img', { name: 'Normal' }),
+  ).toBeVisible()
+  // The item picker shows each item's Item icon, as decoration.
+  await page.getByRole('combobox', { name: 'Held item' }).fill('Sitrus Berry')
+  await expect(
+    page.getByRole('option').filter({ hasText: 'Sitrus Berry' }).getByTestId('item-icon'),
+  ).toHaveAttribute('src', '/item-icons/sitrusberry.webp')
+  await pick('Held item', 'Sitrus Berry')
+  await expect(page.getByTestId('build-item-choice').getByTestId('item-icon')).toHaveAttribute(
+    'src',
+    '/item-icons/sitrusberry.webp',
+  )
   await pick('Move 2', 'Psychic')
   const moveWarning = "Incineroar can't learn Psychic."
   await expect(page.getByTestId('build-move-2-field')).toContainText(moveWarning)
