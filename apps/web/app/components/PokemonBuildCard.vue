@@ -68,9 +68,7 @@ const { style: spriteStyle } = useSpriteStyle()
         <dd>{{ build.names.ability }}</dd>
       </template>
       <template v-if="build.names.nature">
-        <dt class="text-muted-foreground">
-          Stat Alignment <span class="font-normal">(Nature)</span>
-        </dt>
+        <dt class="text-muted-foreground">Stat Alignment</dt>
         <dd>{{ build.names.nature }}</dd>
       </template>
     </dl>

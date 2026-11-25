@@ -124,9 +124,7 @@ function setStat(stat: StatId, value: string | number) {
         />
 
         <div class="flex flex-col gap-2">
-          <Label for="build-nature"
-            >Stat Alignment <span class="text-muted-foreground font-normal">(Nature)</span></Label
-          >
+          <Label for="build-nature">Stat Alignment</Label>
           <NativeSelect
             id="build-nature"
             v-model="build.nature"
