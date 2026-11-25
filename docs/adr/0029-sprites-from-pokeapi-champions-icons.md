@@ -3,6 +3,8 @@
 Date: 2026-11-23 (amended 2026-11-23 for the gap a missing Sprite leaves, DEV-178; amended 2026-11-23 for the measured size, DEV-182)
 Status: Accepted
 
+Item icons and Type icons come from the same pinned commit: see ADR 32.
+
 ## Context
 v0.3.0 shows a Sprite next to every species (map DEV-168). Until now `docs/risks.md` allowed no official art. The research in `docs/research/sprite-sources.md` (on the branch `research/sprite-sources`, DEV-169) compared the sources. All of them are art owned by The Pokémon Company, and none comes with a licence that clears it.
 - Showdown's small `gen5` set is keyed by the Showdown IDs MyVGC stores (ADR 14) and is about 0.6 MB. But 11 Champions Megas have no static Sprite in any Showdown set. Its Sprites for Pokémon after Gen 5 are community art whose authors ask to be contacted before anyone uses them.

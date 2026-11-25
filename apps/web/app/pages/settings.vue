@@ -84,7 +84,7 @@ onMounted(() => {
         MyVGC is not affiliated with them.
       </p>
       <p>
-        Sprites from
+        Sprites and icons from
         <a
           href="https://github.com/PokeAPI/sprites"
           target="_blank"

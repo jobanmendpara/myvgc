@@ -80,11 +80,14 @@ describe('serving the web app', () => {
     expect(res.headers.get('content-type')).toBe('image/webp')
   })
 
-  it('answers a missing Sprite with 404, not index.html, so the image fails to load', async () => {
-    const res = await app.request('/sprites/terapagosterastal.webp')
-    expect(res.status).toBe(404)
-    expect(res.headers.get('content-type')).not.toMatch(/text\/html/)
-  })
+  it.each(['/sprites/terapagosterastal.webp', '/item-icons/nope.webp', '/type-icons/stellar.webp'])(
+    'answers a missing image (%s) with 404, not index.html, so the image fails to load',
+    async (path) => {
+      const res = await app.request(path)
+      expect(res.status).toBe(404)
+      expect(res.headers.get('content-type')).not.toMatch(/text\/html/)
+    },
+  )
 
   it('never answers an API route with index.html', async () => {
     const res = await app.request('/api/nope')
