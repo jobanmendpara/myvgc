@@ -62,15 +62,17 @@ const { style: spriteStyle } = useSpriteStyle()
       />
     </header>
 
-    <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
-      <template v-if="build.names.ability">
-        <dt class="text-muted-foreground">Ability</dt>
-        <dd>{{ build.names.ability }}</dd>
-      </template>
-      <template v-if="build.names.nature">
-        <dt class="text-muted-foreground">Stat Alignment</dt>
-        <dd>{{ build.names.nature }}</dd>
-      </template>
+    <!-- Each value stays on one line: one that can't fit beside its label moves under it,
+         still at the right (DEV-223). -->
+    <dl class="flex flex-col gap-y-1 text-sm">
+      <div v-if="build.names.ability" class="flex flex-wrap justify-between gap-x-3">
+        <dt class="text-muted-foreground whitespace-nowrap">Ability</dt>
+        <dd class="ml-auto whitespace-nowrap">{{ build.names.ability }}</dd>
+      </div>
+      <div v-if="build.names.nature" class="flex flex-wrap justify-between gap-x-3">
+        <dt class="text-muted-foreground whitespace-nowrap">Stat Alignment</dt>
+        <dd class="ml-auto whitespace-nowrap">{{ build.names.nature }}</dd>
+      </div>
     </dl>
 
     <ul v-if="build.names.moves.length" class="grid grid-cols-2 gap-1.5 text-sm" aria-label="Moves">
