@@ -3,8 +3,8 @@ import { useQuery } from '@tanstack/vue-query'
 import { readStored, removeStored, writeStored } from '@/lib/storage'
 
 // Bump when the shape of the names list changes, so old copies on devices are ignored.
-const STORAGE_KEY = 'myvgc-names-v5'
-const OLD_STORAGE_KEYS = ['myvgc-names-v1', 'myvgc-names-v2', 'myvgc-names-v3', 'myvgc-names-v4']
+const STORAGE_KEY = 'myvgc-names-v6'
+const OLD_STORAGE_KEYS = ['myvgc-names-v1', 'myvgc-names-v2', 'myvgc-names-v3', 'myvgc-names-v4', 'myvgc-names-v5']
 const DAY = 24 * 60 * 60 * 1000
 
 interface StoredNames {
@@ -20,6 +20,7 @@ function readStoredNames(): StoredNames | undefined {
       typeof parsed?.savedAt === 'number' &&
       typeof parsed.names?.abilitiesBySpecies === 'object' &&
       typeof parsed.names?.baseStats === 'object' &&
+      typeof parsed.names?.moveStats === 'object' && // PROTOTYPE (DEV-218)
       NAME_KINDS.every((kind) => typeof parsed.names?.[kind] === 'object')
     return complete ? parsed : undefined
   } catch {
