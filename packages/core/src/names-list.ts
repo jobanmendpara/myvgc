@@ -4,6 +4,7 @@
 // from Showdown's data in `champions.ts` and served by the API.
 import type { PokemonBuild } from './build'
 import { STAT_ALIGNMENTS } from './stat-alignment'
+import type { MovePowerAccuracy, TypeId } from './pokemon-type'
 import type { BaseStats } from './stat-values'
 import type { NamedPokemonBuild } from './team'
 
@@ -20,13 +21,20 @@ export type NameKind = (typeof NAME_KINDS)[number]
 export type NamesTable = Record<string, string>
 
 /**
- * The names list, plus each species' or form's own abilities for the ability picker and its
- * base stats for stat values. Stat Alignments are not in it: there are only 25, hard-coded in
- * `stat-alignment.ts` instead.
+ * The names list, plus each species' or form's own abilities for the ability picker, its base
+ * stats for stat values and its types, and each move's type, power and accuracy, for Type icons
+ * and the Move layout. Stat Alignments and the 18 types' names are not in it: they are
+ * hard-coded in `stat-alignment.ts` and `pokemon-type.ts` instead.
  */
 export type ChampionsNames = Record<NameKind, NamesTable> & {
   abilitiesBySpecies: Record<string, string[]>
   baseStats: Record<string, BaseStats>
+  /** Each species' or form's one or two types: a Mega has the Mega's. */
+  typesBySpecies: Record<string, TypeId[]>
+  /** Each move's own type, never one an ability changes it to (Hyper Voice is Normal). */
+  moveTypes: Record<string, TypeId>
+  /** Each damaging move's power and accuracy. A status move isn't in it. */
+  powerAndAccuracy: Record<string, MovePowerAccuracy>
 }
 
 /** Folds text the way Showdown builds IDs: lower case, letters and digits only. */
