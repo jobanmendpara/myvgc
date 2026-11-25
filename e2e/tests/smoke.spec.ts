@@ -106,18 +106,30 @@ test('sign up, import a Team and see its six Pokémon', async ({ page }) => {
     kingambitMoves.filter({ hasText: 'Kowtow Cleave' }).getByRole('img', { name: 'Dark' }),
   ).toBeVisible()
 
-  // Each page's Sprite style is a Device setting picked from the header, Inline until then
-  // (DEV-180). It applies at once and stays on the device.
+  // Each page's Sprite style, Type icon style and Move layout are Device settings picked from
+  // Display options in the header, Inline, Compact and One column until then (DEV-180,
+  // DEV-226). Each applies at once and stays on the device.
   await expect(sprite).toHaveAttribute('width', '32')
-  const styleButton = page.getByRole('button', { name: 'Sprite style' })
-  await styleButton.click()
-  const styleDialog = page.getByRole('dialog', { name: 'Sprites on Teams' })
-  await styleDialog.getByText('Stacked tiles').click()
-  await expect(styleDialog).toBeHidden()
+  await expect(builds.nth(2).getByTestId('move-type-badge')).toHaveCount(0)
+  const optionsButton = page.getByRole('button', { name: 'Display options for Teams' })
+  await expect(optionsButton).toHaveAttribute('title', 'Display options for Teams')
+  await optionsButton.click()
+  const optionsDialog = page.getByRole('dialog', { name: 'Display options for Teams' })
+  await optionsDialog.getByText('Stacked tiles').click()
+  await optionsDialog.getByText('Badges').click()
+  await optionsDialog.getByText('Two columns').click()
   await expect(sprite).toHaveAttribute('width', '48')
-  await expect(styleButton).toHaveAttribute('title', 'Sprite style: Stacked tiles')
+  await optionsDialog.getByRole('button', { name: 'Close' }).click()
+  await expect(optionsDialog).toBeHidden()
+  const showsChoices = async () => {
+    await expect(sprite).toHaveAttribute('width', '48')
+    const kowtowCleave = kingambitMoves.filter({ hasText: 'Kowtow Cleave' })
+    await expect(kowtowCleave.getByTestId('move-type-badge')).toBeVisible()
+    await expect(kowtowCleave).not.toContainText('85/—')
+  }
+  await showsChoices()
   await page.reload()
-  await expect(sprite).toHaveAttribute('width', '48')
+  await showsChoices()
 
   // Teamsheet export needs the bundled team list and font in the image (ADR 18, ADR 25).
   await page.getByTestId('export-teamsheet').click()

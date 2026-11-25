@@ -5,7 +5,7 @@
 /** No Sprite is ever drawn larger than this, in CSS px (ADR 29). */
 export const MAX_SPRITE_SIZE = 48
 
-/** The ways a page can show Sprites, in the order the Sprite style dialog lists them. */
+/** The ways a page can show Sprites, in the order Display options lists them. */
 export const SPRITE_STYLES = ['inline', 'leading-slot', 'stacked-tiles'] as const
 export type SpriteStyle = (typeof SPRITE_STYLES)[number]
 

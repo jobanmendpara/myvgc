@@ -12,7 +12,7 @@ const props = defineProps<{
   /** The Showdown ID stored on the build, such as `charizardmegax`. */
   species: string
   surface: SpriteSurface
-  /** A Sprite style other than the page's, as in the Sprite style dialog's previews. */
+  /** A Sprite style other than the page's, as in the Display options previews. */
   spriteStyle?: SpriteStyle
 }>()
 
