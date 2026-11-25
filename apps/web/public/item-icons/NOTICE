@@ -1,0 +1,10 @@
+The images in this folder (the Item icons) are Pokémon game held-item icons. Pokémon and Pokémon
+images are © Nintendo, Creatures, GAME FREAK and The Pokémon Company. MyVGC is not affiliated with
+them.
+
+The images are not covered by MyVGC's licence, the GNU AGPL v3. No licence to them is granted here.
+
+They come from the item icons in PokeAPI's sprites repository (https://github.com/PokeAPI/sprites),
+resized to 48 × 48 and converted to WebP by `pnpm sprites:update`. The pinned commit is in
+packages/core/src/sprites.ts and the table of files (ITEM_ICON_FILES) in packages/core/src/icons.ts.
+See docs/adr/0032-item-icons-and-type-icons-from-pokeapi.md.
