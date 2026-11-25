@@ -51,8 +51,10 @@ const { style: spriteStyle } = useSpriteStyle()
             ></span
           >
         </h2>
-        <p v-if="build.names.item" class="text-muted-foreground text-sm">
-          @ {{ build.names.item }}
+        <p v-if="build.names.item" class="text-muted-foreground flex items-center gap-1 text-sm">
+          <span>@</span>
+          <ItemIcon v-if="build.item" :item="build.item" />
+          <span class="min-w-0">{{ build.names.item }}</span>
         </p>
       </div>
       <Sprite
