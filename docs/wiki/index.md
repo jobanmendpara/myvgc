@@ -15,11 +15,11 @@ The chief-of-staff's record of decisions, recurring problems and preferences. It
 
 ## Preferences
 
-- [Shipping flow](shipping-flow.md): how the user wants agent work committed, reviewed and merged, and from 2026-11-15 branch protection with auto-merge on `main`, and from 2026-11-17 GitHub deleting merged branches; releases, from v0.2.0 on 2026-11-19; from 2026-11-23, a conflicting PR left pending silently under auto-merge (DEV-181, still Backlog on 2026-11-24), and starting a blocked issue's agent early; from 2026-11-24, "Closes DEV-N" in briefs for the finished issue after "Related to" left five issues open, and rerunning on GitHub GraphQL errors; from 2026-11-25, no screenshots in PRs.
+- [Shipping flow](shipping-flow.md): how the user wants agent work committed, reviewed and merged, and from 2026-11-15 branch protection with auto-merge on `main`, and from 2026-11-17 GitHub deleting merged branches; releases, from v0.2.0 on 2026-11-19; from 2026-11-23, a conflicting PR left pending silently under auto-merge (DEV-181, still Backlog on 2026-11-24), and starting a blocked issue's agent early; from 2026-11-24, "Closes DEV-N" in briefs for the finished issue after "Related to" left five issues open, and rerunning on GitHub GraphQL errors; from 2026-11-25, no screenshots in PRs, and DEV-223's PR caught going `DIRTY` by checking `mergeStateStatus` (a workaround for DEV-181).
 
 ## Subsystems
 
-- [Preview](preview.md): from 2026-11-23 (DEV-184), `pnpm preview` runs the app from any checkout on free ports with an in-memory database, and `pnpm screenshots` takes shots at 375 and 1280 px; known gaps DEV-186 and DEV-187, both closed on 2026-11-24; from 2026-11-24 a seed through the app's routes (DEV-197), `--click`, `--sprite-style` and slices (DEV-198), `--dark` and `--2x` (DEV-199), and tips for cropping and measuring; from 2026-11-25, screenshots go to the Linear issue, not the PR, and `--click` stopping when two elements match (DEV-227).
+- [Preview](preview.md): from 2026-11-23 (DEV-184), `pnpm preview` runs the app from any checkout on free ports with an in-memory database, and `pnpm screenshots` takes shots at 375 and 1280 px; known gaps DEV-186 and DEV-187, both closed on 2026-11-24; from 2026-11-24 a seed through the app's routes (DEV-197), `--click`, `--sprite-style` and slices (DEV-198), `--dark` and `--2x` (DEV-199), and tips for cropping and measuring; from 2026-11-25, screenshots go to the Linear issue, not the PR, `--click` stopping when two elements match (DEV-227), and `--sprite-style` applying to one path only (DEV-228).
 
 ## Recurring problems
 

@@ -53,5 +53,6 @@ From the implementers' reports, 2026-11-24:
 
 - As of `jobanmendpara/myvgc@a49030d` (2026-11-24), the seeded Tournament starts today, whatever day the seed runs.
 - On 2026-11-25 the DEV-213 agent found that `pnpm screenshots /teams/<id>/edit --click Dragonite` stops on the desktop shot, because two elements match there (the list pane and the Team's Pokémon list). The phone shot, taken first, is saved. Filed as [DEV-227](https://linear.app/mendpara/issue/DEV-227) the same day.
+- On 2026-11-25 the DEV-223 agent found that `pnpm screenshots` with several paths applies `--sprite-style` only to the path it directly follows; shots of the other paths are taken without it and have no style in their file names. Filed as [DEV-228](https://linear.app/mendpara/issue/DEV-228) the same day.
 
 Related: [up:local shares the dev DB](up-local-shares-dev-db.md), [sprites rollout](sprites-rollout.md), [parallel agents](parallel-agents.md).
