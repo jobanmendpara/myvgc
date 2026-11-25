@@ -3,8 +3,8 @@ import { useQuery } from '@tanstack/vue-query'
 import { readStored, removeStored, writeStored } from '@/lib/storage'
 
 // Bump when the shape of the names list changes, so old copies on devices are ignored.
-const STORAGE_KEY = 'myvgc-names-v3'
-const OLD_STORAGE_KEYS = ['myvgc-names-v1', 'myvgc-names-v2']
+const STORAGE_KEY = 'myvgc-names-v4'
+const OLD_STORAGE_KEYS = ['myvgc-names-v1', 'myvgc-names-v2', 'myvgc-names-v3']
 const DAY = 24 * 60 * 60 * 1000
 
 interface StoredNames {
@@ -20,6 +20,9 @@ function readStoredNames(): StoredNames | undefined {
       typeof parsed?.savedAt === 'number' &&
       typeof parsed.names?.abilitiesBySpecies === 'object' &&
       typeof parsed.names?.baseStats === 'object' &&
+      typeof parsed.names?.typesBySpecies === 'object' &&
+      typeof parsed.names?.moveTypes === 'object' &&
+      typeof parsed.names?.powerAndAccuracy === 'object' &&
       NAME_KINDS.every((kind) => typeof parsed.names?.[kind] === 'object')
     return complete ? parsed : undefined
   } catch {
@@ -44,9 +47,9 @@ export function forgetChampionsNames() {
 
 /**
  * The names list for pickers: display names for every Champions species, move, item and
- * ability, keyed by Showdown ID, and each species' abilities and base stats (ADR 17). The last
- * copy is kept on the device, so pickers work with no signal; when online it is refreshed once a
- * day. Store the IDs, show the names (ADR 14).
+ * ability, keyed by Showdown ID, each species' abilities, base stats and types, and each move's
+ * type, power and accuracy (ADR 17). The last copy is kept on the device, so pickers work with no
+ * signal; when online it is refreshed once a day. Store the IDs, show the names (ADR 14).
  * Like the rest of the device's data it is cleared on logout; it is the same for every User,
  * so it needs no User in its key.
  */

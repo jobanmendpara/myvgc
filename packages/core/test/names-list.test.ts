@@ -2,13 +2,18 @@ import { gzipSync } from 'node:zlib'
 import { describe, expect, it } from 'vitest'
 import {
   NAME_KINDS,
+  TYPES,
   champions,
   championsNames,
   nameBuild,
   nameBuildFrom,
   searchAbilities,
   searchNames,
+  typeName,
 } from '../src'
+
+// About 30 KB gzipped with types, power and accuracy (DEV-222); it was about 23 KB without.
+const LIMIT = 32_000
 
 describe('championsNames', () => {
   const names = championsNames()
@@ -28,8 +33,8 @@ describe('championsNames', () => {
     expect(Object.keys(names.abilities)).toHaveLength(317)
   })
 
-  it('stays small enough to keep on a phone, about 23 KB gzipped', () => {
-    expect(gzipSync(JSON.stringify(names)).length).toBeLessThan(25_000)
+  it('stays small enough to keep on a phone, about 30 KB gzipped', () => {
+    expect(gzipSync(JSON.stringify(names)).length).toBeLessThan(LIMIT)
   })
 
   it('holds only names the Champions look-ups recognise, under their own IDs', () => {
@@ -52,8 +57,11 @@ describe('championsNames', () => {
       'abilitiesBySpecies',
       'baseStats',
       'items',
+      'moveTypes',
       'moves',
+      'powerAndAccuracy',
       'species',
+      'typesBySpecies',
     ])
   })
 
@@ -69,6 +77,52 @@ describe('championsNames', () => {
       expect(abilities.length).toBeGreaterThan(0)
       for (const id of abilities) expect(names.abilities[id]).toBeDefined()
     }
+  })
+})
+
+describe('types, power and accuracy in the names list', () => {
+  const names = championsNames()
+
+  it("gives a species its types, and a Mega form the Mega's own", () => {
+    expect(names.typesBySpecies.garchomp).toEqual(['dragon', 'ground'])
+    expect(names.typesBySpecies.charizard).toEqual(['fire', 'flying'])
+    expect(names.typesBySpecies.charizardmegax).toEqual(['fire', 'dragon'])
+    expect(names.typesBySpecies.incineroar).toEqual(['fire', 'dark'])
+  })
+
+  it('gives every species and form one or two of the 18 types', () => {
+    expect(Object.keys(names.typesBySpecies).sort()).toEqual(Object.keys(names.species).sort())
+    for (const types of Object.values(names.typesBySpecies)) {
+      expect(types.length === 1 || types.length === 2).toBe(true)
+      for (const id of types) expect(typeName(id)).toBeDefined()
+    }
+  })
+
+  it('gives each move its own type, not one an ability changes it to', () => {
+    expect(names.moveTypes.hypervoice).toBe('normal')
+    expect(names.moveTypes.moonblast).toBe('fairy')
+    expect(names.moveTypes.protect).toBe('normal')
+    expect(Object.keys(names.moveTypes).sort()).toEqual(Object.keys(names.moves).sort())
+  })
+
+  it('gives a damaging move its power and accuracy, and a status move neither', () => {
+    expect(names.powerAndAccuracy.moonblast).toEqual({ power: 95, accuracy: 100 })
+    expect(names.powerAndAccuracy.protect).toBeUndefined()
+    expect(names.powerAndAccuracy.willowisp).toBeUndefined()
+  })
+
+  it('leaves out power that varies and accuracy for a move that never misses', () => {
+    expect(names.powerAndAccuracy.lowkick).toEqual({ power: null, accuracy: 100 })
+    expect(names.powerAndAccuracy.kowtowcleave).toEqual({ power: 85, accuracy: null })
+  })
+})
+
+describe('TYPES', () => {
+  it('holds the 18 types, without Stellar, under lower-case Showdown IDs', () => {
+    expect(TYPES).toHaveLength(18)
+    expect(typeName('fire')).toBe('Fire')
+    expect(typeName('stellar')).toBeUndefined()
+    for (const { id, name } of TYPES) expect(id).toBe(name.toLowerCase())
   })
 })
 

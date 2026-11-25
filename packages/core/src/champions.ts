@@ -6,6 +6,7 @@ import * as championsMod from '@pkmn/mods/champions'
 import * as championsRegMbMod from '@pkmn/mods/championsregmb'
 import type { ChampionsMod } from './calendar'
 import type { ChampionsNames, Named, NamesTable } from './names-list'
+import { type MovePowerAccuracy, type TypeId, typeName } from './pokemon-type'
 import type { BaseStats } from './stat-values'
 
 // Showdown's Champions data, pinned through exact versions of @pkmn/dex and @pkmn/mods (ADR 12).
@@ -122,10 +123,55 @@ function baseStatsBySpecies(): Record<string, BaseStats> {
   return baseStats
 }
 
+/** A Showdown type name (`Fire`) as one of the 18 type IDs; it throws on any other. */
+function typeId(name: string): TypeId {
+  const id = name.toLowerCase()
+  if (!typeName(id)) throw new Error(`"${name}" is not one of the 18 types.`)
+  return id as TypeId
+}
+
+function typesBySpecies(): Record<string, TypeId[]> {
+  const types: Record<string, TypeId[]> = {}
+  for (const species of allDexes.flatMap((modDex) => modDex.species.all())) {
+    if (inChampions(species)) types[species.id] ??= species.types.map(typeId)
+  }
+  return types
+}
+
+/** Every move in any Regulation, each once, as the latest mod that has it gives it. */
+function inChampionsMoves() {
+  const moves = new Map<string, ReturnType<typeof dex.moves.get>>()
+  for (const move of allDexes.flatMap((modDex) => modDex.moves.all())) {
+    if (inChampions(move) && !moves.has(move.id)) moves.set(move.id, move)
+  }
+  return [...moves.values()]
+}
+
+function moveTypes(): Record<string, TypeId> {
+  return Object.fromEntries(inChampionsMoves().map((move) => [move.id, typeId(move.type)]))
+}
+
+// Showdown gives a move whose power varies, or that deals fixed damage, a base power of 0, and a
+// move that never misses an accuracy of `true`.
+function powerAndAccuracy(): Record<string, MovePowerAccuracy> {
+  return Object.fromEntries(
+    inChampionsMoves()
+      .filter((move) => move.category !== 'Status')
+      .map((move) => [
+        move.id,
+        {
+          power: move.basePower > 0 ? move.basePower : null,
+          accuracy: move.accuracy === true ? null : move.accuracy,
+        },
+      ]),
+  )
+}
+
 /**
  * The names list for pickers: every species and form, move, item and ability in any Regulation,
- * keyed by Showdown ID, and each species' or form's own abilities and base stats. About 80 KB of
- * JSON, 23 KB gzipped, against about 900 KB for the full data. Built once, on first use.
+ * keyed by Showdown ID, each species' or form's own abilities, base stats and types, and each
+ * move's type, power and accuracy. About 31 KB gzipped, against about 900 KB for the full data.
+ * Built once, on first use.
  */
 export function championsNames(): ChampionsNames {
   names ??= {
@@ -135,6 +181,9 @@ export function championsNames(): ChampionsNames {
     abilities: table((modDex) => modDex.abilities.all()),
     abilitiesBySpecies: abilitiesBySpecies(),
     baseStats: baseStatsBySpecies(),
+    typesBySpecies: typesBySpecies(),
+    moveTypes: moveTypes(),
+    powerAndAccuracy: powerAndAccuracy(),
   }
   return names
 }
