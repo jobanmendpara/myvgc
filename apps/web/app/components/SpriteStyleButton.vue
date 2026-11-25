@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ImageIcon } from '@lucide/vue'
+import { SlidersHorizontalIcon } from '@lucide/vue'
 import { DialogContent, DialogOverlay, DialogPortal, DialogRoot, DialogTitle } from 'reka-ui'
 import { SPRITE_PAGES, SPRITE_STYLE_LABELS, SPRITE_STYLES, type SpriteStyle } from '@/lib/sprites'
 
@@ -27,12 +27,12 @@ function tap(value: SpriteStyle, event: MouseEvent) {
     <Button
       variant="ghost"
       size="icon"
-      aria-label="Sprite style"
-      :title="`Sprite style: ${SPRITE_STYLE_LABELS[style]}`"
+      :aria-label="`Display options for ${SPRITE_PAGES[page]}`"
+      :title="`Display options for ${SPRITE_PAGES[page]}`"
       data-testid="sprite-style-button"
       @click="open = true"
     >
-      <ImageIcon aria-hidden="true" />
+      <SlidersHorizontalIcon aria-hidden="true" />
     </Button>
     <DialogRoot v-model:open="open">
       <DialogPortal>
@@ -43,9 +43,12 @@ function tap(value: SpriteStyle, event: MouseEvent) {
           data-testid="sprite-style-dialog"
         >
           <div class="flex items-center justify-between gap-3">
-            <DialogTitle class="text-lg font-semibold"
-              >{{ page === 'statistics' ? 'Sprites' : 'Display' }} on {{ SPRITE_PAGES[page] }}</DialogTitle
-            >
+            <!-- PROTOTYPE (DEV-218): the icon stands for the title; the words are for screen
+                 readers only. -->
+            <DialogTitle class="flex items-center gap-2">
+              <SlidersHorizontalIcon class="size-5" aria-hidden="true" />
+              <span class="sr-only">Display options for {{ SPRITE_PAGES[page] }}</span>
+            </DialogTitle>
             <Button type="button" variant="ghost" size="sm" @click="open = false">Close</Button>
           </div>
           <fieldset class="flex flex-col gap-2">
