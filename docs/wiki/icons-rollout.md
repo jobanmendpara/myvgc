@@ -26,6 +26,7 @@ The third slot in wave 1 went to DEV-227 and DEV-228, two `pnpm screenshots` bug
 - On 2026-11-25 DEV-226 merged in PR #388 (`jobanmendpara/myvgc@fae9b31`) on its first CI run, after a clean rebase over DEV-225's smoke test change. As of that commit the header's Sprite style button is `DisplayOptionsButton.vue`, and the Type icon style and Move layout are stored per page under two new keys, `myvgc-type-icon-styles` and `myvgc-move-layouts`. The agent chose not to use one stored object per page, which the issue had suggested, so that stored Sprite styles didn't need migrating. `pnpm screenshots` gained `--type-icon-style` and `--move-layout` as `PAGE_SETTINGS` entries (subagent report).
 - Unlike the prototype, a tap in the Display options dialog no longer closes it, so all three choices can be made in one visit. As of 2026-11-25 the maintainer has not confirmed this.
 - Follow-ups filed on 2026-11-25: [DEV-233](https://linear.app/mendpara/issue/DEV-233) (Labelled with Stacked tiles wraps long item names at desktop width, as the prototype did) and [DEV-234](https://linear.app/mendpara/issue/DEV-234) (a dialog shot shows only the part in view). The longer shot names, now carrying three settings, were not filed.
+- On 2026-11-25 DEV-233 merged in PR #404 (`jobanmendpara/myvgc@824b7ab`); see the [2026-11-25 Follow-ups round](followups-round-2026-11-25.md). As of that commit the Labelled pills sit in a row under the item in every Sprite style. This supersedes, for Labelled, DEV-226's "pills stacked at the top right" from the DEV-218 decision.
 
 ## Outcome
 
