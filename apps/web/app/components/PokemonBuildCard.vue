@@ -7,6 +7,7 @@ import {
   STAT_LABELS,
   wholeBuildProblems,
 } from '@myvgc/core/schema'
+import { MOVE_TYPE_ICON_SIZE, powerAccuracyLabel, powerAccuracyText } from '@/lib/icons'
 
 const props = defineProps<{ build: NamedPokemonBuild; problems?: LegalityProblem[] }>()
 
@@ -27,39 +28,73 @@ const spreadKnown = computed(
 )
 const values = useStatValues(() => props.build)
 const { style: spriteStyle } = useSpriteStyle()
+const { moveLayout } = useBuildCardDisplay()
+
+// Types and power/accuracy come from the names list (DEV-222); until it has loaded, the build
+// shows no Type icons and each move a gap where its Type icon goes.
+const names = useChampionsNames()
+const types = computed(() => names.data.value?.typesBySpecies[props.build.species] ?? [])
+const moveRows = computed(() =>
+  props.build.names.moves.map((name, index) => {
+    const id = props.build.moves[index] ?? ''
+    const powerAccuracy = names.data.value?.powerAndAccuracy[id]
+    return {
+      name,
+      type: names.data.value?.moveTypes[id],
+      powerAccuracy: powerAccuracy && {
+        text: powerAccuracyText(powerAccuracy),
+        label: powerAccuracyLabel(powerAccuracy),
+      },
+    }
+  }),
+)
 </script>
 
 <template>
   <article class="flex flex-col gap-3 rounded-lg border p-4" data-testid="pokemon-build">
     <!-- Inline: the Sprite before the title. Leading slot: a slot left of the title and item.
-         Stacked tiles: in the top-right corner. -->
+         Stacked tiles: in the top-right corner. The Type icons sit at the top right, under the
+         Sprite with Stacked tiles (DEV-218). -->
     <header
-      class="flex gap-3"
-      :class="{
-        'items-center': spriteStyle === 'leading-slot',
-        'items-start justify-between': spriteStyle === 'stacked-tiles',
-      }"
+      class="flex justify-between gap-3"
+      :class="spriteStyle === 'leading-slot' ? 'items-center' : 'items-start'"
     >
-      <Sprite v-if="spriteStyle === 'leading-slot'" :species="build.species" surface="build-card" />
-      <div class="flex min-w-0 flex-col gap-0.5">
-        <h2 class="flex items-center gap-1.5 font-semibold">
-          <Sprite v-if="spriteStyle === 'inline'" :species="build.species" surface="build-card" />
-          <span class="min-w-0 break-words"
-            >{{ title }}
-            <span v-if="build.gender" class="text-muted-foreground font-normal"
-              >({{ build.gender }})</span
-            ></span
-          >
-        </h2>
-        <p v-if="build.names.item" class="text-muted-foreground text-sm">
-          @ {{ build.names.item }}
-        </p>
+      <div class="flex min-w-0 items-center gap-3">
+        <Sprite
+          v-if="spriteStyle === 'leading-slot'"
+          :species="build.species"
+          surface="build-card"
+        />
+        <div class="flex min-w-0 flex-col gap-0.5">
+          <h2 class="flex items-center gap-1.5 font-semibold">
+            <Sprite v-if="spriteStyle === 'inline'" :species="build.species" surface="build-card" />
+            <span class="min-w-0 break-words"
+              >{{ title }}
+              <span v-if="build.gender" class="text-muted-foreground font-normal"
+                >({{ build.gender }})</span
+              ></span
+            >
+          </h2>
+          <p v-if="build.names.item" class="text-muted-foreground flex items-center gap-1 text-sm">
+            <span>@</span>
+            <ItemIcon v-if="build.item" :item="build.item" />
+            <span class="min-w-0">{{ build.names.item }}</span>
+          </p>
+        </div>
       </div>
-      <Sprite
-        v-if="spriteStyle === 'stacked-tiles'"
-        :species="build.species"
-        surface="build-card"
-      />
+      <div
+        v-if="spriteStyle === 'stacked-tiles' || types.length"
+        class="flex shrink-0 flex-col items-end gap-1"
+      >
+        <Sprite
+          v-if="spriteStyle === 'stacked-tiles'"
+          :species="build.species"
+          surface="build-card"
+        />
+        <div v-if="types.length" class="flex gap-1" data-testid="build-types">
+          <TypeIcon v-for="type in types" :key="type" :type="type" />
+        </div>
+      </div>
     </header>
 
     <!-- Each value stays on one line: one that can't fit beside its label moves under it,
@@ -75,13 +110,31 @@ const { style: spriteStyle } = useSpriteStyle()
       </div>
     </dl>
 
-    <ul v-if="build.names.moves.length" class="grid grid-cols-2 gap-1.5 text-sm" aria-label="Moves">
+    <!-- One column: a Type icon before each move's name, which stays on one line, and its
+         power/accuracy at the right. -->
+    <ul
+      v-if="moveRows.length"
+      class="grid gap-1.5 text-sm"
+      :class="moveLayout === 'one-column' ? 'grid-cols-1' : 'grid-cols-2'"
+      aria-label="Moves"
+    >
       <li
-        v-for="(move, index) in build.names.moves"
+        v-for="(move, index) in moveRows"
         :key="index"
         class="bg-muted flex flex-col gap-1 rounded px-2 py-1"
       >
-        {{ move }}
+        <span class="flex items-center gap-1.5">
+          <TypeIcon :type="move.type" :size="MOVE_TYPE_ICON_SIZE" />
+          <span class="min-w-0 flex-1 truncate whitespace-nowrap" :title="move.name">{{
+            move.name
+          }}</span>
+          <span
+            v-if="moveLayout === 'one-column' && move.powerAccuracy"
+            class="text-muted-foreground shrink-0 text-xs tabular-nums"
+            :aria-label="move.powerAccuracy.label"
+            >{{ move.powerAccuracy.text }}</span
+          >
+        </span>
         <LegalityWarnings v-if="moveWarnings[index]?.length" :problems="moveWarnings[index]!" />
       </li>
     </ul>

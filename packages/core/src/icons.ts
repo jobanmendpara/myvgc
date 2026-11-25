@@ -1,3 +1,5 @@
+import type { TypeId } from './pokemon-type'
+
 /**
  * Where Item icons and Type icons come from (ADR 32): these folders of PokeAPI's `sprites`
  * repository, at the commit `POKEAPI_SPRITES` pins for Sprites (ADR 29), so
@@ -195,7 +197,7 @@ export const ITEM_ICON_FILES: Readonly<Record<string, string>> = { ...GENERATED,
  * Each of the 18 types, by Showdown ID, to its number in PokeAPI (`10.png` is Fire). Stellar has
  * none: it exists only for Terastallization, which Champions doesn't have.
  */
-export const TYPE_ICON_NUMBERS: Readonly<Record<string, number>> = {
+export const TYPE_ICON_NUMBERS: Readonly<Record<TypeId, number>> = {
   normal: 1,
   fighting: 2,
   flying: 3,
