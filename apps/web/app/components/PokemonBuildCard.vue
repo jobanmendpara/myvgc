@@ -68,10 +68,11 @@ const moveRows = computed(() =>
 <template>
   <article class="flex flex-col gap-3 rounded-lg border p-4" data-testid="pokemon-build">
     <!-- Inline: the Sprite before the title. Leading slot: a slot left of the title and item.
-         Stacked tiles: in the top-right corner. The Type icons sit at the top right in the
-         page's Type icon style (DEV-218, DEV-226): Compact, a row under a Stacked tile's Sprite;
-         Badges, a column, or over a Stacked tile's bottom-right corner; Labelled, pills, left of
-         a Stacked tile's Sprite. -->
+         Stacked tiles: in the top-right corner. The Type icons show in the page's Type icon
+         style (DEV-218, DEV-226): Compact, a row at the top right, under a Stacked tile's
+         Sprite; Badges, a column at the top right, or over a Stacked tile's bottom-right corner;
+         Labelled, pills in a row under the item, so they leave the title and item the card's
+         width (DEV-233). -->
     <header
       class="flex justify-between gap-3"
       :class="spriteStyle === 'leading-slot' ? 'items-center' : 'items-start'"
@@ -103,6 +104,19 @@ const moveRows = computed(() =>
             />
             <span class="min-w-0">{{ build.names.item }}</span>
           </p>
+          <div
+            v-if="typeIconStyle === 'labelled' && types.length"
+            class="mt-1 flex flex-wrap gap-1"
+            data-testid="build-types"
+          >
+            <TypeIcon
+              v-for="type in types"
+              :key="type"
+              :type="type"
+              :size="LABELLED_TYPE_ICON_SIZE"
+              labelled
+            />
+          </div>
         </div>
       </div>
       <div v-if="badges && stacked" class="relative shrink-0">
@@ -128,26 +142,15 @@ const moveRows = computed(() =>
         <TypeIcon v-for="type in types" :key="type" :type="type" :size="BADGE_TYPE_ICON_SIZE" />
       </div>
       <div
-        v-else-if="typeIconStyle === 'labelled' && (stacked || types.length)"
-        class="flex shrink-0 items-start gap-2"
-      >
-        <div v-if="types.length" class="flex flex-col items-end gap-1" data-testid="build-types">
-          <TypeIcon
-            v-for="type in types"
-            :key="type"
-            :type="type"
-            :size="LABELLED_TYPE_ICON_SIZE"
-            labelled
-          />
-        </div>
-        <Sprite v-if="stacked" :species="build.species" surface="build-card" />
-      </div>
-      <div
-        v-else-if="typeIconStyle === 'compact' && (stacked || types.length)"
+        v-else-if="stacked || (typeIconStyle === 'compact' && types.length)"
         class="flex shrink-0 flex-col items-end gap-1"
       >
         <Sprite v-if="stacked" :species="build.species" surface="build-card" />
-        <div v-if="types.length" class="flex gap-1" data-testid="build-types">
+        <div
+          v-if="typeIconStyle === 'compact' && types.length"
+          class="flex gap-1"
+          data-testid="build-types"
+        >
           <TypeIcon v-for="type in types" :key="type" :type="type" />
         </div>
       </div>
