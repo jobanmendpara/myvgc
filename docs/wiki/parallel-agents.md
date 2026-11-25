@@ -152,4 +152,8 @@ See [sprites rollout](sprites-rollout.md), "Looking at the Sprites and fixing wh
 - The worktree guard refused `cd … && <heredoc>` chains, as with heredocs on 2026-11-19 and 2026-11-23 above.
 - The 5-hour usage limit paused every running agent twice on 2026-11-23, in the afternoon and the evening. The maintainer then chose to run two or three agents at a time (see [sprites rollout](sprites-rollout.md)).
 
+## Environment on 2026-11-25 (DEV-213, DEV-223)
+
+- On 2026-11-25 parallel agents again shared one scratchpad directory: the DEV-223 agent overwrote the DEV-213 agent's `pr-body.md`, as the DEV-99 agent did to DEV-96's on 2026-11-11 above. From 2026-11-25 the chief-of-staff's briefs tell agents to give scratch files unique names.
+
 Related: [shipping flow](shipping-flow.md), [list and detail rollout](list-detail-rollout.md), [team reading rollout](team-reading-rollout.md).

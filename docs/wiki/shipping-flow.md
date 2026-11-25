@@ -83,6 +83,16 @@ From the implementers' reports and the chief-of-staff, 2026-11-24. See [sprites 
 - Now and then `gh pr merge --auto` and `scripts/wait-for-checks.sh` (exit 3) failed with a GitHub GraphQL error (2026-11-24). Running the command again fixed it.
 - As of 2026-11-24 [DEV-181](https://linear.app/mendpara/issue/DEV-181) (report a `DIRTY` PR, see "Sprites round" above) is still in Backlog.
 
+## DEV-213 and DEV-223 (2026-11-25)
+
+From the DEV-223 agent's report, 2026-11-25.
+
+- DEV-223's PR #375 went `DIRTY` after DEV-213's PR #374 merged first (`jobanmendpara/myvgc@fd524c0`); the only conflict was in a shared `<dt>`. Its brief told it to check `mergeStateStatus` while waiting, so the agent saw it, rebased and force-pushed with `--force-with-lease`, and #375 merged as `jobanmendpara/myvgc@42c7e3e`. That brief line is a workaround for [DEV-181](https://linear.app/mendpara/issue/DEV-181) (see "Sprites round" above), still in Backlog on 2026-11-25.
+
+## Screenshots stay out of PRs (2026-11-25)
+
+- On 2026-11-25 the maintainer decided that PR bodies carry no screenshots and no GitHub branch hosts PR images: the agent looks at its own `pnpm screenshots` shots, writes what it checked in the PR's Evidence section, and attaches shots to the Linear issue when the maintainer may want them. One reason is the auto-merge above: no one reviews the PR. See [preview](preview.md), "Screenshots in PRs (2026-11-25)".
+
 ## Releases
 
 - On 2026-11-19 v0.2.0 was released from `jobanmendpara/myvgc@8e8a992` (tag `v0.2.0`, published 16:25 UTC, [release notes](https://github.com/jobanmendpara/myvgc/releases/tag/v0.2.0)). The "Release" workflow on the tag passed, so the smoke test ran on code that has both DEV-148 and DEV-149. This closes, for that combination, the 2026-11-18 gap noted above. The notes carried DEV-151's `S3_REGION` note (see the [2026-11-17 Refactor round](refactor-round-2026-11-17.md)). The only earlier release was v0.1.0, a pre-release, on 2026-11-03.
