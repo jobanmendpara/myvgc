@@ -154,7 +154,7 @@ const CHOICE =
                       :size="BADGE_TYPE_ICON_SIZE"
                     />
                   </span>
-                  <span v-else class="flex flex-col items-end gap-1">
+                  <span v-else class="flex min-w-0 flex-wrap justify-end gap-1">
                     <TypeIcon
                       v-for="type in SAMPLE_TYPES"
                       :key="type"
