@@ -24,7 +24,12 @@ const props = defineProps<{
 const choice = defineModel<string | null>({ required: true })
 
 const SUGGESTIONS = 8
+// Pickers show a 20 px Item icon or Type icon before each name, whatever the page's Type icon
+// style (DEV-218).
+const PICKER_ICON_SIZE = 20
 const names = useChampionsNames()
+// A move's type comes from the names list (DEV-222); none until it is known.
+const moveType = (move: string) => names.data.value?.moveTypes[move]
 const table = computed(() => names.data.value?.[props.kind])
 // Never loaded on this device, and the request failed or is waiting for a connection.
 const unavailable = computed(
@@ -82,6 +87,12 @@ function onKeydown(event: KeyboardEvent) {
     >
       <span class="flex min-w-0 items-center gap-2">
         <Sprite v-if="props.kind === 'species'" :species="choice" surface="species-picker-choice" />
+        <ItemIcon v-else-if="props.kind === 'items'" :item="choice" :size="PICKER_ICON_SIZE" />
+        <TypeIcon
+          v-else-if="props.kind === 'moves'"
+          :type="moveType(choice)"
+          :size="PICKER_ICON_SIZE"
+        />
         <span class="min-w-0 break-words">{{ chosenName }}</span>
       </span>
       <Button type="button" variant="ghost" size="sm" @click="choice = null">Change</Button>
@@ -130,7 +141,13 @@ function onKeydown(event: KeyboardEvent) {
             :species="option.id"
             surface="species-picker-option"
           />
-          {{ option.name }}
+          <ItemIcon v-else-if="props.kind === 'items'" :item="option.id" :size="PICKER_ICON_SIZE" />
+          <TypeIcon
+            v-else-if="props.kind === 'moves'"
+            :type="moveType(option.id)"
+            :size="PICKER_ICON_SIZE"
+          />
+          <span class="min-w-0 flex-1">{{ option.name }}</span>
         </li>
       </ul>
     </div>
