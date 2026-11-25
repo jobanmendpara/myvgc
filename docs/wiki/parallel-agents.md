@@ -6,6 +6,12 @@ How we run several implementation agents at once. First used on 2026-11-11 for D
 - Shared files are likely to conflict. For the list and detail work these are `ListDetail.vue`, `layouts/default.vue` and `e2e/tests/smoke.spec.ts`. Agents keep shared changes small and backward-compatible. Whichever PR merges second rebases onto main and resolves the conflicts. (Superseded 2026-11-15: a PR now rebases only when `main` has changed its files, see the 2026-11-15 section below.)
 - `pnpm dev` and `pnpm up:local` both bind ports 3000 and 3001, and both use the same dev Postgres (see [up:local shares the dev DB](up-local-shares-dev-db.md)). Parallel agents keep off the default ports and rely on CI for the smoke test.
 
+## Shell habits in a worktree (standing rule from 2026-11-25)
+
+The chief-of-staff's retro on the DEV-225 agent (subagent report, 2026-11-25) counted the round's refusals. The worktree guard refused 8 commands across 4 of the 5 agents, while 15 of the round's 19 heredocs passed. Which heredocs it refuses can't be predicted, so the dated "heredocs are refused" lines below are only partly right. The retro found that the guard is Claude Code's built-in check for `isolation: "worktree"` agents, not a hook in this repo. Each refusal cost about 3 calls; nobody was blocked. From 2026-11-25 every implementer brief carries this rule, and new rounds don't add a dated line for each refusal:
+
+> In a worktree: change files with Edit and Write, not heredocs or `python3 -` rewrites. Run each `git` command on its own, never in `&&` chains or loops. Poll with `gh` (loops of `gh` pass). Use paths inside your worktree, never the shared checkout's.
+
 ## Outcomes
 
 - On 2026-11-11 the DEV-85 agent merged PR #115 second. It rebased onto #114 without conflicts, re-ran CI and merged. Running the two in parallel worked.
