@@ -14,8 +14,13 @@ const props = withDefaults(
     type?: TypeId
     /** In CSS px. */
     size?: number
+    /**
+     * A pill with the icon and the type's name, as the Labelled Type icon style shows a build's
+     * types (DEV-226). The name is the text, so the icon in it is decoration.
+     */
+    labelled?: boolean
   }>(),
-  { type: undefined, size: TYPE_ICON_SIZE },
+  { type: undefined, size: TYPE_ICON_SIZE, labelled: false },
 )
 
 const name = computed(() => (props.type ? typeName(props.type) : undefined))
@@ -29,8 +34,28 @@ watch(
 </script>
 
 <template>
+  <span
+    v-if="props.type && props.labelled"
+    class="bg-muted inline-flex shrink-0 items-center gap-1 rounded-full py-0.5 pr-2 pl-0.5 text-xs font-medium whitespace-nowrap"
+    data-testid="type-pill"
+  >
+    <img
+      v-if="!failed"
+      :src="typeIconUrl(props.type)"
+      alt=""
+      :width="props.size"
+      :height="props.size"
+      loading="lazy"
+      decoding="async"
+      class="shrink-0 rounded-full object-contain"
+      :style="box"
+      @error="failed = true"
+    />
+    <span v-else aria-hidden="true" class="inline-block shrink-0" :style="box" />
+    {{ name }}
+  </span>
   <img
-    v-if="props.type && !failed"
+    v-else-if="props.type && !failed"
     :src="typeIconUrl(props.type)"
     :alt="name"
     :title="name"

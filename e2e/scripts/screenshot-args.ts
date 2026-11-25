@@ -8,13 +8,22 @@ import {
   SPRITE_STYLES_KEY,
   spritePageOf,
 } from '../../apps/web/app/lib/sprites.ts'
+import {
+  buildCardPageOf,
+  DEFAULT_MOVE_LAYOUT,
+  DEFAULT_TYPE_ICON_STYLE,
+  MOVE_LAYOUTS,
+  MOVE_LAYOUTS_KEY,
+  TYPE_ICON_STYLES,
+  TYPE_ICON_STYLES_KEY,
+} from '../../apps/web/app/lib/icons.ts'
 import { MODE_KEY } from '../../apps/web/app/lib/theme.ts'
 
 /**
  * A Device setting a page keeps for itself, stored before the page loads as a deep link would
  * find it. Each is an option, `--<flag> <value>`, and is named in the file name of every shot of a
- * page that has it, the default included, so a shot always says which it was taken in. To add one
- * (such as a Type icon style), add an entry here: parsing, `--help`, storage and names follow.
+ * page that has it, the default included, so a shot always says which it was taken in. To add one,
+ * add an entry here: parsing, `--help`, storage and names follow.
  */
 interface PageSetting {
   /** What `--help` and errors call it, such as `Sprite style`. */
@@ -39,6 +48,26 @@ export const PAGE_SETTINGS = {
     pageOf: spritePageOf,
     store(storage, page, value) {
       storage[SPRITE_STYLES_KEY] = JSON.stringify({ [page]: value })
+    },
+  },
+  'type-icon-style': {
+    label: 'Type icon style',
+    values: TYPE_ICON_STYLES,
+    fallback: DEFAULT_TYPE_ICON_STYLE,
+    namePart: 'types',
+    pageOf: buildCardPageOf,
+    store(storage, page, value) {
+      storage[TYPE_ICON_STYLES_KEY] = JSON.stringify({ [page]: value })
+    },
+  },
+  'move-layout': {
+    label: 'Move layout',
+    values: MOVE_LAYOUTS,
+    fallback: DEFAULT_MOVE_LAYOUT,
+    namePart: 'moves',
+    pageOf: buildCardPageOf,
+    store(storage, page, value) {
+      storage[MOVE_LAYOUTS_KEY] = JSON.stringify({ [page]: value })
     },
   },
 } satisfies Record<string, PageSetting>
@@ -80,7 +109,7 @@ export const USAGE = [
   '  --dark                  in the dark theme',
   '  --2x                    at 2× pixel ratio, to judge thin lines',
   '  --click <text>          click the element with that exact text or accessible name before the',
-  '                          shot, such as --click "Sprite style" --click "Stacked tiles"',
+  '                          shot, such as --click "Display options for Teams" --click Badges',
   '  --within <region>       look for the next --click only inside this region: a landmark (main,',
   '                          complementary for the list pane, navigation, dialog) or a region’s',
   '                          accessible name. When several elements match a click, the error',
@@ -90,7 +119,7 @@ export const USAGE = [
   ...FLAGS.map((flag) => {
     const { label, values, fallback } = settingOf(flag)
     return (
-      `  --${flag} <value>`.padEnd(26) + `the ${label}: ${values.join(', ')} (default ${fallback})`
+      `  --${flag} <value> `.padEnd(26) + `the ${label}: ${values.join(', ')} (default ${fallback})`
     )
   }),
   '  --help                  print this',
@@ -126,7 +155,7 @@ export function parseShots(args: string[]): Shot[] | typeof HELP {
       }
       const text = args[++i]
       if (text === undefined || text.startsWith('--') || text.trim() === '')
-        throw new Error('--click needs the text of what to click, such as --click "Sprite style".')
+        throw new Error('--click needs the text of what to click, such as --click Badges.')
       part.clicks.push(within === undefined ? { text } : { text, within })
     } else if (arg.startsWith('--') && FLAGS.includes(arg.slice(2) as PageSettingFlag)) {
       const flag = arg.slice(2) as PageSettingFlag

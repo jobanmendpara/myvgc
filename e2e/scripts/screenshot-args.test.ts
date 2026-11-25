@@ -123,6 +123,8 @@ describe('parseShots', () => {
       ['/teams', '/settings', '/opponents', '--sprite-style', 'stacked-tiles'],
       /--sprite-style is given after \/opponents but not after \/teams, which would show the default/,
     ],
+    [['--type-icon-style', 'pills'], /--type-icon-style needs one of compact, badges, labelled/],
+    [['/statistics', '--move-layout', 'two-columns'], /\/statistics has no Move layout/],
     [['--click'], /--click needs/],
     [['/teams', '--click', '--click', 'x'], /--click needs/],
     [['--click', ' '], /--click needs/],
@@ -142,6 +144,10 @@ describe('USAGE', () => {
     expect(USAGE).toMatch(
       /--sprite-style <value> +the Sprite style: inline, leading-slot, stacked-tiles \(default inline\)/,
     )
+    expect(USAGE).toMatch(
+      /--type-icon-style <value> +the Type icon style: compact, badges, labelled/,
+    )
+    expect(USAGE).toMatch(/--move-layout <value> +the Move layout: one-column, two-columns/)
     expect(USAGE).toMatch(/--within <region>/)
   })
 })
@@ -154,6 +160,18 @@ describe('shotStorage', () => {
     expect(shotStorage({ clicks: [], settings: {} }, '/opponents/x')).toEqual({})
   })
 
+  test('stores the Type icon style and Move layout for the page the path belongs to', () => {
+    expect(
+      shotStorage(
+        { clicks: [], settings: { 'type-icon-style': 'labelled', 'move-layout': 'two-columns' } },
+        '/tournaments/x',
+      ),
+    ).toEqual({
+      'myvgc-type-icon-styles': '{"tournaments":"labelled"}',
+      'myvgc-move-layouts': '{"tournaments":"two-columns"}',
+    })
+  })
+
   test('stores the dark theme as the theme Device setting does', () => {
     expect(shotStorage({ clicks: [], settings: {}, dark: true }, '/settings')).toEqual({
       'myvgc-mode': 'dark',
@@ -162,9 +180,16 @@ describe('shotStorage', () => {
 })
 
 describe('shotName', () => {
-  test('names the page, its Sprite style (the default too), then each click, then the width', () => {
+  test('names the page, its page settings (the defaults too), then each click, then the width', () => {
+    expect(
+      shotName(
+        { clicks: [], settings: { 'type-icon-style': 'badges', 'move-layout': 'two-columns' } },
+        '/opponents',
+        'phone',
+      ),
+    ).toBe('opponents-sprite-inline-types-badges-moves-two-columns-phone')
     expect(shotName({ clicks: [], settings: {} }, '/teams/aBc1', 'phone')).toBe(
-      'teams-aBc1-sprite-inline-phone',
+      'teams-aBc1-sprite-inline-types-compact-moves-one-column-phone',
     )
     expect(
       shotName(
@@ -175,7 +200,9 @@ describe('shotName', () => {
         '/teams/aBc1',
         'desktop',
       ),
-    ).toBe('teams-aBc1-sprite-leading-slot-sprite-style-stacked-tiles-desktop')
+    ).toBe(
+      'teams-aBc1-sprite-leading-slot-types-compact-moves-one-column-sprite-style-stacked-tiles-desktop',
+    )
     expect(shotName({ clicks: [], settings: {} }, '/', 'phone')).toBe('home-phone')
     expect(shotName({ clicks: [], settings: {} }, '/settings', 'phone')).toBe('settings-phone')
     expect(

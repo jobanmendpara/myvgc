@@ -7,7 +7,17 @@ import {
   STAT_LABELS,
   wholeBuildProblems,
 } from '@myvgc/core/schema'
-import { MOVE_TYPE_ICON_SIZE, powerAccuracyLabel, powerAccuracyText } from '@/lib/icons'
+import {
+  BADGE_MOVE_TYPE_ICON_SIZE,
+  BADGE_TYPE_ICON_SIZE,
+  LABELLED_MOVE_TYPE_ICON_SIZE,
+  LABELLED_TYPE_ICON_SIZE,
+  LARGE_ITEM_ICON_SIZE,
+  MOVE_TYPE_ICON_SIZE,
+  powerAccuracyLabel,
+  powerAccuracyText,
+  STACKED_BADGE_TYPE_ICON_SIZE,
+} from '@/lib/icons'
 
 const props = defineProps<{ build: NamedPokemonBuild; problems?: LegalityProblem[] }>()
 
@@ -28,7 +38,12 @@ const spreadKnown = computed(
 )
 const values = useStatValues(() => props.build)
 const { style: spriteStyle } = useSpriteStyle()
-const { moveLayout } = useBuildCardDisplay()
+const { typeIconStyle, moveLayout } = useBuildCardDisplay()
+const stacked = computed(() => spriteStyle.value === 'stacked-tiles')
+const badges = computed(() => typeIconStyle.value === 'badges')
+const moveTypeIconSize = computed(() =>
+  typeIconStyle.value === 'labelled' ? LABELLED_MOVE_TYPE_ICON_SIZE : MOVE_TYPE_ICON_SIZE,
+)
 
 // Types and power/accuracy come from the names list (DEV-222); until it has loaded, the build
 // shows no Type icons and each move a gap where its Type icon goes.
@@ -53,8 +68,10 @@ const moveRows = computed(() =>
 <template>
   <article class="flex flex-col gap-3 rounded-lg border p-4" data-testid="pokemon-build">
     <!-- Inline: the Sprite before the title. Leading slot: a slot left of the title and item.
-         Stacked tiles: in the top-right corner. The Type icons sit at the top right, under the
-         Sprite with Stacked tiles (DEV-218). -->
+         Stacked tiles: in the top-right corner. The Type icons sit at the top right in the
+         page's Type icon style (DEV-218, DEV-226): Compact, a row under a Stacked tile's Sprite;
+         Badges, a column, or over a Stacked tile's bottom-right corner; Labelled, pills, left of
+         a Stacked tile's Sprite. -->
     <header
       class="flex justify-between gap-3"
       :class="spriteStyle === 'leading-slot' ? 'items-center' : 'items-start'"
@@ -75,22 +92,61 @@ const moveRows = computed(() =>
               ></span
             >
           </h2>
+          <!-- Badges: the Item icon takes the place of the @, which stays when there's no icon
+               to show. -->
           <p v-if="build.names.item" class="text-muted-foreground flex items-center gap-1 text-sm">
-            <span>@</span>
-            <ItemIcon v-if="build.item" :item="build.item" />
+            <span v-if="!(badges && build.item)">@</span>
+            <ItemIcon
+              v-if="build.item"
+              :item="build.item"
+              :size="typeIconStyle === 'compact' ? undefined : LARGE_ITEM_ICON_SIZE"
+            />
             <span class="min-w-0">{{ build.names.item }}</span>
           </p>
         </div>
       </div>
+      <div v-if="badges && stacked" class="relative shrink-0">
+        <Sprite :species="build.species" surface="build-card" />
+        <div
+          v-if="types.length"
+          class="absolute -right-1 -bottom-1 flex gap-0.5"
+          data-testid="build-types"
+        >
+          <TypeIcon
+            v-for="type in types"
+            :key="type"
+            :type="type"
+            :size="STACKED_BADGE_TYPE_ICON_SIZE"
+          />
+        </div>
+      </div>
       <div
-        v-if="spriteStyle === 'stacked-tiles' || types.length"
+        v-else-if="badges && types.length"
+        class="flex shrink-0 flex-col gap-1"
+        data-testid="build-types"
+      >
+        <TypeIcon v-for="type in types" :key="type" :type="type" :size="BADGE_TYPE_ICON_SIZE" />
+      </div>
+      <div
+        v-else-if="typeIconStyle === 'labelled' && (stacked || types.length)"
+        class="flex shrink-0 items-start gap-2"
+      >
+        <div v-if="types.length" class="flex flex-col items-end gap-1" data-testid="build-types">
+          <TypeIcon
+            v-for="type in types"
+            :key="type"
+            :type="type"
+            :size="LABELLED_TYPE_ICON_SIZE"
+            labelled
+          />
+        </div>
+        <Sprite v-if="stacked" :species="build.species" surface="build-card" />
+      </div>
+      <div
+        v-else-if="typeIconStyle === 'compact' && (stacked || types.length)"
         class="flex shrink-0 flex-col items-end gap-1"
       >
-        <Sprite
-          v-if="spriteStyle === 'stacked-tiles'"
-          :species="build.species"
-          surface="build-card"
-        />
+        <Sprite v-if="stacked" :species="build.species" surface="build-card" />
         <div v-if="types.length" class="flex gap-1" data-testid="build-types">
           <TypeIcon v-for="type in types" :key="type" :type="type" />
         </div>
@@ -110,8 +166,10 @@ const moveRows = computed(() =>
       </div>
     </dl>
 
-    <!-- One column: a Type icon before each move's name, which stays on one line, and its
-         power/accuracy at the right. -->
+    <!-- A Type icon before each move's name, which stays on one line; in Badges it sits in a
+         shaded block on the row's left edge. One column shows power/accuracy at the right; Two
+         columns hides it and cuts a name that doesn't fit with "…", the whole name in the
+         tooltip (DEV-226). -->
     <ul
       v-if="moveRows.length"
       class="grid gap-1.5 text-sm"
@@ -121,21 +179,35 @@ const moveRows = computed(() =>
       <li
         v-for="(move, index) in moveRows"
         :key="index"
-        class="bg-muted flex flex-col gap-1 rounded px-2 py-1"
+        class="bg-muted flex min-w-0 flex-col gap-1 rounded"
+        :class="badges ? 'overflow-hidden' : 'px-2 py-1'"
       >
-        <span class="flex items-center gap-1.5">
-          <TypeIcon :type="move.type" :size="MOVE_TYPE_ICON_SIZE" />
-          <span class="min-w-0 flex-1 truncate whitespace-nowrap" :title="move.name">{{
-            move.name
-          }}</span>
+        <span class="flex items-stretch gap-1.5">
           <span
-            v-if="moveLayout === 'one-column' && move.powerAccuracy"
-            class="text-muted-foreground shrink-0 text-xs tabular-nums"
-            :aria-label="move.powerAccuracy.label"
-            >{{ move.powerAccuracy.text }}</span
+            v-if="badges"
+            class="flex shrink-0 items-center bg-black/10 p-1 dark:bg-white/5"
+            data-testid="move-type-badge"
           >
+            <TypeIcon :type="move.type" :size="BADGE_MOVE_TYPE_ICON_SIZE" />
+          </span>
+          <TypeIcon v-else class="self-center" :type="move.type" :size="moveTypeIconSize" />
+          <span class="flex min-w-0 flex-1 items-center gap-1.5" :class="{ 'py-1 pr-2': badges }">
+            <span class="min-w-0 flex-1 truncate whitespace-nowrap" :title="move.name">{{
+              move.name
+            }}</span>
+            <span
+              v-if="moveLayout === 'one-column' && move.powerAccuracy"
+              class="text-muted-foreground shrink-0 text-xs tabular-nums"
+              :aria-label="move.powerAccuracy.label"
+              >{{ move.powerAccuracy.text }}</span
+            >
+          </span>
         </span>
-        <LegalityWarnings v-if="moveWarnings[index]?.length" :problems="moveWarnings[index]!" />
+        <LegalityWarnings
+          v-if="moveWarnings[index]?.length"
+          :class="{ 'px-2 pb-1': badges }"
+          :problems="moveWarnings[index]!"
+        />
       </li>
     </ul>
 
