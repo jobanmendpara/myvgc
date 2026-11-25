@@ -7,8 +7,9 @@
 // the first path apply to every path (DEV-228). `--help` lists them. With no path, the shot is the
 // preview User's Team. Each shot starts afresh, so nothing carries over to the next. A shot holds
 // the whole page, including any pane that scrolls on its own, once its images have loaded or
-// failed. Both widths of a path are taken before either is saved, so a path that fails at one
-// width saves neither (DEV-227).
+// failed; with a dialog open, it holds the window, grown to fit the whole dialog (DEV-234). Both
+// widths of a path are taken before either is saved, so a path that fails at one width saves
+// neither (DEV-227).
 // Writes .preview/screenshots/<page>[-<setting>-<value>...][-dark][-2x][-<click>...]-<width>.png,
 // plus <name>.partN.png slices of a shot taller than SLICE image pixels, and prints each path.
 import { mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync } from 'node:fs'
@@ -272,12 +273,18 @@ async function settleImages(page: Page) {
 }
 
 // On wide screens some pages scroll inside a pane rather than the window, so a full-page shot
-// would stop at the window's height. Make the window tall enough for the longest such pane.
-async function fitScrollingPanes(page: Page, viewport: { width: number; height: number }) {
-  for (let round = 0; round < 3; round++) {
-    const hidden = await page.evaluate(() => {
+// would stop at the window's height. Make the window tall enough for the longest such pane
+// within `scope`: the whole page, or an open dialog, whose height is capped at a share of the
+// window's, so it takes several rounds to grow to fit (DEV-234).
+async function fitScrollingPanes(
+  page: Page,
+  viewport: { width: number; height: number },
+  scope: Locator,
+) {
+  for (let round = 0; round < 6; round++) {
+    const hidden = await scope.evaluate((root) => {
       let most = 0
-      for (const element of Array.from(document.querySelectorAll('*'))) {
+      for (const element of [root, ...Array.from(root.querySelectorAll('*'))]) {
         const { overflowY } = getComputedStyle(element)
         if (overflowY !== 'auto' && overflowY !== 'scroll') continue
         most = Math.max(most, element.scrollHeight - element.clientHeight)
@@ -329,9 +336,12 @@ try {
         await page.goto(path, { waitUntil: 'networkidle', timeout: 120_000 })
         for (const step of shot.clicks) await click(page, step)
         // An open dialog sits over the window, so show the window as the User sees it; a
-        // full-page shot would leave a bottom sheet floating partway down the page.
-        const dialogOpen = await page.getByRole('dialog').filter({ visible: true }).count()
-        if (!dialogOpen) await fitScrollingPanes(page, viewport)
+        // full-page shot would leave a bottom sheet floating partway down the page. The window
+        // grows until the dialog's scrolling content fits, so the shot holds the whole dialog
+        // (DEV-234).
+        const dialogs = page.getByRole('dialog').filter({ visible: true })
+        const dialogOpen = (await dialogs.count()) > 0
+        await fitScrollingPanes(page, viewport, dialogOpen ? dialogs.last() : page.locator('html'))
         await settleImages(page)
         const name = shotName(shot, path, width)
         await save(page, taking, name, !dialogOpen, shot.double ? 2 : 1)
