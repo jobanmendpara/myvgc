@@ -10,7 +10,9 @@
 #   1   a check failed (or was cancelled or skipped): fix it and push.
 #   2   a check or the queued merge is still pending at the deadline, or `gh` hasn't answered by
 #       then: call it again.
-#   3   `gh` failed, as with a GitHub GraphQL error, or another unexpected error: call it again.
+#   3   `gh` failed, or another unexpected error: call it again. GitHub's transient "GraphQL:
+#       Something went wrong" is retried once first, a few seconds later (DEV-236), so it exits 3
+#       only when the retry fails too.
 #   4   the PR conflicts with main (`mergeStateStatus` is `DIRTY`), so auto-merge can't land: rebase
 #       onto origin/main, push with `--force-with-lease`, and call it again.
 #   64  a bad PR number or setting.
@@ -26,8 +28,8 @@
 # counts against the deadline, as it does against the harness's limit, so a call that sleeps past
 # the deadline exits 2 when the machine wakes, without asking `gh` again.
 #
-# WAIT_FOR_CHECKS_TIMEOUT and WAIT_FOR_CHECKS_INTERVAL (seconds) override the wait and the time
-# between polls. scripts/wait-for-checks.test.ts (`pnpm test:scripts`) tests the script with a stub
+# WAIT_FOR_CHECKS_TIMEOUT, WAIT_FOR_CHECKS_INTERVAL and WAIT_FOR_CHECKS_RETRY_DELAY (seconds)
+# override the wait, the time between polls and the wait before retrying a GraphQL error. scripts/wait-for-checks.test.ts (`pnpm test:scripts`) tests the script with a stub
 # `gh`.
 set -euo pipefail
 # An unexpected error exits 3, so it is never mistaken for a failed check (1).
@@ -36,15 +38,17 @@ trap 'exit 3' ERR
 CHECKS=('check' 'smoke / smoke')
 timeout=${WAIT_FOR_CHECKS_TIMEOUT:-150}
 interval=${WAIT_FOR_CHECKS_INTERVAL:-30}
+retry_delay=${WAIT_FOR_CHECKS_RETRY_DELAY:-5}
 # With branch protection on main (2026-11-15), a queued auto-merge lands a few seconds after the
 # checks pass, so it is polled more often than the checks: every 5 seconds, or every
 # WAIT_FOR_CHECKS_INTERVAL when that is shorter.
 merge_interval=$((interval < 5 ? interval : 5))
 
 pr=${1:-}
-if [[ ! $pr =~ ^[0-9]+$ || ! $timeout =~ ^[0-9]+$ || ! $interval =~ ^[0-9]+$ ]]; then
+if [[ ! $pr =~ ^[0-9]+$ || ! $timeout =~ ^[0-9]+$ || ! $interval =~ ^[0-9]+$ ||
+  ! $retry_delay =~ ^[0-9]+$ ]]; then
   echo "usage: scripts/wait-for-checks.sh <pr number>" >&2
-  echo "WAIT_FOR_CHECKS_TIMEOUT and WAIT_FOR_CHECKS_INTERVAL must be whole seconds." >&2
+  echo "WAIT_FOR_CHECKS_TIMEOUT, WAIT_FOR_CHECKS_INTERVAL and WAIT_FOR_CHECKS_RETRY_DELAY must be whole seconds." >&2
   exit 64
 fi
 
@@ -76,6 +80,29 @@ by_deadline() {
   wait "$pid"
 }
 
+# Runs `gh <args...>` by the deadline, printing its output, with its errors in the file <errors>,
+# and returns its exit status. GitHub now and then fails a call with "GraphQL: Something went
+# wrong" and answers the same call a few seconds later (DEV-236), so that error is retried once,
+# after retry_delay seconds. When the retry would start at the deadline or later, this returns
+# 124, as if gh hadn't answered by then.
+ask_gh() {
+  local errors=$1 output status=0
+  shift
+  output=$(by_deadline gh "$@" 2>"$errors") || status=$?
+  if ((status != 0 && status != 124)) && grep -q 'GraphQL: Something went wrong' "$errors"; then
+    if ((SECONDS + retry_delay >= deadline)); then
+      echo "gh $1 $2 failed with a GraphQL error, and there's no time left to retry it." >&2
+      return 124
+    fi
+    echo "gh $1 $2 failed with a GraphQL error; retrying in ${retry_delay}s." >&2
+    sleep "$retry_delay"
+    status=0
+    output=$(by_deadline gh "$@" 2>"$errors") || status=$?
+  fi
+  printf '%s' "$output"
+  return "$status"
+}
+
 # Waits <seconds> before the next poll, or exits 2 when that poll would start at the deadline or
 # later.
 pause() {
@@ -92,8 +119,8 @@ poll() {
   errors=$(mktemp)
   # gh may exit non-zero while checks are pending (8) or failing (1); the states it printed still
   # count, so only an empty output with a non-zero exit is treated as an error.
-  output=$(by_deadline gh pr checks "$pr" --json name,bucket --jq '.[] | "\(.bucket)\t\(.name)"' \
-    2>"$errors") || status=$?
+  output=$(ask_gh "$errors" pr checks "$pr" --json name,bucket --jq '.[] | "\(.bucket)\t\(.name)"') \
+    || status=$?
   if ((status == 124)); then
     echo "gh pr checks didn't answer by the deadline." >&2
   elif ((status != 0)) && [[ -z $output ]]; then
@@ -121,10 +148,13 @@ poll() {
 # commit), 4 when it conflicts with main, 3 when gh fails, and 2, saying <pending>, when gh hasn't
 # answered by the deadline.
 view() {
-  local output commit merge_state status=0
-  output=$(by_deadline gh pr view "$pr" --json state,autoMergeRequest,mergeCommit,mergeStateStatus \
+  local output commit merge_state errors status=0
+  errors=$(mktemp)
+  output=$(ask_gh "$errors" pr view "$pr" --json state,autoMergeRequest,mergeCommit,mergeStateStatus \
     --jq '[.state, (.autoMergeRequest != null), .mergeStateStatus, (.mergeCommit.oid // "")] | @tsv') \
     || status=$?
+  if ((status != 0 && status != 124)); then cat "$errors" >&2; fi
+  rm -f "$errors"
   if ((status == 124)); then out_of_time "$1"; fi
   if ((status != 0)); then exit 3; fi
   # The merge commit, which may be empty, comes last: `read` merges runs of tabs.

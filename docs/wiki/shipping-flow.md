@@ -94,6 +94,10 @@ From the DEV-223 agent's report, 2026-11-25.
 - On 2026-11-25 DEV-181's PR #379 changed `scripts/wait-for-checks.sh` to ask `gh pr view` for `mergeStateStatus` while checks are pending and while auto-merge is queued. When it is `DIRTY` the script says the PR conflicts with `main`, tells the agent to rebase onto `origin/main` and push with `--force-with-lease`, and exits 4. A failed check still exits 1 first; exits 0, 1, 2 and 3 are unchanged, and the script's header lists every code. CLAUDE.md's "Shipping" section names exit 4. GitHub runs no checks on a conflicting PR, so before this the script reported pending checks or pending auto-merge until the agent looked.
 - From this PR, briefs no longer need to tell agents to check `mergeStateStatus` while they wait, as the DEV-223 brief above did.
 
+## GraphQL errors retried once (2026-11-25)
+
+- On 2026-11-25 DEV-236 changed `scripts/wait-for-checks.sh` so that when `gh pr checks` or `gh pr view` fails with GitHub's "GraphQL: Something went wrong" (see "Sprite Bugs" above), it waits 5 seconds (`WAIT_FOR_CHECKS_RETRY_DELAY`) and asks once more. It exits 3 only when the retry fails too, and exits 2 when the deadline leaves no time to retry. Other `gh` errors still exit 3 at once, and the other exit codes are unchanged. `gh pr merge --auto` has no such retry: run it again by hand.
+
 ## Screenshots stay out of PRs (2026-11-25)
 
 - On 2026-11-25 the maintainer decided that PR bodies carry no screenshots and no GitHub branch hosts PR images: the agent looks at its own `pnpm screenshots` shots, writes what it checked in the PR's Evidence section, and attaches shots to the Linear issue when the maintainer may want them. One reason is the auto-merge above: no one reviews the PR. See [preview](preview.md), "Screenshots in PRs (2026-11-25)".
