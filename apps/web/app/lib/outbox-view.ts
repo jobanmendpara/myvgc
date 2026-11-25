@@ -3,6 +3,7 @@ import {
   type NoteEntryView,
   type OpponentView,
   type RoundView,
+  type TeamSnapshotView,
   type TeamView,
   type TournamentView,
 } from '@myvgc/core/schema'
@@ -435,7 +436,9 @@ export function discardText(
   write: OutboxWrite,
   writes: readonly OutboxWrite[] = [],
 ): { title: string; body: string } {
-  const title = `Discard ${changeTitle(write).replace(/^(A new|New) /, 'the new ')}?`
+  const title = `Discard ${changeTitle(write)
+    .replace(/^(A new|New) /, 'the new ')
+    .replace(/^(Deleting|Unlinking) /, (verb) => verb.toLowerCase())}?`
   // The other changes waiting on a new Opponent go with them (DEV-205).
   const alongWith = (create: OutboxWrite) => {
     const along = discardedWith(writes, create).filter((w) => w.id !== create.id).length
@@ -490,7 +493,26 @@ export function discardText(
         ]),
       }
     }
+    case 'delete-tournament':
+    case 'delete-round':
+    case 'delete-opponent':
+    case 'delete-note-entry':
+    case 'delete-team':
+      return { title, body: `The ${DELETED[write.kind]} stays.` }
+    case 'unlink-tournament-team': {
+      const team = (write.subject.before as TeamSnapshotView | null | undefined)?.name
+      return { title, body: `${team ?? 'Your Team'} stays your Team for this Tournament.` }
+    }
     default:
       return { title, body: 'The server keeps its version.' }
   }
 }
+
+/** What a delete deletes, as discarding it says it stays. */
+const DELETED = {
+  'delete-tournament': 'Tournament',
+  'delete-round': 'Round',
+  'delete-opponent': 'Opponent',
+  'delete-note-entry': 'Note entry',
+  'delete-team': 'Team',
+} as const

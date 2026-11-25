@@ -219,12 +219,14 @@ export function editOpponent(opponent: OpponentView, fields: OpponentFields): Wr
   }
 }
 
+/** Deletes an Opponent. One added on this phone and not yet sent is just taken off it (DEV-207). */
 export function deleteOpponent(opponent: OpponentView): WriteDraft {
   return {
     id: newId(),
     kind: 'delete-opponent',
     request: { method: 'DELETE', url: `/api/opponents/${opponent.id}` },
     series: [opponentSeries(opponent.id)],
+    deletes: opponentSeries(opponent.id),
     subject: {
       opponentId: opponent.id,
       opponentName: opponent.displayName,
@@ -433,12 +435,17 @@ export function editTournament(tournament: TournamentView, changes: TournamentCh
   }
 }
 
+/**
+ * Deletes a Tournament. One created on this phone and not yet sent is just taken off it, with the
+ * Rounds logged in it (DEV-207).
+ */
 export function deleteTournament(tournament: TournamentView): WriteDraft {
   return {
     id: newId(),
     kind: 'delete-tournament',
     request: { method: 'DELETE', url: `/api/tournaments/${tournament.id}` },
     series: [tournamentSeries(tournament.id)],
+    deletes: tournamentSeries(tournament.id),
     subject: { tournamentId: tournament.id, before: tournament },
     label: `Deleting ${tournament.name}`,
   }
@@ -580,12 +587,14 @@ export function editTeam(team: TeamView, body: TeamBody, names: BuildNames): Wri
   }
 }
 
+/** Deletes a Team. One built on this phone and not yet sent is just taken off it (DEV-207). */
 export function deleteTeam(team: TeamView): WriteDraft {
   return {
     id: newId(),
     kind: 'delete-team',
     request: { method: 'DELETE', url: `/api/teams/${team.id}` },
     series: [teamSeries(team.id)],
+    deletes: teamSeries(team.id),
     subject: { teamId: team.id, before: team },
     label: `Deleting ${team.name}`,
   }

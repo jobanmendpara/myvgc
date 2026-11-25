@@ -59,7 +59,8 @@ export interface OutboxWrite {
   request: WriteRequest
   /**
    * The series it runs in, such as `tournament:<id>` or `opponent:<id>`. A write waits for every
-   * earlier pending write that shares one of its series.
+   * earlier pending write that shares one of its series. The first is the record it belongs to,
+   * such as the Tournament a Round is in, which deleting that record takes along.
    */
   series: string[]
   /**
@@ -70,6 +71,11 @@ export interface OutboxWrite {
    * discarded, since the server never has what they change.
    */
   creates?: string
+  /**
+   * The series of the record it deletes, such as `tournament:<id>`, so a delete of a record the
+   * server never got is never sent: see {@link unsentRecord}.
+   */
+  deletes?: string
   /** The records it is about, so the page knows what to update. */
   subject: WriteSubject
   /** What the change is, in a few words, such as "Round 3 in Worlds 2026". */
@@ -174,6 +180,25 @@ export function discardedWith(writes: readonly OutboxWrite[], write: OutboxWrite
   const { creates } = write
   if (!creates) return [write]
   return inOrder([write, ...writes.filter((w) => w.id !== write.id && w.series.includes(creates))])
+}
+
+/**
+ * The writes a delete takes off the device in its place, when the record it deletes was made on
+ * this phone and the server never got it: its create, waiting or refused, and every write on the
+ * record. Then nothing is sent (DEV-207). Nothing when there is no such create, or when one of
+ * those writes also changes something the server keeps after the delete, such as a Round against
+ * a new Opponent that also adds them, or a Tournament set to a new Team (its Team snapshot stays).
+ */
+export function unsentRecord(
+  writes: readonly OutboxWrite[],
+  write: Pick<OutboxWrite, 'deletes'>,
+): OutboxWrite[] | undefined {
+  const key = write.deletes
+  const create = key && writes.find((w) => w.creates === key && w.series[0] === key)
+  if (!create) return undefined
+  const gone = discardedWith(writes, create)
+  const erased = gone.every((w) => w.series[0] === key && (w === create || !w.creates))
+  return erased ? gone : undefined
 }
 
 /** Writes in the order they were made. */

@@ -81,7 +81,8 @@ const addedTeamIds = (writes: readonly OutboxWrite[]) =>
 function connect(outbox: Outbox, queryClient: QueryClient) {
   const cache = queryClient.getQueryCache()
   const targets = () => cache.getAll().filter((query) => isOutboxTarget(query.queryKey))
-  // The dashboard is worked out again from the Tournaments list while writes on them wait.
+  // The dashboard and Statistics are worked out again from the Tournaments list while writes on
+  // them wait.
   const context = () => ({ tournaments: queryClient.getQueryData(['tournaments']) })
 
   /** Sets a query's data, keeping it marked for asking the server again if it was. */

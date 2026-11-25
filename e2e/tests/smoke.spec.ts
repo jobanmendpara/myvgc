@@ -826,6 +826,40 @@ test('a Tournament created with no signal, and a Round logged in it, are sent wh
   await expect(page.getByTestId('sync-mark')).toHaveCount(0)
 })
 
+test('a Tournament created and deleted with no signal is never sent', async ({ context, page }) => {
+  await signUp(page, 'smoke-outbox-unsent')
+  // Opened once with a signal, so the form is on the phone.
+  await page.goto('/tournaments/new')
+  await expect(page.getByRole('heading', { name: 'New Tournament' })).toBeVisible()
+  await page
+    .getByRole('navigation', { name: 'Main' })
+    .getByRole('link', { name: 'Tournaments' })
+    .click()
+  await expect(page.getByRole('heading', { name: 'Your Tournaments' })).toBeVisible()
+
+  await context.setOffline(true)
+  await page.getByRole('link', { name: 'Log your first Tournament' }).click()
+  await submitNewTournament(page, 'Never Sent Open')
+  await expect(page.getByTestId('sync-bar')).toContainText('1 change saved on this phone')
+
+  // Deleting it takes it off the phone: nothing is left to send.
+  await page.getByRole('button', { name: 'Delete Tournament' }).click()
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Delete Tournament' }).click()
+  await expect(page.getByTestId('tournaments-empty')).toBeVisible()
+  await expect(page.getByTestId('sync-bar')).toHaveCount(0)
+
+  const sent: string[] = []
+  page.on('request', (request) => {
+    if (request.method() !== 'GET' && request.url().includes('/api/tournaments'))
+      sent.push(request.url())
+  })
+  await context.setOffline(false)
+  await page.reload()
+  await expect(page.getByRole('heading', { name: 'Your Tournaments' })).toBeVisible()
+  await expect(page.getByTestId('tournaments-empty')).toBeVisible()
+  expect(sent).toEqual([])
+})
+
 test('an Opponent changed and another deleted with no signal are sent when the signal returns', async ({
   context,
   page,
