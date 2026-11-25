@@ -1080,11 +1080,16 @@ test('a Team built with no signal that the server refuses comes back, to fix in 
   await startTeam(page, 'Online Team', 'Garchomp')
   await saveTeam(page, 'Online Team')
   // A names list on the phone that the server's data no longer agrees with, as after an update.
-  await page.evaluate(() => {
-    const stored = JSON.parse(localStorage.getItem('myvgc-names-v4') ?? 'null')
+  // Found by its prefix, not its key, so bumping the key's version doesn't break this test.
+  const namesKeys = await page.evaluate(() =>
+    Object.keys(localStorage).filter((key) => key.startsWith('myvgc-names-')),
+  )
+  expect(namesKeys).toHaveLength(1)
+  await page.evaluate((key) => {
+    const stored = JSON.parse(localStorage.getItem(key) ?? 'null')
     stored.names.species.missingno = 'MissingNo'
-    localStorage.setItem('myvgc-names-v4', JSON.stringify(stored))
-  })
+    localStorage.setItem(key, JSON.stringify(stored))
+  }, namesKeys[0]!)
   await page.goto('/teams/new/build')
 
   await goOffline(page)
