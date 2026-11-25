@@ -28,31 +28,9 @@ const spreadKnown = computed(
 const values = useStatValues(() => props.build)
 const { style: spriteStyle } = useSpriteStyle()
 // PROTOTYPE (DEV-218)
-const { variant, moveLayout, speciesTypes, moveType } = usePrototypeIcons()
+const { variant, moveLayout, speciesTypes, moveType, powerAccuracy } = usePrototypeIcons()
 const types = computed(() => speciesTypes(props.build.species) ?? [])
-// "Two columns when they fit": lay the moves out in two columns, and fall back to one column
-// when any move's name wouldn't fit on one line. Re-checked when the card is resized.
-const movesList = ref<HTMLElement>()
-const oneColumn = ref(false)
-function measure() {
-  const list = movesList.value
-  if (!list) return
-  if (moveLayout.value === 'list') return void (oneColumn.value = true)
-  oneColumn.value = false
-  nextTick(() => {
-    oneColumn.value = [...list.querySelectorAll<HTMLElement>('[data-move-name]')].some(
-      (name) => name.scrollWidth > name.clientWidth + 1,
-    )
-  })
-}
-let observer: ResizeObserver | undefined
-onMounted(() => {
-  observer = new ResizeObserver(measure)
-  if (movesList.value) observer.observe(movesList.value)
-  measure()
-})
-onUnmounted(() => observer?.disconnect())
-watch([moveLayout, variant, () => props.build.moves], measure)
+
 </script>
 
 <template>
@@ -139,12 +117,12 @@ watch([moveLayout, variant, () => props.build.moves], measure)
       </div>
     </dl>
 
-    <!-- PROTOTYPE (DEV-218): a Type icon before each move's name. -->
+    <!-- PROTOTYPE (DEV-218): a Type icon before each move's name. One column (the default)
+         shows power/accuracy at the right; two columns hide it and cut a long name with "…". -->
     <ul
       v-if="build.names.moves.length"
-      ref="movesList"
       class="grid gap-1.5 text-sm"
-      :class="oneColumn ? 'grid-cols-1' : 'grid-cols-2'"
+      :class="moveLayout === 'list' ? 'grid-cols-1' : 'grid-cols-2'"
       aria-label="Moves"
     >
       <li
@@ -153,15 +131,31 @@ watch([moveLayout, variant, () => props.build.moves], measure)
         class="bg-muted flex flex-col gap-1 rounded"
         :class="variant === 'B' ? 'overflow-hidden' : 'px-2 py-1'"
       >
-        <span v-if="variant === 'B'" class="flex items-stretch">
-          <span class="flex shrink-0 items-center bg-black/10 p-1 dark:bg-white/5">
+        <span class="flex items-stretch gap-1.5">
+          <span
+            v-if="variant === 'B'"
+            class="flex shrink-0 items-center bg-black/10 p-1 dark:bg-white/5"
+          >
             <PrototypeTypeIcon :type="moveType(build.moves[index]!)" :size="20" />
           </span>
-          <span data-move-name class="flex min-w-0 items-center overflow-hidden px-2 py-1 whitespace-nowrap">{{ move }}</span>
-        </span>
-        <span v-else class="flex items-center gap-1.5">
-          <PrototypeTypeIcon :type="moveType(build.moves[index]!)" :size="variant === 'C' ? 18 : 16" />
-          <span data-move-name class="min-w-0 overflow-hidden whitespace-nowrap">{{ move }}</span>
+          <span v-else class="flex shrink-0 items-center">
+            <PrototypeTypeIcon
+              :type="moveType(build.moves[index]!)"
+              :size="variant === 'C' ? 18 : 16"
+            />
+          </span>
+          <span
+            class="flex min-w-0 flex-1 items-center gap-2 whitespace-nowrap"
+            :class="{ 'py-1 pr-2': variant === 'B' }"
+          >
+            <span class="min-w-0 flex-1 truncate" :title="move">{{ move }}</span>
+            <span
+              v-if="moveLayout === 'list' && powerAccuracy(build.moves[index]!)"
+              class="text-muted-foreground shrink-0 text-xs tabular-nums"
+              :aria-label="`Power and accuracy ${powerAccuracy(build.moves[index]!)}`"
+              >{{ powerAccuracy(build.moves[index]!) }}</span
+            >
+          </span>
         </span>
         <LegalityWarnings v-if="moveWarnings[index]?.length" :problems="moveWarnings[index]!" />
       </li>

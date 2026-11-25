@@ -44,12 +44,12 @@ function tap(value: SpriteStyle, event: MouseEvent) {
         >
           <div class="flex items-center justify-between gap-3">
             <DialogTitle class="text-lg font-semibold"
-              >Sprites on {{ SPRITE_PAGES[page] }}</DialogTitle
+              >{{ page === 'statistics' ? 'Sprites' : 'Display' }} on {{ SPRITE_PAGES[page] }}</DialogTitle
             >
             <Button type="button" variant="ghost" size="sm" @click="open = false">Close</Button>
           </div>
           <fieldset class="flex flex-col gap-2">
-            <legend class="sr-only">Sprite style</legend>
+            <legend class="mb-2 text-sm font-medium">Sprites</legend>
             <label
               v-for="value in SPRITE_STYLES"
               :key="value"
@@ -103,6 +103,8 @@ function tap(value: SpriteStyle, event: MouseEvent) {
               </span>
             </label>
           </fieldset>
+          <!-- PROTOTYPE (DEV-218): the page's Type icon style and move layout. -->
+          <PrototypeTypeIconStylePicker v-if="page !== 'statistics'" />
         </DialogContent>
       </DialogPortal>
     </DialogRoot>

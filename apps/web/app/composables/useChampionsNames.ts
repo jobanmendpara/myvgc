@@ -3,8 +3,8 @@ import { useQuery } from '@tanstack/vue-query'
 import { readStored, removeStored, writeStored } from '@/lib/storage'
 
 // Bump when the shape of the names list changes, so old copies on devices are ignored.
-const STORAGE_KEY = 'myvgc-names-v4'
-const OLD_STORAGE_KEYS = ['myvgc-names-v1', 'myvgc-names-v2', 'myvgc-names-v3']
+const STORAGE_KEY = 'myvgc-names-v5'
+const OLD_STORAGE_KEYS = ['myvgc-names-v1', 'myvgc-names-v2', 'myvgc-names-v3', 'myvgc-names-v4']
 const DAY = 24 * 60 * 60 * 1000
 
 interface StoredNames {

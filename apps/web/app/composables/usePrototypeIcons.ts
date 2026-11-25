@@ -1,7 +1,9 @@
 // PROTOTYPE (DEV-218): throwaway, never merged.
-// The Type icon style (a Device setting, chosen on Settings; ?variant= overrides it for a quick
-// look) and the move layout under test (?moves=fit|list), plus the type lookups the real build
-// would get from the names list.
+// Two page preferences chosen with the Sprite style, kept per page on the device: the Type icon
+// style (Compact by default) and the move layout (one column by default). ?variant=A|B|C still
+// overrides the style for a quick look. Plus the type and move lookups the real build would get
+// from the names list.
+import { spritePageOf } from '@/lib/sprites'
 import { readStored, writeStored } from '@/lib/storage'
 
 export const ICON_VARIANTS = ['A', 'B', 'C'] as const
@@ -11,37 +13,59 @@ export const ICON_VARIANT_NAMES: Record<IconVariant, string> = {
   B: 'Badges',
   C: 'Labelled',
 }
-export const MOVE_LAYOUTS = ['fit', 'list'] as const
+export const MOVE_LAYOUTS = ['list', 'grid'] as const
 export type MoveLayout = (typeof MOVE_LAYOUTS)[number]
 export const MOVE_LAYOUT_NAMES: Record<MoveLayout, string> = {
-  fit: 'Two columns when they fit',
-  list: 'One move per row',
+  list: 'One column',
+  grid: 'Two columns',
 }
 
-const STORAGE_KEY = 'myvgc-prototype-type-icon-style'
-const stored = ref<IconVariant>(
-  (ICON_VARIANTS as readonly string[]).includes(readStored(STORAGE_KEY) ?? '')
-    ? (readStored(STORAGE_KEY) as IconVariant)
-    : 'A',
-)
+const STORAGE_KEY = 'myvgc-prototype-card-prefs'
+type Prefs = Record<string, { icons?: IconVariant; moves?: MoveLayout }>
+function read(): Prefs {
+  try {
+    return JSON.parse(readStored(STORAGE_KEY) ?? '{}') as Prefs
+  } catch {
+    return {}
+  }
+}
+const prefs = ref<Prefs>(read())
 
 export function usePrototypeIcons() {
   const route = useRoute()
+  const page = computed(() => spritePageOf(route.path))
+  const pagePrefs = computed(() => (page.value && prefs.value[page.value]) || {})
+  const stored = computed<IconVariant>(() => pagePrefs.value.icons ?? 'A')
   const variant = computed<IconVariant>(() => {
     const value = String(route.query.variant ?? '').toUpperCase()
     return (ICON_VARIANTS as readonly string[]).includes(value) ? (value as IconVariant) : stored.value
   })
-  const moveLayout = computed<MoveLayout>(() =>
-    route.query.moves === 'list' ? 'list' : 'fit',
-  )
-  function setStyle(style: IconVariant) {
-    stored.value = style
-    writeStored(STORAGE_KEY, style)
+  const moveLayout = computed<MoveLayout>(() => pagePrefs.value.moves ?? 'list')
+  function save(change: { icons?: IconVariant; moves?: MoveLayout }) {
+    if (!page.value) return
+    prefs.value = { ...prefs.value, [page.value]: { ...pagePrefs.value, ...change } }
+    writeStored(STORAGE_KEY, JSON.stringify(prefs.value))
   }
   const names = useChampionsNames()
   const speciesTypes = (species: string) => names.data.value?.typesBySpecies?.[species]
   const moveType = (move: string) => names.data.value?.moveTypes?.[move]
-  return { variant, stored, setStyle, moveLayout, speciesTypes, moveType }
+  /** "100/85"; "—" for power that varies or accuracy that never misses; nothing for a status move. */
+  function powerAccuracy(move: string): string | undefined {
+    const stats = names.data.value?.moveStats?.[move]
+    if (!stats || stats[0] < 0) return undefined
+    return `${stats[0] || '—'}/${stats[1] || '—'}`
+  }
+  return {
+    page,
+    variant,
+    stored,
+    moveLayout,
+    setStyle: (icons: IconVariant) => save({ icons }),
+    setMoveLayout: (moves: MoveLayout) => save({ moves }),
+    speciesTypes,
+    moveType,
+    powerAccuracy,
+  }
 }
 
 export const TYPE_NAMES: Record<string, string> = Object.fromEntries(

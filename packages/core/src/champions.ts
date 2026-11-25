@@ -148,6 +148,16 @@ export function championsNames(): ChampionsNames {
         .filter((move) => inChampions(move))
         .map((move) => [move.id, move.type.toLowerCase()]),
     ),
+    // [power, accuracy]: power 0 when it has none or varies; accuracy 0 when it never misses.
+    moveStats: Object.fromEntries(
+      allDexes
+        .flatMap((modDex) => modDex.moves.all())
+        .filter((move) => inChampions(move))
+        .map((move) => [
+          move.id,
+          [move.category === 'Status' ? -1 : move.basePower, move.accuracy === true ? 0 : move.accuracy],
+        ]),
+    ),
   }
   return names
 }
