@@ -999,9 +999,9 @@ test('a Team built with no signal that the server refuses comes back, to fix in 
   await saveTeam(page, 'Online Team')
   // A names list on the phone that the server's data no longer agrees with, as after an update.
   await page.evaluate(() => {
-    const stored = JSON.parse(localStorage.getItem('myvgc-names-v3') ?? 'null')
+    const stored = JSON.parse(localStorage.getItem('myvgc-names-v4') ?? 'null')
     stored.names.species.missingno = 'MissingNo'
-    localStorage.setItem('myvgc-names-v3', JSON.stringify(stored))
+    localStorage.setItem('myvgc-names-v4', JSON.stringify(stored))
   })
   await page.goto('/teams/new/build')
 
