@@ -1,0 +1,53 @@
+# Follow-ups round, 2026-11-25
+
+DEV-229 to DEV-236, the follow-ups filed during the [icons rollout](icons-rollout.md) and its DEV-225 retro.
+
+## Plan (2026-11-25)
+
+On 2026-11-25 the maintainer asked the chief-of-staff to do DEV-229 to DEV-236, starting with DEV-232. The chief-of-staff ordered them by the files they share, three agents at a time at most:
+
+- `e2e/scripts/screenshots.ts`: DEV-232 (open a picker on a build page), then DEV-234 (show the whole dialog).
+- The offline smoke tests in `e2e/tests/smoke.spec.ts`: DEV-231 (the flaky Tournament test), then DEV-235 (stop with a message when there is no service worker). DEV-230 (the names cache key in the smoke test) touches the same file in another place, so it comes later and rebases if needed.
+- Alone: DEV-236 (`wait-for-checks.sh` retries once on a GraphQL error), DEV-229 (the list pane's accessible name) and DEV-233 (Labelled with Stacked tiles wraps item names).
+
+The first wave was DEV-232, DEV-236 and DEV-231. DEV-236 went first because every later agent waits on `wait-for-checks.sh`. Each issue gets its own PR (see [shipping flow](shipping-flow.md), "Two issues in one PR"). Every brief pointed to the standing shell rule in [parallel agents](parallel-agents.md).
+
+## Results
+
+- On 2026-11-25 DEV-236 merged in PR #394 (`jobanmendpara/myvgc@0c24d03`). As of that commit, `scripts/wait-for-checks.sh` asks `gh` through an `ask_gh` helper. That helper retries once after `WAIT_FOR_CHECKS_RETRY_DELAY` seconds (default 5) on "GraphQL: Something went wrong", and exits 2 if the deadline leaves no time to retry (subagent report). `gh pr merge --auto` still has no retry. The agent recorded the change in [shipping flow](shipping-flow.md).
+- DEV-229 started next, in DEV-236's slot.
+- On 2026-11-25 DEV-232 merged in PR #395 (`jobanmendpara/myvgc@047d0ae`), and Linear closed it on merge. As of that commit `pnpm screenshots` takes `--nth <n>` before a `--click`, like `--within`, and clicking a picker's field label opens the list. Example: `--within Pokémon --click Dragonite --nth 3 --click Change --click "Held item"`. The agent took all four picker shots itself and reported no slowdowns, with the standing shell rule in its brief (subagent report). It found that all seven "Change" buttons in a build share one accessible name. The chief-of-staff filed that as [DEV-237](https://linear.app/mendpara/issue/DEV-237), which would make `--nth` unnecessary there.
+- DEV-234 started next, in DEV-232's slot.
+- On 2026-11-25 the 5-hour usage limit paused all three running agents (DEV-231, DEV-229 and DEV-234), as on 2026-11-23 (see [parallel agents](parallel-agents.md)). DEV-231 was then waiting on its checks. After the reset at 15:10 America/Chicago, SendMessage resumed each agent with its worktree intact.
+- On 2026-11-25 DEV-231 merged in PR #396 (`jobanmendpara/myvgc@cca8d3b`). The cause was timing in the test: it went offline before the service worker finished installing about 690 files. DEV-225's 184 new icons made the install longer the same day the failures began. As of that commit a `goOffline(page)` helper waits for `navigator.serviceWorker.ready`, and eight offline tests use it. Locally the offline tests passed 66 of 66 against the built image, and the first CI smoke run passed 36 of 36 (subagent report). The agent used its own Compose project on port 3431 and kept off the dev database. Details are in [flaky tests](flaky-tests.md).
+- The DEV-231 agent noted that the service worker doesn't call `clientsClaim`, so pages loaded before it activates stay uncontrolled until a reload. The chief-of-staff filed that as Decision [DEV-238](https://linear.app/mendpara/issue/DEV-238).
+- In DEV-231's shell, `gh run view` had no `--allow-escape-sequences` flag, and plain `--log-failed` worked. This supersedes, for that agent, the 2026-11-23 note in [parallel agents](parallel-agents.md).
+- DEV-235 started next, building on `goOffline`.
+- On 2026-11-25 DEV-229 merged in PR #399 (`jobanmendpara/myvgc@2cc249d`). As of that commit, `ListDetail.vue` takes a `label` prop, and the list pane is named "Teams", "Opponents" or "Tournaments". At phone width there is no `<aside>`, so a `<section>` with the same name wraps the list on the list path itself. `--within Teams` therefore works at both widths on `/teams`, but not at phone width with a detail open (subagent report). Plain `git push` was refused, and the HTTPS URL form worked. The chief-of-staff asked the DEV-234 agent to update the `--within` help text, since it was already editing that file.
+- DEV-233 started next, in DEV-229's slot.
+- On 2026-11-25 DEV-235 merged in PR #401 (`jobanmendpara/myvgc@32b21f7`). As of that commit, `serviceWorkerReady(page)` in `e2e/tests/smoke.spec.ts` stops an offline test with a message if no service worker registers within 5 seconds. Against `pnpm preview`, it stopped in 6.1 s. Against the built app, all 12 offline tests passed on both projects (subagent report). SSH push failed, and the HTTPS URL worked. The agent's container came up unhealthy until it generated a real `BETTER_AUTH_SECRET`, since `.env.example`'s value is a placeholder.
+- DEV-231 and DEV-235 both ran the built app by hand, on their own Compose projects. The chief-of-staff filed [DEV-239](https://linear.app/mendpara/issue/DEV-239), one command to run the built app from a worktree like `pnpm preview`.
+- DEV-230 started next, now that the offline smoke tests were free.
+- On 2026-11-25 DEV-234 merged in PR #400 (`jobanmendpara/myvgc@903f06f`), and Linear closed it. As of that commit, a dialog shot grows the window in up to 6 rounds until the dialog's scrolling content fits. The `--within` help text names the list panes from DEV-229, with "Related to DEV-229" in the PR body (subagent report). The request reached the agent after auto-merge was queued, so it turned auto-merge off, pushed, and queued it again.
+- After the usage-limit pause, the DEV-234 agent found its worktree had been removed. It made a new one by hand at `.claude/worktrees/dev-234`, leaving alone the shared checkout, which held the chief-of-staff's uncommitted wiki edits. On 2026-11-25 the chief-of-staff removed that worktree and the ten clean worktrees of merged agents with `git worktree remove`, which refuses dirty ones. Locked worktrees of running agents, and `myvgc-iphone`, were left alone.
+- `wait-for-checks.sh` needed about 6 calls of 128 s for DEV-234, as on 2026-11-18 and 2026-11-24 (see [shipping flow](shipping-flow.md)). Filed as [DEV-240](https://linear.app/mendpara/issue/DEV-240).
+- On 2026-11-25 DEV-233 merged in PR #404 (`jobanmendpara/myvgc@824b7ab`) on its first CI run. Leading slot had the same wrapping as Stacked tiles. The agent moved the Labelled Type pills from the top right to a row under the item, in every Sprite style. It checked all 9 combinations of Type icon style and Sprite style, with the longest Champions items, at both widths. Compact and Badges were unchanged (subagent report). This changes the look decided in DEV-218, so the chief-of-staff put it to the maintainer.
+- In the same run, a 12-shot `pnpm screenshots` call saved nothing, and splitting it worked; filed as [DEV-241](https://linear.app/mendpara/issue/DEV-241). SSH git failed again, and the HTTPS URL worked. Each Linear upload took 3 calls, because its signed link lasts only 60 seconds.
+- On 2026-11-25 DEV-230 merged in PR #403 (`jobanmendpara/myvgc@7d5f9a3`) on its first CI run. As of that commit, the smoke test finds the one localStorage key starting `myvgc-names-` and doesn't name its version. The constant isn't shared, because importing the composable would pull in Vue and TanStack Query. The agent bumped the key to v99 locally, built the image in its own Compose project on port 3477, and the smoke test that reads the cache passed (subagent report). SSH failed, the HTTPS URL worked, and `wait-for-checks.sh` needed 4 calls.
+
+## Outcome
+
+On 2026-11-25 all eight issues, DEV-229 to DEV-236, had merged. Each was in its own PR and closed in Linear on merge. One usage-limit pause hit three agents, and SendMessage resumed them. New follow-ups: [DEV-237](https://linear.app/mendpara/issue/DEV-237) to [DEV-241](https://linear.app/mendpara/issue/DEV-241). SSH git failed for most agents this round; the HTTPS URL worked every time.
+
+## Retro on DEV-233 (2026-11-25)
+
+The chief-of-staff's retro on the DEV-233 agent (subagent report, 2026-11-25) counted where its 104 calls went:
+
+- 24 went on attaching 7 images to Linear, filed as [DEV-243](https://linear.app/mendpara/issue/DEV-243).
+- About 24 went on screenshots.
+- About 15 went on building a Team with long item names in a preview, filed as [DEV-242](https://linear.app/mendpara/issue/DEV-242).
+- 3 went on zsh errors, and the shell rule in [parallel agents](parallel-agents.md) was extended.
+
+The retro also reproduced the 12-path `pnpm screenshots` run. It was not a silent failure: DEV-228's argument check refused the run, and the agent's `| grep -c png` hid the message. The chief-of-staff rewrote [DEV-241](https://linear.app/mendpara/issue/DEV-241) to match, and the 2026-11-25 line above calling it "saved nothing" is superseded.
+
+Related: [icons rollout](icons-rollout.md), [preview](preview.md), [flaky tests](flaky-tests.md).

@@ -10,7 +10,11 @@ How we run several implementation agents at once. First used on 2026-11-11 for D
 
 The chief-of-staff's retro on the DEV-225 agent (subagent report, 2026-11-25) counted the round's refusals. The worktree guard refused 8 commands across 4 of the 5 agents, while 15 of the round's 19 heredocs passed. Which heredocs it refuses can't be predicted, so the dated "heredocs are refused" lines below are only partly right. The retro found that the guard is Claude Code's built-in check for `isolation: "worktree"` agents, not a hook in this repo. Each refusal cost about 3 calls; nobody was blocked. From 2026-11-25 every implementer brief carries this rule, and new rounds don't add a dated line for each refusal:
 
-> In a worktree: change files with Edit and Write, not heredocs or `python3 -` rewrites. Run each `git` command on its own, never in `&&` chains or loops. Poll with `gh` (loops of `gh` pass). Use paths inside your worktree, never the shared checkout's.
+> In a worktree: change files with Edit and Write, not heredocs or `python3 -` rewrites. Run each `git` command on its own, never in `&&` chains or loops. Poll with `gh` (loops of `gh` pass). Use paths inside your worktree, never the shared checkout's. The shell is zsh: quote globs (`'--include=*.ts'`), and run .ts files with `node`, not `npx tsx`. Fetch and push with `https://jobanmendpara@github.com/jobanmendpara/myvgc.git` if SSH fails.
+
+On 2026-11-25 the DEV-236 agent had `git diff --name-only $(git merge-base …)..origin/main` refused, which is the comparison CLAUDE.md's "Branch off `origin/main`" bullet asks for. `git diff --name-only HEAD...origin/main` after a `git fetch` gives the same list in one plain command (three dots compare from the merge base). From 2026-11-25 briefs name that form.
+
+On 2026-11-25 the chief-of-staff's retro on the DEV-233 agent found the rule held, with 0 guard refusals. It did find 3 calls lost to zsh (unquoted globs and a missing `npx tsx`), so the zsh and HTTPS sentences were added to the rule that day. SSH `git fetch` failed again for most of the round's agents ("agent refused operation").
 
 ## Outcomes
 
