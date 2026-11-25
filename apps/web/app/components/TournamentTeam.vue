@@ -118,7 +118,7 @@ const snapshotDate = computed(() =>
       <Button variant="ghost" size="sm" class="self-start" @click="showBuilds = !showBuilds">
         {{ showBuilds ? 'Hide builds' : 'Show builds' }}
       </Button>
-      <div v-if="showBuilds" class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <div v-if="showBuilds" class="build-card-grid">
         <PokemonBuildCard
           v-for="(build, index) in tournament.team.pokemon"
           :key="index"

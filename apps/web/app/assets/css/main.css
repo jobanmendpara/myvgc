@@ -181,3 +181,18 @@
     @apply bg-background text-foreground;
   }
 }
+
+/*
+ * The grid of Pokémon build cards (a Team's page, a Tournament's Team). As many cards per row as
+ * fit, up to three, each at least 16.25rem wide: enough for six stat boxes to hold a label and
+ * its Stat Alignment mark, such as "SpA▼", on one line (DEV-212). Columns follow the room the
+ * grid has, not the window, because the list beside it takes part of the width.
+ */
+@utility build-card-grid {
+  display: grid;
+  gap: --spacing(3);
+  grid-template-columns: repeat(
+    auto-fill,
+    minmax(max(16.25rem, calc((100% - --spacing(6)) / 3)), 1fr)
+  );
+}

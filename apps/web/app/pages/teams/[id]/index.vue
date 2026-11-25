@@ -207,7 +207,7 @@ const remove = useMutation({
         </AlertDescription>
       </Alert>
 
-      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3" data-testid="team-pokemon">
+      <div class="build-card-grid" data-testid="team-pokemon">
         <PokemonBuildCard
           v-for="(build, index) in team.pokemon"
           :key="index"
