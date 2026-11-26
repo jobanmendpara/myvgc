@@ -1,6 +1,9 @@
 // Tests how `pnpm screenshots` reads its arguments and names its files (DEV-186, DEV-198, DEV-199,
-// DEV-227, DEV-228). Taking real shots needs a running preview; DEV-186's, DEV-198's and DEV-227's
-// PRs show it run end to end. Run with `pnpm test:scripts`.
+// DEV-227, DEV-228), and what a refused run prints (DEV-241). Taking real shots needs a running
+// preview; DEV-186's, DEV-198's and DEV-227's PRs show it run end to end. Run with
+// `pnpm test:scripts`.
+import { spawnSync } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
 import { describe, expect, test } from 'vitest'
 import {
   HELP,
@@ -146,19 +149,24 @@ describe('parseShots', () => {
   })
 
   test.each([
-    [['/teams', '--dark', '--dark'], /--dark is given twice for \/teams/],
+    [['/teams', '--dark', '--dark'], /--dark is given twice for path 1 \(\/teams\)/],
     [['--2x', '--2x'], /--2x is given twice for every path/],
     [['--sprite-style'], /--sprite-style needs one of inline, leading-slot, stacked-tiles/],
     [['--sprite-style', 'Stacked tiles'], /--sprite-style needs one of/],
-    [['/settings', '--sprite-style', 'inline'], /\/settings has no Sprite style/],
+    [['/settings', '--sprite-style', 'inline'], /path 1 \(\/settings\) has no Sprite style/],
     [['--sprite-style', 'inline', '/settings'], /None of the paths has a Sprite style/],
     [['--sprite-style', 'inline', '--sprite-style', 'inline'], /--sprite-style is given twice/],
     [
       ['/teams', '/settings', '/opponents', '--sprite-style', 'stacked-tiles'],
-      /--sprite-style is given after \/opponents but not after \/teams, which would show the default/,
+      /--sprite-style is given after path 3 \(\/opponents\) but not after path 1 \(\/teams\), which would show the default/,
+    ],
+    [
+      // The same page given twice is told apart by position (DEV-241).
+      ['/teams/a', '--sprite-style', 'stacked-tiles', '/teams/a', '--click', 'Grouped'],
+      /given after path 1 \(\/teams\/a\) but not after path 2 \(\/teams\/a\),/,
     ],
     [['--type-icon-style', 'pills'], /--type-icon-style needs one of compact, badges, labelled/],
-    [['/statistics', '--move-layout', 'two-columns'], /\/statistics has no Move layout/],
+    [['/statistics', '--move-layout', 'two-columns'], /path 1 \(\/statistics\) has no Move layout/],
     [['--click'], /--click needs/],
     [['/teams', '--click', '--click', 'x'], /--click needs/],
     [['--click', ' '], /--click needs/],
@@ -176,6 +184,33 @@ describe('parseShots', () => {
     [['--full'], /Unknown option --full/],
   ])('refuses %j', (args, message) => {
     expect(() => parseShots(args)).toThrow(message)
+  })
+})
+
+describe('a refused run', () => {
+  // Refused before it looks for a preview, so it runs with none.
+  const run = (args: string[]) =>
+    spawnSync(
+      process.execPath,
+      [fileURLToPath(new URL('screenshots.ts', import.meta.url)), ...args],
+      {
+        encoding: 'utf8',
+      },
+    )
+
+  test('exits 64 and ends with the reason, not the usage (DEV-241)', () => {
+    const paths = Array.from({ length: 12 }, (_, i) => `/teams/${i < 6 ? 'a' : 'b'}`)
+    const args = paths.flatMap((path, i) =>
+      i < 11 ? [path, '--sprite-style', 'stacked-tiles'] : [path],
+    )
+    const { status, stdout, stderr } = run(args)
+    expect(status).toBe(64)
+    expect(stdout).toBe('')
+    const lines = stderr.trimEnd().split('\n')
+    expect(lines).toHaveLength(2)
+    expect(lines[0]).toMatch(/refused these arguments \(--help lists the options\)/)
+    expect(lines[1]).toMatch(/but not after path 12 \(\/teams\/b\), which would show the default/)
+    expect(stderr).not.toContain('Usage:')
   })
 })
 
