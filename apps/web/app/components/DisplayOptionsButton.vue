@@ -154,7 +154,15 @@ const CHOICE =
                       :size="BADGE_TYPE_ICON_SIZE"
                     />
                   </span>
-                  <span v-else class="flex min-w-0 flex-wrap justify-end gap-1">
+                  <!-- Labelled: placed as the page's Sprite style places it (DEV-244), a row
+                       under a Stacked tile's item, else stacked at the top right. -->
+                  <span
+                    v-else
+                    class="flex min-w-0 gap-1"
+                    :class="
+                      style === 'stacked-tiles' ? 'flex-wrap justify-end' : 'flex-col items-end'
+                    "
+                  >
                     <TypeIcon
                       v-for="type in SAMPLE_TYPES"
                       :key="type"

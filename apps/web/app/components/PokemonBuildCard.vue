@@ -41,6 +41,17 @@ const { style: spriteStyle } = useSpriteStyle()
 const { typeIconStyle, moveLayout } = useBuildCardDisplay()
 const stacked = computed(() => spriteStyle.value === 'stacked-tiles')
 const badges = computed(() => typeIconStyle.value === 'badges')
+// Labelled pills go in a row under the item with Stacked tiles, and stacked at the top right
+// with Inline and Leading slot (DEV-244).
+const labelled = computed(() => typeIconStyle.value === 'labelled')
+const labelledUnderItem = computed(() => labelled.value && stacked.value)
+const itemUnderPills = computed(
+  () =>
+    labelled.value &&
+    spriteStyle.value === 'leading-slot' &&
+    Boolean(props.build.names.item) &&
+    types.value.length > 0,
+)
 const moveTypeIconSize = computed(() =>
   typeIconStyle.value === 'labelled' ? LABELLED_MOVE_TYPE_ICON_SIZE : MOVE_TYPE_ICON_SIZE,
 )
@@ -71,20 +82,32 @@ const moveRows = computed(() =>
          Stacked tiles: in the top-right corner. The Type icons show in the page's Type icon
          style (DEV-218, DEV-226): Compact, a row at the top right, under a Stacked tile's
          Sprite; Badges, a column at the top right, or over a Stacked tile's bottom-right corner;
-         Labelled, pills in a row under the item, so they leave the title and item the card's
-         width (DEV-233). -->
+         Labelled, pills stacked at the top right, or in a row under a Stacked tile's item
+         (DEV-244). With Leading slot the item runs under the pills, so a long item name keeps
+         the width right of the Sprite and stays on one line: the header turns into a grid, and
+         the wrappers step aside (`contents`) so the Sprite, title and item are its cells. -->
     <header
-      class="flex justify-between gap-3"
-      :class="spriteStyle === 'leading-slot' ? 'items-center' : 'items-start'"
+      :class="
+        itemUnderPills
+          ? 'grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-0.5'
+          : [
+              'flex justify-between gap-3',
+              spriteStyle === 'leading-slot' ? 'items-center' : 'items-start',
+            ]
+      "
     >
-      <div class="flex min-w-0 items-center gap-3">
+      <div :class="itemUnderPills ? 'contents' : 'flex min-w-0 items-center gap-3'">
         <Sprite
           v-if="spriteStyle === 'leading-slot'"
+          :class="{ 'row-span-2': itemUnderPills }"
           :species="build.species"
           surface="build-card"
         />
-        <div class="flex min-w-0 flex-col gap-0.5">
-          <h2 class="flex items-center gap-1.5 font-semibold">
+        <div :class="itemUnderPills ? 'contents' : 'flex min-w-0 flex-col gap-0.5'">
+          <h2
+            class="flex items-center gap-1.5 font-semibold"
+            :class="{ 'col-start-2 row-start-1 min-w-0': itemUnderPills }"
+          >
             <Sprite v-if="spriteStyle === 'inline'" :species="build.species" surface="build-card" />
             <span class="min-w-0 break-words"
               >{{ title }}
@@ -95,17 +118,27 @@ const moveRows = computed(() =>
           </h2>
           <!-- Badges: the Item icon takes the place of the @, which stays when there's no icon
                to show. -->
-          <p v-if="build.names.item" class="text-muted-foreground flex items-center gap-1 text-sm">
+          <p
+            v-if="build.names.item"
+            class="text-muted-foreground flex items-center gap-1 text-sm"
+            :class="{ 'col-span-2 col-start-2 row-start-2 min-w-0': itemUnderPills }"
+          >
             <span v-if="!(badges && build.item)">@</span>
             <ItemIcon
               v-if="build.item"
               :item="build.item"
               :size="typeIconStyle === 'compact' ? undefined : LARGE_ITEM_ICON_SIZE"
             />
-            <span class="min-w-0">{{ build.names.item }}</span>
+            <span
+              v-if="labelled"
+              class="min-w-0 truncate whitespace-nowrap"
+              :title="build.names.item"
+              >{{ build.names.item }}</span
+            >
+            <span v-else class="min-w-0">{{ build.names.item }}</span>
           </p>
           <div
-            v-if="typeIconStyle === 'labelled' && types.length"
+            v-if="labelledUnderItem && types.length"
             class="mt-1 flex flex-wrap gap-1"
             data-testid="build-types"
           >
@@ -140,6 +173,20 @@ const moveRows = computed(() =>
         data-testid="build-types"
       >
         <TypeIcon v-for="type in types" :key="type" :type="type" :size="BADGE_TYPE_ICON_SIZE" />
+      </div>
+      <div
+        v-else-if="labelled && !stacked && types.length"
+        class="flex shrink-0 flex-col items-end gap-1"
+        :class="{ 'col-start-3 row-start-1 self-start': itemUnderPills }"
+        data-testid="build-types"
+      >
+        <TypeIcon
+          v-for="type in types"
+          :key="type"
+          :type="type"
+          :size="LABELLED_TYPE_ICON_SIZE"
+          labelled
+        />
       </div>
       <div
         v-else-if="stacked || (typeIconStyle === 'compact' && types.length)"
