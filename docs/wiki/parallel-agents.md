@@ -14,6 +14,8 @@ The chief-of-staff's retro on the DEV-225 agent (subagent report, 2026-11-25) co
 
 On 2026-11-25 the DEV-236 agent had `git diff --name-only $(git merge-base …)..origin/main` refused, which is the comparison CLAUDE.md's "Branch off `origin/main`" bullet asks for. `git diff --name-only HEAD...origin/main` after a `git fetch` gives the same list in one plain command (three dots compare from the merge base). From 2026-11-25 briefs name that form.
 
+On 2026-11-25, with the maintainer's approval, CLAUDE.md's "Branch off `origin/main`" bullet itself names `git diff --name-only HEAD...origin/main` after `git fetch`, so briefs no longer need to.
+
 On 2026-11-25 the chief-of-staff's retro on the DEV-233 agent found the rule held, with 0 guard refusals. It did find 3 calls lost to zsh (unquoted globs and a missing `npx tsx`), so the zsh and HTTPS sentences were added to the rule that day. SSH `git fetch` failed again for most of the round's agents ("agent refused operation").
 
 ## Outcomes
