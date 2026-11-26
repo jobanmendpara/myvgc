@@ -116,6 +116,17 @@ describe.concurrent('wait-for-checks.sh', { timeout: 20_000 }, () => {
     expect(result.output).toContain('PR #7 merged as abc123')
   })
 
+  // The harness moves a foreground command to the background after 180 seconds (DEV-240).
+  test('waits up to 170 seconds by default', async () => {
+    const result = await run({
+      GH_CHECKS: PASSING,
+      GH_VIEW: 'MERGED\\tfalse\\tUNKNOWN\\tabc123',
+      WAIT_FOR_CHECKS_TIMEOUT: '',
+    })
+    expect(result.code).toBe(0)
+    expect(result.output).toContain('Waiting up to 170s for PR #7')
+  })
+
   test('exits 0 when both checks pass and no auto-merge is queued', async () => {
     const result = await run({ GH_CHECKS: PASSING, GH_VIEW: 'OPEN\\tfalse\\tCLEAN\\t' })
     expect(result.code).toBe(0)
