@@ -44,6 +44,10 @@ export default defineNuxtConfig({
       navigateFallback: '/',
       navigateFallbackDenylist: [/^\/api(\/|$)/, /^\/(sprites|item-icons|type-icons)\//],
       cleanupOutdatedCaches: true,
+      // On a first visit, the service worker takes over the open page as soon as it activates, so
+      // pages not opened yet open with no signal without a reload (DEV-245). A new version still
+      // waits for the User's Reload: with no `skipWaiting` it only activates once they tap it.
+      clientsClaim: true,
     },
     // app/plugins/update-checks.client.ts checks for new versions instead.
     client: { installPrompt: false, periodicSyncForUpdates: 0 },

@@ -942,6 +942,30 @@ test('a Tournament created and deleted with no signal is never sent', async ({ c
   expect(sent).toEqual([])
 })
 
+test('on a first visit, pages not opened yet open with no signal once the service worker is ready, with no reload', async ({
+  context,
+  page,
+}) => {
+  // The device's first visit: the page loaded before the service worker existed, and every later
+  // page is opened by tapping, never loaded anew.
+  await signUp(page, 'smoke-first-visit')
+  await page
+    .getByRole('navigation', { name: 'Main' })
+    .getByRole('link', { name: 'Tournaments' })
+    .click()
+  await expect(page.getByRole('heading', { name: 'Your Tournaments' })).toBeVisible()
+  // Gone after a reload, so the page must open in the page already loaded.
+  await page.evaluate(() => Object.assign(window, { firstVisitPage: true }))
+
+  // The New Tournament form and the Tournament page haven't been opened yet, so their code comes
+  // from the service worker, which took over this page when it became ready (DEV-245).
+  await goOffline(page)
+  await page.getByRole('link', { name: 'Log your first Tournament' }).click()
+  await submitNewTournament(page, 'First Visit Open')
+  expect(await page.evaluate(() => 'firstVisitPage' in window)).toBe(true)
+  await context.setOffline(false)
+})
+
 test('an Opponent changed and another deleted with no signal are sent when the signal returns', async ({
   context,
   page,
