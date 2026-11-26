@@ -98,6 +98,12 @@ From the DEV-223 agent's report, 2026-11-25.
 
 - On 2026-11-25 DEV-236 changed `scripts/wait-for-checks.sh` so that when `gh pr checks` or `gh pr view` fails with GitHub's "GraphQL: Something went wrong" (see "Sprite Bugs" above), it waits 5 seconds (`WAIT_FOR_CHECKS_RETRY_DELAY`) and asks once more. It exits 3 only when the retry fails too, and exits 2 when the deadline leaves no time to retry. Other `gh` errors still exit 3 at once, and the other exit codes are unchanged. `gh pr merge --auto` has no such retry: run it again by hand.
 
+## The 180-second limit still holds (DEV-240, 2026-11-25)
+
+- At about 125 seconds a call, the script needed 3 to 6 calls per PR, since CI's checks take 6 to 8 minutes (2026-11-18, 2026-11-24, and about 6 for the DEV-234 agent on 2026-11-25). DEV-240 asked for one call to wait about 9 minutes, on the belief that agents' foreground commands can run for 10 minutes.
+- On 2026-11-25 the DEV-240 agent raised the default deadline to 540 seconds and ran it on its own PR #411 with a 600000 ms Bash timeout. The harness moved the call to the background after 180 seconds ("Command was moved to the background ... after running for 180s"), as it did to `gh pr checks --watch` on 2026-11-12 (see "Waiting for CI" above). A background command lets the turn end, which counts as the agent's hand-back, so a deadline past 180 seconds can't be used. The agent stopped the call and cancelled the PR's auto-merge.
+- What PR #411 changed instead: the default deadline went from 150 to 170 seconds, leaving 10 seconds of the 180 for a slow start and killing a last `gh` call. With 30-second polls a call now lasts about 155 seconds instead of 125. The script prints its deadline first ("Waiting up to 170s for PR #n."). Exit codes are unchanged. Fewer calls per PR would need a longer harness limit, which is a Claude Code setting, not something this repo controls; DEV-240 stays open for the maintainer to decide.
+
 ## Screenshots stay out of PRs (2026-11-25)
 
 - On 2026-11-25 the maintainer decided that PR bodies carry no screenshots and no GitHub branch hosts PR images: the agent looks at its own `pnpm screenshots` shots, writes what it checked in the PR's Evidence section, and attaches shots to the Linear issue when the maintainer may want them. One reason is the auto-merge above: no one reviews the PR. See [preview](preview.md), "Screenshots in PRs (2026-11-25)".

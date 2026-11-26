@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Waits up to 150 seconds for a PR's `check` and `smoke / smoke` to finish and, when auto-merge is
+# Waits up to 170 seconds for a PR's `check` and `smoke / smoke` to finish and, when auto-merge is
 # queued (`gh pr merge <n> --auto --merge --delete-branch`), for GitHub to merge it.
 #
 #   scripts/wait-for-checks.sh <pr number>
@@ -22,9 +22,11 @@
 #
 # Agents run it in the foreground, again and again, until it exits 0 or 1. A Monitor or a
 # background `gh pr checks --watch` lets the agent's turn end, which the harness takes as its
-# hand-back, and a foreground `--watch` is moved to the background after about 180 seconds
-# (docs/wiki/shipping-flow.md, "Waiting for CI"). Hence the bounded wait: one deadline covers every
-# phase, and a `gh` call still running at the deadline is killed. Time the machine spends asleep
+# hand-back, and the harness moves any foreground command to the background after 180 seconds,
+# whatever its Bash timeout: a 10-minute timeout didn't change that on 2026-11-25 (DEV-240;
+# docs/wiki/shipping-flow.md, "Waiting for CI"). Hence the bounded wait: one deadline covers every
+# phase, and a `gh` call still running at the deadline is killed. The 170-second default leaves
+# 10 seconds of the 180 for a slow start and killing a last `gh` call. Time the machine spends asleep
 # counts against the deadline, as it does against the harness's limit, so a call that sleeps past
 # the deadline exits 2 when the machine wakes, without asking `gh` again.
 #
@@ -36,7 +38,7 @@ set -euo pipefail
 trap 'exit 3' ERR
 
 CHECKS=('check' 'smoke / smoke')
-timeout=${WAIT_FOR_CHECKS_TIMEOUT:-150}
+timeout=${WAIT_FOR_CHECKS_TIMEOUT:-170}
 interval=${WAIT_FOR_CHECKS_INTERVAL:-30}
 retry_delay=${WAIT_FOR_CHECKS_RETRY_DELAY:-5}
 # With branch protection on main (2026-11-15), a queued auto-merge lands a few seconds after the
@@ -54,6 +56,7 @@ fi
 
 start=$SECONDS
 deadline=$((start + timeout))
+echo "Waiting up to ${timeout}s for PR #$pr."
 
 # Exits 2, saying what is still pending.
 out_of_time() {
