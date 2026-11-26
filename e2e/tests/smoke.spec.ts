@@ -942,6 +942,44 @@ test('a Tournament created and deleted with no signal is never sent', async ({ c
   expect(sent).toEqual([])
 })
 
+test('on a first visit, the app says when it is ready to use offline, and never again', async ({
+  page,
+}) => {
+  // Every notice shown, in order, so one that comes and goes quickly on a fast connection is still
+  // counted. A reload starts the list afresh.
+  await page.addInitScript(() => {
+    const shown: string[] = []
+    Object.assign(window, { offlineNotices: shown })
+    new MutationObserver(() => {
+      const text = document.querySelector('[data-testid="offline-ready"]')?.textContent?.trim()
+      if (text && shown.at(-1) !== text) shown.push(text)
+    }).observe(document, { subtree: true, childList: true, characterData: true })
+  })
+  const shown = () =>
+    page.evaluate(() => (window as unknown as { offlineNotices: string[] }).offlineNotices)
+  const notice = page.getByTestId('offline-ready')
+
+  await page.goto('/login')
+  await expect(page.getByRole('heading', { name: 'Log in' })).toBeVisible()
+  // Busy while the service worker downloads the app's files, then ready (DEV-246).
+  await expect(notice).toContainText('Ready to use offline', { timeout: 30_000 })
+  await serviceWorkerReady(page)
+  const notices = await shown()
+  expect(notices).toHaveLength(2)
+  expect(notices[0]).toContain('Getting ready for offline…')
+  expect(notices[1]).toContain('Ready to use offline')
+  // Read out politely by screen readers.
+  await expect(page.getByTestId('offline-ready-region')).toHaveAttribute('aria-live', 'polite')
+  // It closes on its own.
+  await expect(notice).toHaveCount(0, { timeout: 15_000 })
+
+  // Neither notice shows again on this device.
+  await page.reload()
+  await expect(page.getByRole('heading', { name: 'Log in' })).toBeVisible()
+  await page.waitForTimeout(3000)
+  expect(await shown()).toEqual([])
+})
+
 test('on a first visit, pages not opened yet open with no signal once the service worker is ready, with no reload', async ({
   context,
   page,

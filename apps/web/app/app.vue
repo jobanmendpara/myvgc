@@ -5,5 +5,6 @@
     <NuxtPage />
   </NuxtLayout>
   <UpdateBanner />
+  <OfflineReadyToast />
   <UnsyncedChangesDialog />
 </template>
