@@ -18,8 +18,27 @@ import {
   powerAccuracyText,
   STACKED_BADGE_TYPE_ICON_SIZE,
 } from '@/lib/icons'
+import { PLACEMENT_LABELS } from '@/composables/usePrototypeLabelledPlacement'
 
-const props = defineProps<{ build: NamedPokemonBuild; problems?: LegalityProblem[] }>()
+const props = defineProps<{
+  build: NamedPokemonBuild
+  problems?: LegalityProblem[]
+  /** PROTOTYPE (DEV-233): the card's place on the page, to pick its long item name. */
+  prototypeIndex?: number
+}>()
+
+// PROTOTYPE (DEV-233), throwaway: placement A (top right) or B (under the item) for the
+// Labelled pills, flippable per card; long item names swap in on screen only.
+const prototype = usePrototypeLabelledPlacement()
+const prototypeKey = computed(() => props.build.species)
+const placement = computed(() => prototype.cardPlacement(prototypeKey.value))
+const shownItem = computed(() => {
+  if (!prototype.longItems.value || !props.build.names.item) {
+    return { id: props.build.item, name: props.build.names.item }
+  }
+  const long = prototype.longItemFor(props.prototypeIndex ?? 0)
+  return { id: long.item, name: long.name }
+})
 
 const title = computed(() =>
   props.build.nickname
@@ -66,7 +85,17 @@ const moveRows = computed(() =>
 </script>
 
 <template>
-  <article class="flex flex-col gap-3 rounded-lg border p-4" data-testid="pokemon-build">
+  <article class="relative flex flex-col gap-3 rounded-lg border p-4" data-testid="pokemon-build">
+    <button
+      v-if="typeIconStyle === 'labelled'"
+      type="button"
+      class="absolute -top-2.5 left-3 z-10 rounded-full bg-fuchsia-950 px-2 py-px text-[0.625rem] font-semibold text-white ring-1 ring-fuchsia-400"
+      :title="`This card: ${PLACEMENT_LABELS[placement]}. Click to flip it.`"
+      @click="prototype.flipCard(prototypeKey)"
+    >
+      {{ placement }} · {{ PLACEMENT_LABELS[placement] }}
+      <span v-if="prototype.overrides.value[prototypeKey]">(flipped)</span> ⇄
+    </button>
     <!-- Inline: the Sprite before the title. Leading slot: a slot left of the title and item.
          Stacked tiles: in the top-right corner. The Type icons show in the page's Type icon
          style (DEV-218, DEV-226): Compact, a row at the top right, under a Stacked tile's
@@ -95,17 +124,17 @@ const moveRows = computed(() =>
           </h2>
           <!-- Badges: the Item icon takes the place of the @, which stays when there's no icon
                to show. -->
-          <p v-if="build.names.item" class="text-muted-foreground flex items-center gap-1 text-sm">
-            <span v-if="!(badges && build.item)">@</span>
+          <p v-if="shownItem.name" class="text-muted-foreground flex items-center gap-1 text-sm">
+            <span v-if="!(badges && shownItem.id)">@</span>
             <ItemIcon
-              v-if="build.item"
-              :item="build.item"
+              v-if="shownItem.id"
+              :item="shownItem.id"
               :size="typeIconStyle === 'compact' ? undefined : LARGE_ITEM_ICON_SIZE"
             />
-            <span class="min-w-0">{{ build.names.item }}</span>
+            <span class="min-w-0">{{ shownItem.name }}</span>
           </p>
           <div
-            v-if="typeIconStyle === 'labelled' && types.length"
+            v-if="typeIconStyle === 'labelled' && placement === 'B' && types.length"
             class="mt-1 flex flex-wrap gap-1"
             data-testid="build-types"
           >
@@ -140,6 +169,22 @@ const moveRows = computed(() =>
         data-testid="build-types"
       >
         <TypeIcon v-for="type in types" :key="type" :type="type" :size="BADGE_TYPE_ICON_SIZE" />
+      </div>
+      <!-- PROTOTYPE (DEV-233): placement A, as DEV-226 built it (fae9b31). -->
+      <div
+        v-else-if="typeIconStyle === 'labelled' && placement === 'A' && (stacked || types.length)"
+        class="flex shrink-0 items-start gap-2"
+      >
+        <div v-if="types.length" class="flex flex-col items-end gap-1" data-testid="build-types">
+          <TypeIcon
+            v-for="type in types"
+            :key="type"
+            :type="type"
+            :size="LABELLED_TYPE_ICON_SIZE"
+            labelled
+          />
+        </div>
+        <Sprite v-if="stacked" :species="build.species" surface="build-card" />
       </div>
       <div
         v-else-if="stacked || (typeIconStyle === 'compact' && types.length)"

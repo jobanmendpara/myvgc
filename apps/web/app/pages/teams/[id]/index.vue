@@ -213,8 +213,11 @@ const remove = useMutation({
           :key="index"
           :build="build"
           :problems="buildProblems(team.legality, index)"
+          :prototype-index="index"
         />
       </div>
+      <!-- PROTOTYPE (DEV-233), throwaway: switches the Labelled pills' placement. -->
+      <PrototypeLabelledPlacementBar />
 
       <section class="flex flex-col gap-1">
         <h2 class="font-medium">Notes</h2>
