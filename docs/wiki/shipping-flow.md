@@ -115,6 +115,15 @@ From the DEV-227 agent's report, 2026-11-25.
 
 - On 2026-11-25 PR #381 (`jobanmendpara/myvgc@41ee853`) had both "Closes DEV-227" and "Closes DEV-228" in its body, on the branch `jobanmendpara/dev-227-…`. Linear closed DEV-227 on merge but left DEV-228 In Progress, and the agent moved it to Done by hand. It looks as if only the issue named in the branch closes on its own; one example so far. From 2026-11-25 the chief-of-staff gives each issue its own PR, or tells the agent to move any extra issue to Done after the merge.
 
+## Waiting longer than 180 seconds (2026-11-25)
+
+From the claude-code-guide agent's report, 2026-11-25, citing code.claude.com/docs/en/tools-reference.md, sub-agents.md and env-vars.md:
+
+- The docs describe the 180-second move to the background as a separate behaviour of interactive sessions: a background subagent's command can move after 3 minutes, before its timeout. `BASH_DEFAULT_TIMEOUT_MS` and `BASH_MAX_TIMEOUT_MS` raise only the timeout an agent can ask for, and no documented setting changes the 180 s point.
+- `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1` turns off auto-backgrounding. The docs don't say whether that covers the 180 s move, and it is untested here.
+- The Monitor tool is the documented fit for "poll a PR or CI job and report when its status changes". It has a default deadline of 5 minutes and a maximum of 30 in interactive sessions. The docs don't say whether every subagent has it.
+- As of 2026-11-25 nothing was changed. A Monitor-based wait would replace CLAUDE.md's "Wait in the foreground" rule, so it went to the maintainer.
+
 ## Releases
 
 - On 2026-11-19 v0.2.0 was released from `jobanmendpara/myvgc@8e8a992` (tag `v0.2.0`, published 16:25 UTC, [release notes](https://github.com/jobanmendpara/myvgc/releases/tag/v0.2.0)). The "Release" workflow on the tag passed, so the smoke test ran on code that has both DEV-148 and DEV-149. This closes, for that combination, the 2026-11-18 gap noted above. The notes carried DEV-151's `S3_REGION` note (see the [2026-11-17 Refactor round](refactor-round-2026-11-17.md)). The only earlier release was v0.1.0, a pre-release, on 2026-11-03.
