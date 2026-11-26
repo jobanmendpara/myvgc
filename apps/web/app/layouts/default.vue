@@ -23,6 +23,10 @@ const split = computed(() => !!route.meta.listDetail && wide.value)
 const { bar, online } = useSyncBar()
 const onRoundForm = computed(() => /^\/tournaments\/[^/]+\/rounds\//.test(route.path))
 const shownBar = computed(() => (onRoundForm.value ? undefined : bar.value))
+// The offline notice sits above the bar (DEV-246).
+const syncBarShown = useSyncBarShown()
+watchEffect(() => (syncBarShown.value = !!shownBar.value))
+onUnmounted(() => (syncBarShown.value = false))
 </script>
 
 <template>
