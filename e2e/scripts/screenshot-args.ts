@@ -1,5 +1,5 @@
 // Reads `pnpm screenshots`'s arguments into shots (DEV-186, DEV-198, DEV-199, DEV-227, DEV-228,
-// DEV-232),
+// DEV-232, DEV-241),
 // and names their files. Kept apart from screenshots.ts so it can be tested without a browser or
 // a running preview.
 import { createHash } from 'node:crypto'
@@ -139,10 +139,20 @@ export const USAGE = [
 /** The options of one part of the arguments: before the first path, or after a path. */
 interface Part {
   path?: string
+  /** Counting from 1, in the order the paths are given; undefined before the first path. */
+  position?: number
   clicks: Click[]
   settings: Partial<Record<PageSettingFlag, string>>
   dark?: true
   double?: true
+}
+
+/**
+ * What a refused run prints: a pointer to `--help`, then the reason, last, so a `| tail` of the
+ * output still shows why (DEV-241).
+ */
+export function refusal(reason: string): string {
+  return `pnpm screenshots refused these arguments (--help lists the options):\n${reason}`
 }
 
 /** Reads the arguments, or throws an Error whose message says what's wrong. */
@@ -151,7 +161,7 @@ export function parseShots(args: string[]): Shot[] | typeof HELP {
   const general: Part = { clicks: [], settings: {} }
   const paths: Part[] = []
   let part = general
-  const where = () => part.path ?? 'every path'
+  const where = () => (part.path ? named(part) : 'every path')
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]!
     if (arg === '--') continue
@@ -188,7 +198,7 @@ export function parseShots(args: string[]): Shot[] | typeof HELP {
       if (!setting.values.some((known) => known === value))
         throw new Error(`${arg} needs one of ${setting.values.join(', ')}.`)
       if (part.path && !setting.pageOf(part.path))
-        throw new Error(`${part.path} has no ${setting.label}, so ${arg} has nothing to set.`)
+        throw new Error(`${named(part)} has no ${setting.label}, so ${arg} has nothing to set.`)
       if (part.settings[flag])
         throw new Error(`${arg} is given twice for ${where()}; give it once.`)
       part.settings[flag] = value
@@ -199,7 +209,7 @@ export function parseShots(args: string[]): Shot[] | typeof HELP {
     } else if (arg.startsWith('-')) {
       throw new Error(`Unknown option ${arg}.`)
     } else if (arg.startsWith('/')) {
-      paths.push((part = { path: arg, clicks: [], settings: {} }))
+      paths.push((part = { path: arg, position: paths.length + 1, clicks: [], settings: {} }))
     } else {
       throw new Error(`Give paths that start with /, such as /teams, not ${arg}.`)
     }
@@ -236,10 +246,13 @@ function checkSetting(flag: PageSettingFlag, general: Part, paths: Part[]) {
   const given = having.find((own) => own.settings[flag])
   if (given && without.length)
     throw new Error(
-      `--${flag} is given after ${given.path} but not after ${without.map((own) => own.path).join(', ')}, ` +
+      `--${flag} is given after ${named(given)} but not after ${without.map(named).join(', ')}, ` +
         `which would show the default. Give it before the first path for every path, or after each.`,
     )
 }
+
+// A path as errors name it, by position too, so a path given twice can be told apart (DEV-241).
+const named = (own: Part) => `path ${own.position} (${own.path})`
 
 /** What to put in the page's localStorage before it loads, for a shot of `path`. */
 export function shotStorage(shot: Shot, path: string): Record<string, string> {

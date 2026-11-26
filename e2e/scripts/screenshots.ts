@@ -12,6 +12,7 @@
 // neither (DEV-227).
 // Writes .preview/screenshots/<page>[-<setting>-<value>...][-dark][-2x][-<click>...]-<width>.png,
 // plus <name>.partN.png slices of a shot taller than SLICE image pixels, and prints each path.
+// Arguments it refuses exit 64 with the reason printed last, not the usage (DEV-241).
 import { mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -23,6 +24,7 @@ import {
   USAGE,
   ambiguousClick,
   parseShots,
+  refusal,
   shotName,
   shotStorage,
 } from './screenshot-args.ts'
@@ -41,7 +43,7 @@ let shots
 try {
   shots = parseShots(process.argv.slice(2))
 } catch (error) {
-  console.error(`${(error as Error).message}\n\n${USAGE}`)
+  console.error(refusal((error as Error).message))
   process.exit(64)
 }
 if (shots === HELP) {
