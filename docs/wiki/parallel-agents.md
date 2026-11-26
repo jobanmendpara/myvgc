@@ -18,6 +18,8 @@ On 2026-11-25, with the maintainer's approval, CLAUDE.md's "Branch off `origin/m
 
 On 2026-11-25 the chief-of-staff's retro on the DEV-233 agent found the rule held, with 0 guard refusals. It did find 3 calls lost to zsh (unquoted globs and a missing `npx tsx`), so the zsh and HTTPS sentences were added to the rule that day. SSH `git fetch` failed again for most of the round's agents ("agent refused operation").
 
+On 2026-11-25 the maintainer explained the SSH failures: 1Password, which supplies the SSH key, locks when the maintainer is inactive, and the agent's signing request is then refused. The same day, `ssh -T git@github.com` authenticated as soon as the maintainer was back. So the maintainer kept SSH as the remote, and the HTTPS URL stays the fallback, used only when SSH fails.
+
 ## Outcomes
 
 - On 2026-11-11 the DEV-85 agent merged PR #115 second. It rebased onto #114 without conflicts, re-ran CI and merged. Running the two in parallel worked.
