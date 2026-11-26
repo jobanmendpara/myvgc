@@ -66,6 +66,9 @@ onMounted(() => {
       <ClearDeviceData />
     </section>
 
+    <!-- PROTOTYPE (DEV-246), variant C. -->
+    <PrototypeOfflineSettingsSection />
+
     <section
       id="appearance"
       aria-labelledby="appearance-heading"

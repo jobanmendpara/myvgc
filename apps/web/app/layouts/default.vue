@@ -42,6 +42,8 @@ const shownBar = computed(() => (onRoundForm.value ? undefined : bar.value))
           >
             <CloudOffIcon class="size-3.5" aria-hidden="true" /> Offline
           </span>
+          <!-- PROTOTYPE (DEV-246), variant B. -->
+          <PrototypeOfflineHeaderMark />
           <DisplayOptionsButton />
           <AccountMenu />
         </div>

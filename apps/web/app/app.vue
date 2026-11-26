@@ -6,4 +6,7 @@
   </NuxtLayout>
   <UpdateBanner />
   <UnsyncedChangesDialog />
+  <!-- PROTOTYPE (DEV-246), throwaway: never merge to main. -->
+  <PrototypeOfflineToast />
+  <PrototypeOfflineReadyBar />
 </template>
