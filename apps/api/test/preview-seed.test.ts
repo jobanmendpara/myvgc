@@ -1,4 +1,4 @@
-import { currentRegulation, judgeTeam, today } from '@myvgc/core'
+import { championsNames, currentRegulation, displayName, judgeTeam, today } from '@myvgc/core'
 import { afterEach, expect, it } from 'vitest'
 import { PREVIEW_EMAIL, PREVIEW_PASSWORD, seedPreview } from '../scripts/preview-seed'
 import { APP_URL, type TestApp, cookieFrom, createTestApp, get, json, post } from './app'
@@ -28,6 +28,7 @@ it('seeds the preview through the app, with Statistics showing rows without a qu
 
   const teams = await json(await get(t.app, '/api/teams', cookie))
   expect(teams.map((team: { name: string }) => team.name).sort()).toEqual([
+    'Long items Team',
     'Long names Team',
     'No Sprite Team',
     'Preview Team',
@@ -38,6 +39,17 @@ it('seeds the preview through the app, with Statistics showing rows without a qu
   expect(noSprite.pokemon.map((build: { species: string }) => build.species)).toContain(
     'cramorantgulping',
   )
+
+  // Six different items, the longest names in Champions: the longest of all, and none shorter
+  // than the sixth longest (DEV-242).
+  const lengths = Object.values(championsNames().items)
+    .map((name) => name.length)
+    .sort((a, b) => b - a)
+  const longItems = teams.find((team: { name: string }) => team.name === 'Long items Team')
+  const items = longItems.pokemon.map((build: { item: string }) => displayName('item', build.item))
+  expect(new Set(items).size).toBe(6)
+  expect(Math.max(...items.map((name: string) => name.length))).toBe(lengths[0])
+  for (const name of items) expect(name.length, name).toBeGreaterThanOrEqual(lengths[5]!)
 
   const tournamentPath = seed.pages.find((page) => page.label === 'Tournament')!.path
   const tournament = await json(await get(t.app, `/api${tournamentPath}`, cookie))

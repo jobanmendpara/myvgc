@@ -1,6 +1,7 @@
 // What `pnpm preview` puts in its throwaway database (DEV-184, DEV-197): a User with Teams, a
 // Tournament with Rounds, Games and Opponents, and the awkward cases a UI change should be looked at
-// with (long species names, a species with no Sprite file, as a Team's and as a Lead (DEV-199), and
+// with (long species names, the longest item names (DEV-242), a species with no Sprite file, as a
+// Team's and as a Lead (DEV-199), and
 // an Opponent's Team with items, abilities and moves). It goes through the app's own routes,
 // as the web app would, so whatever the routes check is checked here too. Tested by
 // test/preview-seed.test.ts.
@@ -53,6 +54,52 @@ const LONG_NAMES_PASTE = [
 ]
   .map((species) => `${species}\n- Protect\n`)
   .join('\n')
+
+// The longest item names in Champions as of 2026-11-25 (DEV-242), from `championsNames().items`:
+// Terrain Extender (16 letters), Charizardite X and Never-Melt Ice (14), Kangaskhanite,
+// Victreebelite and Black Glasses (13). Each on a Pokémon that can use it, legal in Champions.
+const LONG_ITEMS_PASTE = `Rillaboom @ Terrain Extender
+Ability: Grassy Surge
+- Fake Out
+- Grassy Glide
+- Wood Hammer
+- U-turn
+
+Charizard @ Charizardite X
+Ability: Blaze
+- Flare Blitz
+- Dragon Claw
+- Dragon Dance
+- Protect
+
+Ninetales-Alola @ Never-Melt Ice
+Ability: Snow Warning
+- Blizzard
+- Aurora Veil
+- Moonblast
+- Protect
+
+Kangaskhan @ Kangaskhanite
+Ability: Scrappy
+- Fake Out
+- Double-Edge
+- Sucker Punch
+- Protect
+
+Victreebel @ Victreebelite
+Ability: Chlorophyll
+- Sleep Powder
+- Leaf Storm
+- Sludge Bomb
+- Protect
+
+Kingambit @ Black Glasses
+Ability: Defiant
+- Kowtow Cleave
+- Sucker Punch
+- Iron Head
+- Protect
+`
 
 // Cramorant-Gulping is a battle-only form that core accepts but Champions lacks, so it has no
 // Sprite file (DEV-173) and pages show its name alone.
@@ -171,6 +218,7 @@ export async function seedPreview(
   const worlds = await addTeam('Preview Team', WORLDS_PASTE)
   const longNames = await addTeam('Long names Team', LONG_NAMES_PASTE)
   const noSprite = await addTeam('No Sprite Team', NO_SPRITE_PASTE)
+  const longItems = await addTeam('Long items Team', LONG_ITEMS_PASTE)
 
   const tournament = await send<TournamentView>('POST', '/api/tournaments', {
     name: 'Preview Regional Championships',
@@ -339,6 +387,7 @@ export async function seedPreview(
       { label: 'Team', path: `/teams/${worlds.id}` },
       { label: 'Team with long species names', path: `/teams/${longNames.id}` },
       { label: 'Team with a species that has no Sprite', path: `/teams/${noSprite.id}` },
+      { label: 'Team with the longest item names', path: `/teams/${longItems.id}` },
       { label: 'Tournament', path: `/tournaments/${tournament.id}` },
       { label: 'Opponent with a long name and long species names', path: opponentPath(first) },
       { label: 'Opponent', path: opponentPath(second) },
