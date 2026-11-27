@@ -302,7 +302,13 @@ function envFile(values: Record<string, string>): string {
 /** One thing the factory did through a port. */
 export type Event =
   | { port: 'tracker'; method: string; args: unknown[] }
-  | { port: 'forge'; method: string; args: unknown[] }
+  | {
+      port: 'forge'
+      method: string
+      args: unknown[]
+      /** For waitForChecks: the branch of the PR it waits on. */
+      branch?: string
+    }
   | { port: 'sandboxes'; method: 'create'; options: Parameters<Sandboxes['create']>[0] }
   | {
       port: 'sandbox'
@@ -444,10 +450,6 @@ export function start(
   let nextPr = 41
   // One PR per branch, as on GitHub: opening it again brings the open one up to date.
   const prs = new Map<string, number>()
-  const ticketOfPr = (pr: number) => {
-    const branch = [...prs].find(([, number]) => number === pr)?.[0]
-    return tickets.find((each) => each.branch === branch)?.id
-  }
   const forge: Forge = {
     async botIdentity() {
       await note({ port: 'forge', method: 'botIdentity', args: [] })
@@ -486,8 +488,9 @@ export function start(
       await note({ port: 'forge', method: 'queueAutoMerge', args: [pr] })
     },
     async waitForChecks(pr) {
-      await note({ port: 'forge', method: 'waitForChecks', args: [pr] })
-      const own = waitsOf.get(ticketOfPr(pr) ?? '')
+      const branch = [...prs].find(([, number]) => number === pr)?.[0]
+      await note({ port: 'forge', method: 'waitForChecks', args: [pr], branch })
+      const own = waitsOf.get(tickets.find((each) => each.branch === branch)?.id ?? '')
       return (own ? own.shift() : waits.shift()) ?? 0
     },
     async pushFiles(branch, files) {

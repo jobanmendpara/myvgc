@@ -100,55 +100,59 @@ export interface FrontierWork {
   work: (ticket: Ticket, sandboxes: Sandboxes) => Promise<TicketOutcome>
 }
 
-/** Works the tickets, two at a time, until nothing is takeable and nothing is in flight. */
+/** How one ticket's turn in the Run ended. */
+export interface TicketResult {
+  ticket: Ticket
+  outcome: TicketOutcome
+}
+
+/**
+ * Works the tickets, two at a time, until nothing is takeable and nothing is in flight. When a
+ * turn or a reading of the frontier throws, it takes no more tickets, lets the turns in flight
+ * finish, then throws that error.
+ */
 export async function workFrontier({
   takeable: initial,
   reread,
   sandboxes,
   work,
-}: FrontierWork): Promise<{ ticket: Ticket; outcome: TicketOutcome }[]> {
+}: FrontierWork): Promise<TicketResult[]> {
   let wake = () => {}
   const slots = new Slots(SLOTS, () => wake())
   const taken = new Set<string>()
   const merged = new Set<string>()
-  const outcomes: { ticket: Ticket; outcome: TicketOutcome }[] = []
+  const results: TicketResult[] = []
   const inFlight = new Set<Promise<void>>()
   let failure: { error: unknown } | undefined
   let takeable = initial
-  let stale = false
+  let mergedSinceRead = false
+  const fail = (error: unknown) => {
+    failure ??= { error }
+  }
+  const mustReread = () => mergedSinceRead && reread !== undefined && !failure
 
   for (;;) {
-    if (stale && reread && !failure) {
-      stale = false
-      // A ticket merged in this Run is Done to its blockers, even before Linear says so.
-      takeable = frontier(
-        (await reread()).map((each) => ({
-          ...each,
-          blockedBy: each.blockedBy.map((blocker) =>
-            merged.has(blocker.id)
-              ? { ...blocker, status: { name: 'Done', type: 'completed' as const } }
-              : blocker,
-          ),
-        })),
-      )
+    if (mustReread() && reread) {
+      mergedSinceRead = false
+      try {
+        takeable = frontier(await reread(), merged)
+      } catch (error) {
+        fail(error)
+      }
     }
     const next = failure ? undefined : takeable.find((each) => !taken.has(each.id))
     const slot = next ? slots.tryTake() : null
     if (next && slot) {
       taken.add(next.id)
-      const turn: Promise<void> = work(next, slotted(sandboxes, slots, slot))
-        .then(
-          (outcome) => {
-            outcomes.push({ ticket: next, outcome })
-            if (outcome === 'merged') {
-              merged.add(next.id)
-              stale = true
-            }
-          },
-          (error: unknown) => {
-            failure ??= { error }
-          },
-        )
+      const turn: Promise<void> = Promise.resolve()
+        .then(() => work(next, slotted(sandboxes, slots, slot)))
+        .then((outcome) => {
+          results.push({ ticket: next, outcome })
+          if (outcome === 'merged') {
+            merged.add(next.id)
+            mergedSinceRead = true
+          }
+        }, fail)
         .finally(() => {
           // The slot it was claimed with, if no sandbox ever took it.
           slot.release()
@@ -158,10 +162,12 @@ export async function workFrontier({
       inFlight.add(turn)
       continue
     }
-    if (inFlight.size === 0 && !(stale && reread && !failure)) break
+    // A merge made while the frontier was being read: read it again.
+    if (mustReread()) continue
+    if (inFlight.size === 0) break
     // Until a slot frees or a ticket's turn ends.
-    if (inFlight.size > 0) await new Promise<void>((resolve) => (wake = resolve))
+    await new Promise<void>((resolve) => (wake = resolve))
   }
   if (failure) throw failure.error
-  return outcomes
+  return results
 }

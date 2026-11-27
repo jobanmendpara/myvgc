@@ -112,23 +112,15 @@ export async function factory(args: string[], ports: FactoryPorts): Promise<numb
   const forge = ports.forge(setup.github)
   // Mints the installation token now, so a broken App key stops the Run before it claims anything.
   const author = await forge.botIdentity()
-  let outcomes
+  let results
   try {
-    outcomes = await workFrontier({
+    results = await workFrontier({
       takeable,
       // `--only` works that one ticket, and the Run ends after it.
       reread: onlyTicketId ? undefined : () => tracker.getSubIssues(specId),
       sandboxes: ports.sandboxes,
       work: (ticket, sandboxes) => {
         const covered = coveredIds(ticket.description)
-        const unknown = covered.filter((id) => !criteria.has(id))
-        // Parked before any agent runs (AC-14.2): the maintainer fixes the ticket or the spec.
-        const unstartable =
-          covered.length === 0
-            ? `it has no "Covers:" line naming the criteria it covers`
-            : unknown.length > 0
-              ? `it covers ${unknown.join(', ')}, which ${specId} doesn't have`
-              : undefined
         return workTicket(
           {
             runId,
@@ -150,7 +142,7 @@ export async function factory(args: string[], ports: FactoryPorts): Promise<numb
             criteria: covered.flatMap((id) => criteria.get(id) ?? []),
             workspace,
           },
-          unstartable,
+          unstartableReason(specId, covered, criteria),
         )
       },
     })
@@ -159,9 +151,24 @@ export async function factory(args: string[], ports: FactoryPorts): Promise<numb
     await endRun(ports, tracker, log)
   }
   // A PR waiting on `approved` is a hand-off to the maintainer, not a failure: the Run moved on.
-  return outcomes.every(({ outcome }) => outcome === 'merged' || outcome === 'waiting for approval')
+  return results.every(({ outcome }) => outcome === 'merged' || outcome === 'waiting for approval')
     ? READY
     : REFUSED
+}
+
+/**
+ * Why a ticket can't start, if it can't: it is parked before any agent runs (AC-14.2), and the
+ * maintainer fixes the ticket or the spec.
+ */
+function unstartableReason(
+  specId: string,
+  covered: string[],
+  criteria: ReadonlyMap<string, unknown>,
+): string | undefined {
+  const unknown = covered.filter((id) => !criteria.has(id))
+  if (covered.length === 0) return `it has no "Covers:" line naming the criteria it covers`
+  if (unknown.length > 0) return `it covers ${unknown.join(', ')}, which ${specId} doesn't have`
+  return undefined
 }
 
 /** The local date and time as yyyy-mm-dd-hhmm, for Run IDs. */

@@ -31,6 +31,10 @@ const isAgent = (id: string, step: string) => (event: Event) =>
   event.branch === branchOf(id)
 const isWait = (pr: number) => (event: Event) =>
   event.port === 'forge' && event.method === 'waitForChecks' && event.args[0] === pr
+/** A wait on the checks of the ticket's PR. */
+const isWaitOf = (id: string) => (event: Event) =>
+  event.port === 'forge' && event.method === 'waitForChecks' && event.branch === branchOf(id)
+const isRead = (event: Event) => event.port === 'tracker' && event.method === 'getSubIssues'
 const isClose = (id: string) => (event: Event) =>
   event.method === 'close' && 'branch' in event && event.branch === branchOf(id)
 const claimed = (events: Event[]) =>
@@ -42,14 +46,14 @@ const claimed = (events: Event[]) =>
 const sandboxesOf = (events: Event[], id: string) =>
   events.filter((event) => event.port === 'sandboxes' && event.options.branch === branchOf(id))
 
-/** The Run's summary line, after "Run <id> done: ", if it has printed one. */
+/** The Run's summary line, after "Run <id> done: ", or nothing when it hasn't printed one. */
 const summaryOf = (lines: string[]) =>
   lines
     .find((line) => line.startsWith(`Run ${RUN_ID} done: `))
-    ?.slice(`Run ${RUN_ID} done: `.length)
+    ?.slice(`Run ${RUN_ID} done: `.length) ?? ''
 
 /** Settles the Run, and checks each hold has caught its step: the Run got that far. */
-async function held(factory: { settle: () => Promise<void> }, ...holds: Hold[]) {
+async function expectHeld(factory: { settle: () => Promise<void> }, ...holds: Hold[]) {
   await factory.settle()
   expect(holds.map((each) => each.caught)).toEqual(holds.map(() => true))
 }
@@ -74,7 +78,7 @@ describe('two slots', () => {
       tickets: [DEV1, DEV2, DEV3],
       holds: [first, second],
     })
-    await held(factory, first, second)
+    await expectHeld(factory, first, second)
     expect(factory.events.filter((event) => event.port === 'sandboxes')).toHaveLength(2)
     expect(claimed(factory.events)).toEqual(['DEV-1', 'DEV-2'])
 
@@ -112,7 +116,7 @@ describe('waiting on CI', () => {
       tickets: [DEV1, DEV2, DEV3],
       holds: [waiting, busy],
     })
-    await held(factory, waiting, busy)
+    await expectHeld(factory, waiting, busy)
     const { events } = factory
     expect(claimed(events)).toEqual(['DEV-1', 'DEV-2', 'DEV-3'])
     expect(sandboxesOf(events, 'DEV-3')).toHaveLength(1)
@@ -131,7 +135,7 @@ describe('waiting on CI', () => {
       script: { waitsOf: { 'DEV-1': [1, 0] } },
       holds: [second, third],
     })
-    await held(factory, second, third)
+    await expectHeld(factory, second, third)
     // DEV-1's CI failed while DEV-2 and DEV-3 hold both slots: its round has no sandbox yet.
     expect(sandboxesOf(factory.events, 'DEV-1')).toHaveLength(1)
     expect(factory.events.some(isAgent('DEV-1', 'fix-round-1'))).toBe(false)
@@ -168,7 +172,7 @@ describe('waiting on CI', () => {
       script: { waitsOf: { 'DEV-1': [4, 0] } },
       holds: [second, third],
     })
-    await held(factory, second, third)
+    await expectHeld(factory, second, third)
     const rebases = (events: Event[]) =>
       events.filter(
         (event) =>
@@ -195,8 +199,6 @@ describe('waiting on CI', () => {
 })
 
 describe('reading the frontier again', () => {
-  const isRead = (event: Event) => event.port === 'tracker' && event.method === 'getSubIssues'
-
   test('a ticket blocked by one the Run merges is claimed in the same Run, once the merge is read', async () => {
     const blocked = ticket('DEV-2', { blockedBy: [{ id: 'DEV-1', status: DEV1.status }] })
     const result = await start([SPEC], [signedOff], { tickets: [DEV1, blocked] }).done()
@@ -221,6 +223,45 @@ describe('reading the frontier again', () => {
     expect(merges).toHaveLength(2)
     // Merges that land together share the one read that follows them.
     for (const merge of merges) expect(reads.some((read) => read > merge)).toBe(true)
+  })
+
+  test('reads the frontier again after a merge made while it was being read, with another ticket still waiting on CI', async () => {
+    let reads = 0
+    const reading = hold((event) => isRead(event) && ++reads === 2)
+    const dev2Waits = hold(isWaitOf('DEV-2'))
+    const dev4Waits = hold(isWaitOf('DEV-4'))
+    const factory = start([SPEC], [signedOff], {
+      tickets: [DEV1, DEV2, ticket('DEV-4')],
+      holds: [reading, dev2Waits, dev4Waits],
+    })
+    // DEV-1 has merged and its read of the frontier is held; DEV-2 and DEV-4 wait on CI.
+    await expectHeld(factory, reading, dev2Waits, dev4Waits)
+    dev2Waits.release()
+    await factory.settle()
+
+    // DEV-2 merged during that read: the frontier is read again, while DEV-4 still waits.
+    reading.release()
+    await factory.settle()
+    const { events } = factory
+    // At the start, after DEV-1's merge, and after DEV-2's, which came once that read had begun.
+    const readAt = events.flatMap((event, index) => (isRead(event) ? [index] : []))
+    expect(readAt).toHaveLength(3)
+    expect(readAt[2]).toBeGreaterThan(events.findIndex(isWaitOf('DEV-2')))
+
+    dev4Waits.release()
+    expect((await factory.done()).code).toBe(0)
+  })
+
+  test('moves on from a PR waiting on `approved`, leaving the tickets it blocks off the frontier', async () => {
+    const blocked = ticket('DEV-3', { blockedBy: [{ id: 'DEV-1', status: DEV1.status }] })
+    const result = await start([SPEC], [signedOff], {
+      tickets: [DEV1, DEV2, blocked],
+      script: { waitsOf: { 'DEV-1': [5] } },
+    }).done()
+    expect(claimed(result.events).sort()).toEqual(['DEV-1', 'DEV-2'])
+    expect(summaryOf(result.lines)).toMatch(/^1 merged, 0 parked, 1 waiting for approval, /)
+    // A hand-off to the maintainer, not a failure.
+    expect(result.code).toBe(0)
   })
 
   test('--only works its one ticket and ends, taking no ticket its merge unblocks', async () => {
@@ -251,7 +292,7 @@ describe('the end of the Run', () => {
     await factory.settle()
     expect(waiting.caught).toBe(true)
     expect(factory.ended()).toBe(false)
-    expect(summaryOf(factory.lines)).toBeUndefined()
+    expect(summaryOf(factory.lines)).toBe('')
 
     waiting.release()
     const result = await factory.done()
