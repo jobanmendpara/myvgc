@@ -5,7 +5,7 @@
 // the maintainer signed off), then reads the spec's frontier. `--dry-run` prints the frontier and
 // each ticket's steps. `--only DEV-M` works that one ticket to a merged PR (src/run.ts); working
 // the whole frontier comes with DEV-285.
-import { existsSync, mkdirSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { parseArgs, parseEnv } from 'node:util'
 import type { AccuracyKey } from './accuracy.ts'
@@ -13,6 +13,8 @@ import { coveredIds, criteriaOf } from './criteria.ts'
 import { frontier, whyNotTakeable } from './frontier.ts'
 import type { Forge, GitHubApp, Sandboxes, Ticket, Tracker } from './ports.ts'
 import { workTicket } from './run.ts'
+import { RunLog } from './runlog.ts'
+import { endRun } from './summary.ts'
 import { type Settings, STEP_NAMES, ticketPlan, withOverrides } from './settings.ts'
 import { describeWorkspace, workspacePackages } from './workspace.ts'
 
@@ -118,34 +120,40 @@ export async function factory(args: string[], ports: FactoryPorts): Promise<numb
 
   const runId = `${stamp(ports.now())}-${specId}`
   const runDir = join(ports.repoDir, '.factory', 'runs', runId)
-  mkdirSync(runDir, { recursive: true })
+  const log = new RunLog(runDir, { runId, specId }, ports.now)
   ports.print(`Run ${runId}: working ${ticket.id}. Its log is ${runDir}.`)
   const forge = ports.forge(setup.github)
   // Mints the installation token now, so a broken App key stops the Run before it claims anything.
   const author = await forge.botIdentity()
-  const outcome = await workTicket(
-    {
-      runId,
-      specId,
-      runDir,
-      tracker,
-      forge,
-      sandboxes: ports.sandboxes,
-      sandboxEnv: setup.sandboxEnv,
-      accuracyKey: setup.accuracyKey,
-      author,
-      settings,
-      print: ports.print,
-    },
-    {
-      ticket,
-      specId,
-      criteria: covered.flatMap((id) => criteria.get(id) ?? []),
-      workspace: describeWorkspace(workspacePackages(ports.repoDir)),
-    },
-    unstartable,
-  )
-  ports.print(`Run ${runId} done: ${ticket.id} ${outcome}.`)
+  let outcome
+  try {
+    outcome = await workTicket(
+      {
+        runId,
+        specId,
+        runDir,
+        log,
+        tracker,
+        forge,
+        sandboxes: ports.sandboxes,
+        sandboxEnv: setup.sandboxEnv,
+        accuracyKey: setup.accuracyKey,
+        author,
+        settings,
+        print: ports.print,
+      },
+      {
+        ticket,
+        specId,
+        criteria: covered.flatMap((id) => criteria.get(id) ?? []),
+        workspace: describeWorkspace(workspacePackages(ports.repoDir)),
+      },
+      unstartable,
+    )
+  } finally {
+    // Even when a ticket's turn throws, the Run ends with its summary: the ticket shows unfinished.
+    await endRun(ports, tracker, log)
+  }
   // A PR waiting on `approved` is a hand-off to the maintainer, not a failure: the Run moved on.
   return outcome === 'merged' || outcome === 'waiting for approval' ? READY : REFUSED
 }

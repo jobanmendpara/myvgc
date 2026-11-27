@@ -37,6 +37,7 @@ import {
   type TicketBrief,
 } from './prompts.ts'
 import { caughtByAssertion, lastTag, readReview, type Review, type ReviewRow } from './review.ts'
+import type { RunLog, TicketLog } from './runlog.ts'
 import type { Settings, Step } from './settings.ts'
 
 /** Longer than any command an agent runs silently (the spike, DEV-251, lesson 6). */
@@ -61,6 +62,8 @@ export interface RunContext {
   specId: string
   /** The Run's log folder, `.factory/runs/<id>/`. */
   runDir: string
+  /** The Run's log in that folder: run.json, and each agent's stdout and session. */
+  log: RunLog
   tracker: Tracker
   forge: Forge
   sandboxes: Sandboxes
@@ -91,6 +94,13 @@ const FIX_ROUNDS = 2
  */
 export type TicketOutcome = 'merged' | 'parked' | 'waiting for approval' | 'stopped'
 
+/** A ticket's turn: printing a finished step's line, and its log in the run folder. */
+interface Turn {
+  /** Prints one line for a finished step and adds it to the run log. */
+  say: (step: string, result: string) => void
+  log: TicketLog
+}
+
 /** Every comment the factory writes starts with this (DEV-259). */
 const FACTORY = '🏭 Factory'
 /** The note a park leaves on the ticket starts with this, which is how a later Run finds it. */
@@ -105,15 +115,34 @@ export async function workTicket(
   brief: TicketBrief,
   unstartable?: string,
 ): Promise<TicketOutcome> {
-  const { tracker, forge, settings, print } = context
   const { ticket } = brief
-  const say = (step: string, result: string) =>
-    print(`${ticket.id} ${ticket.title} · ${step}: ${result}`)
+  const log = context.log.ticket(ticket)
+  const turn: Turn = {
+    say: (step, result) => {
+      context.print(`${ticket.id} ${ticket.title} · ${step}: ${result}`)
+      log.step(step, result)
+    },
+    log,
+  }
+  const outcome = await turnOf(context, brief, turn, unstartable)
+  log.outcome(outcome)
+  return outcome
+}
+
+async function turnOf(
+  context: RunContext,
+  brief: TicketBrief,
+  turn: Turn,
+  unstartable?: string,
+): Promise<TicketOutcome> {
+  const { tracker, forge, settings } = context
+  const { ticket } = brief
+  const { say, log } = turn
   const logDir = join(context.runDir, ticket.id)
-  if (unstartable) return park(context, brief, say, unstartable)
+  if (unstartable) return park(context, brief, turn, unstartable)
   const previousPark = await previousParkOf(tracker, ticket.id)
   const working: TicketBrief = previousPark ? { ...brief, previousPark } : brief
-  const parkHere = (reason: string, work?: Work) => park(context, working, say, reason, work)
+  const parkHere = (reason: string, work?: Work) => park(context, working, turn, reason, work)
 
   await tracker.setStatus(ticket.id, 'In Progress')
   await tracker.comment(ticket.id, `${FACTORY}: Claimed by factory Run \`${context.runId}\`.`)
@@ -170,10 +199,13 @@ export async function workTicket(
   /** Runs the next fix round in `sandbox`, resuming the Implementer's session on its model. */
   const fixRound = (sandbox: Sandbox, promptFor: (round: number, model: string) => string) => {
     round += 1
+    log.fixRound(round)
     const fix = `fix-round-${round}` as Step
     const prompt = promptFor(round, settings[fix].model)
     // Without a session captured, the round starts afresh, told the ticket as well.
-    return sandbox.runAgent(
+    return loggedAgent(
+      log,
+      sandbox,
       session
         ? { ...agentStep(settings, fix, prompt), resumeSession: session }
         : agentStep(
@@ -210,13 +242,15 @@ export async function workTicket(
         sandbox,
         settings,
         reviewerPrompt(working, checks.summary),
-        say,
+        turn,
+        round,
       )
       if (!read) {
         return parkHere("the Reviewer's answer couldn't be read, twice", work(sandbox))
       }
       review = read
       replays = await replayAll(sandbox, review)
+      log.replays(round, replays)
       const confirmed = [...replays.values()].filter(Boolean).length
       say('replay', `${confirmed} of ${replays.size} confirmed`)
 
@@ -282,6 +316,7 @@ export async function workTicket(
       body: prBody(context, working, mapping.exitCode === 0 ? mapping.stdout.trim() : '', accuracy),
       draft: false,
     })
+    log.pr(pr.url)
     await forge.commentOnPr(pr.number, reviewComment(review, replays))
     await forge.queueAutoMerge(pr.number)
     await tracker.setStatus(ticket.id, 'In Review')
@@ -316,7 +351,9 @@ export async function workTicket(
   try {
     const first = await installed()
     if (!first) return await parkHere(INSTALL_FAILED)
-    const implementer = await first.runAgent(
+    const implementer = await loggedAgent(
+      log,
+      first,
       agentStep(settings, 'implementer', implementerPrompt(working, settings.implementer.model)),
     )
     session = implementer.sessionId
@@ -437,7 +474,7 @@ const WORKFLOWS_REFUSED =
 async function park(
   context: RunContext,
   { ticket }: TicketBrief,
-  say: (step: string, result: string) => void,
+  { say, log }: Turn,
   why: string,
   work?: Work,
 ): Promise<'parked'> {
@@ -480,6 +517,7 @@ async function park(
       ].join('\n'),
       draft: true,
     })
+    log.pr(draft.url)
     await forge.commentOnPr(
       draft.number,
       `${FACTORY}: @${forge.maintainer()} this ticket is parked and needs you: ${reason}.`,
@@ -523,6 +561,10 @@ function writeLog(logDir: string, name: string, text: string) {
   writeFileSync(join(logDir, name), text)
 }
 
+/** Runs an agent step, with its stdout, session and cost saved to the run log. */
+const loggedAgent = (log: TicketLog, sandbox: Sandbox, step: AgentStep) =>
+  log.agent(step, () => sandbox.runAgent(step))
+
 function agentStep(settings: Settings, step: Step, prompt: string): AgentStep {
   const { model, effort } = settings[step]
   return { name: step, model, effort, prompt, idleTimeoutSeconds: IDLE_TIMEOUT_SECONDS }
@@ -536,12 +578,13 @@ async function readableReview(
   sandbox: Sandbox,
   settings: Settings,
   prompt: string,
-  say: (step: string, result: string) => void,
+  { say, log }: Turn,
+  round: number,
 ): Promise<Review | null> {
   for (let attempt = 1; attempt <= 2; attempt += 1) {
-    const review = readReview(
-      (await sandbox.runAgent(agentStep(settings, 'reviewer', prompt))).stdout,
-    )
+    const step = agentStep(settings, 'reviewer', prompt)
+    const review = readReview((await loggedAgent(log, sandbox, step)).stdout)
+    log.review(round, attempt, review)
     say('Reviewer', review ? review.verdict : 'no readable <review>')
     if (review) return review
   }
@@ -632,7 +675,7 @@ function pushGate(
  * Linear reads these words before an identifier as closing it, so text the factory didn't write
  * has them turned into "Related to" (CLAUDE.md, Tracking).
  */
-const CLOSING = /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)(\s+[A-Z]+-\d+)/gi
+export const CLOSING = /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)(\s+[A-Z]+-\d+)/gi
 
 /** Both `pnpm accuracy` summaries, for the PR body (CLAUDE.md: "pastes both summaries"). */
 function accuracySection(accuracy: Accuracy): string[] {

@@ -142,7 +142,8 @@ describe('fix rounds', () => {
     expect(stepNamed(result.events, 'fix-round-3')).toEqual([])
     expect(parked(result.events)).toBe(true)
     expect(result.output).toContain('after 2 fix rounds')
-    expect(result.output).toContain(`Run ${RUN_ID} done: DEV-2 parked`)
+    expect(result.output).toContain(`Run ${RUN_ID} done: 0 merged, 1 parked`)
+    expect(result.output).toContain('- DEV-2 Ticket DEV-2: parked')
   })
 
   test('park the ticket on a park signal from a fix round', async () => {

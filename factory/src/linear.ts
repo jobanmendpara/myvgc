@@ -110,6 +110,58 @@ export function linearTracker(apiKey: string): Tracker {
       )
     },
 
+    async createIssue({ title, description, label, relatedTo }) {
+      // In the related issue's team and project: for a spec, team DEV and project MyVGC.
+      const data = await query<{
+        issue: { id: string; team: { id: string }; project: { id: string } | null }
+        issueLabels: { nodes: { id: string; team: { id: string } | null }[] }
+      }>(
+        apiKey,
+        `query FollowUpPlace($id: String!, $label: String!) {
+          issue(id: $id) { id team { id } project { id } }
+          issueLabels(filter: { name: { eq: $label } }) { nodes { id team { id } } }
+        }`,
+        { id: relatedTo, label },
+      )
+      if (!data) throw new Error(`Linear has no issue ${relatedTo}.`)
+      const { team, project } = data.issue
+      if (!project) throw new Error(`${relatedTo} is in no project to file its follow-up in.`)
+      // A workspace label or the team's own; never another team's of the same name.
+      const target = data.issueLabels.nodes.find(
+        (candidate) => candidate.team === null || candidate.team.id === team.id,
+      )
+      if (!target) throw new Error(`Linear has no label ${label} for ${relatedTo}'s team.`)
+      const created = await query<{
+        issueCreate: { success: boolean; issue: { id: string; identifier: string; url: string } }
+      }>(
+        apiKey,
+        `mutation CreateIssue($input: IssueCreateInput!) {
+          issueCreate(input: $input) { success issue { id identifier url } }
+        }`,
+        {
+          input: {
+            teamId: team.id,
+            projectId: project.id,
+            labelIds: [target.id],
+            title,
+            description,
+          },
+        },
+      )
+      if (!created?.issueCreate.success) throw new Error(`Linear didn't create "${title}".`)
+      const { issue } = created.issueCreate
+      await mutate(
+        apiKey,
+        `mutation Relate($issueId: String!, $relatedIssueId: String!) {
+          issueRelationCreate(
+            input: { issueId: $issueId, relatedIssueId: $relatedIssueId, type: related }
+          ) { success }
+        }`,
+        { issueId: issue.id, relatedIssueId: data.issue.id },
+      )
+      return { id: issue.identifier, url: issue.url }
+    },
+
     async comment(id, body) {
       await mutate(
         apiKey,

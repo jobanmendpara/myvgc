@@ -117,7 +117,8 @@ describe('parking a ticket', () => {
     expect(result.code).toBe(1)
     expectParked(result.events)
     expect(openedPrs(result.events).every((pr) => pr.draft)).toBe(true)
-    expect(result.output).toContain(`Run ${RUN_ID} done: DEV-2 parked`)
+    expect(result.output).toContain(`Run ${RUN_ID} done: 0 merged, 1 parked`)
+    expect(result.output).toContain('- DEV-2 Ticket DEV-2: parked')
   })
 })
 
