@@ -205,13 +205,6 @@ describe('pnpm factory', () => {
       expect(listed(result.output)).toEqual([])
       expect(result.output).toContain('Nothing on the frontier')
     })
-
-    test('without --dry-run, it says working tickets is not built yet and changes nothing', async () => {
-      const result = await run([SPEC], [signedOff], { tickets: [ticket('DEV-1')] })
-      expect(result.code).toBe(1)
-      expect(result.output).toContain("isn't built yet")
-      expect(result.trackerCalls).toEqual([`getIssue ${SPEC}`, `getSubIssues ${SPEC}`])
-    })
   })
 
   describe('--only', () => {
