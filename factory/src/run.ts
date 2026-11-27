@@ -6,9 +6,11 @@
 // sandbox, counted towards the two; a conflict with main gets a rebase and a force-push, or a park
 // when the rebase stops on conflicts; and a PR waiting on `approved` is left with the maintainer,
 // auto-merge still queued, while the Run moves on. A branch that changes an ADR 24 path has
-// `pnpm accuracy` run before and after it, ahead of each push (DEV-280).
+// `pnpm accuracy` run before and after it, ahead of each push (DEV-280). A Seen criterion passes
+// the push gate only with screenshots the Reviewer judged matching, which the PR comment shows
+// (DEV-281, src/screenshots.ts).
 import { mkdirSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import {
   type Accuracy,
   type AccuracyKey,
@@ -36,8 +38,22 @@ import {
   reviewerPrompt,
   type TicketBrief,
 } from './prompts.ts'
-import { caughtByAssertion, lastTag, readReview, type Review, type ReviewRow } from './review.ts'
+import {
+  caughtByAssertion,
+  lastTag,
+  readReview,
+  type Review,
+  type ReviewRow,
+  type TestedRow,
+} from './review.ts'
 import type { RunLog, TicketLog } from './runlog.ts'
+import {
+  type CopiedShots,
+  copyScreenshots,
+  pushScreenshots,
+  seenGate,
+  seenRows,
+} from './screenshots.ts'
 import type { Settings, Step } from './settings.ts'
 
 /** Longer than any command an agent runs silently (the spike, DEV-251, lesson 6). */
@@ -185,6 +201,8 @@ async function turnOf(
   // The last review, kept so a park in a later round still reports it.
   let review: Review | undefined
   let replays: Map<string, boolean> | undefined
+  // The last review's Seen screenshots, as the host copied them to the run log.
+  let shots = new Map<string, CopiedShots>()
   let commits = 0
   let pr: { number: number; url: string } | undefined
   /** The work as it stands, for a park; `sandbox` when the branch's last commits aren't pushed. */
@@ -234,7 +252,8 @@ async function turnOf(
       const parkSignal = lastTag(agent.stdout, 'park')
       if (parkSignal) return parkHere(`${who} parked it: ${parkSignal}`, work(sandbox))
 
-      // Each round's checks keep their own logs: the first in checks/, then fix-round-n/checks/.
+      // Each round keeps its own logs and screenshots: the first in checks/ and screenshots/, then
+      // in fix-round-n/.
       const checks = await hostChecks(sandbox, roundDir(logDir, round))
       say('host checks', checks.passed ? 'all passed' : `failed: ${checks.failed.join(', ')}`)
 
@@ -249,13 +268,14 @@ async function turnOf(
         return parkHere("the Reviewer's answer couldn't be read, twice", work(sandbox))
       }
       review = read
+      shots = await copyScreenshots(sandbox, review, roundDir(logDir, round))
       replays = await replayAll(sandbox, review)
       log.replays(round, replays)
       const confirmed = [...replays.values()].filter(Boolean).length
       say('replay', `${confirmed} of ${replays.size} confirmed`)
 
       const gate = pushGate(
-        { review, replays, checksPassed: checks.passed, commits },
+        { review, replays, shots, checksPassed: checks.passed, commits },
         working.criteria,
       )
       if (gate.length === 0) {
@@ -308,6 +328,8 @@ async function turnOf(
       writeLog(roundDir(logDir, round), 'accuracy-branch.log', accuracy.after.log)
       say('accuracy', `${headline(accuracy.before)} before; ${headline(accuracy.after)} after`)
     }
+    // The screenshots go up first, so a failure there leaves no branch pushed without its PR.
+    const urls = await pushScreenshots(forge, `${ticket.id}/${context.runId}`, shots)
     if ((await pushOrPark(sandbox)) === 'parked') return 'parked'
     const mapping = await sandbox.exec(`cat ${MAPPING_FILE}`)
     pr = await forge.openPr({
@@ -317,7 +339,7 @@ async function turnOf(
       draft: false,
     })
     log.pr(pr.url)
-    await forge.commentOnPr(pr.number, reviewComment(review, replays))
+    await forge.commentOnPr(pr.number, reviewComment(review, replays, shots, urls))
     await forge.queueAutoMerge(pr.number)
     await tracker.setStatus(ticket.id, 'In Review')
     say('push, PR and auto-merge', pr.url)
@@ -626,12 +648,14 @@ const tested = <T extends { kind: Criterion['kind'] }>(items: T[]) =>
  */
 async function replayAll(sandbox: Sandbox, review: Review): Promise<Map<string, boolean>> {
   const replays = new Map<string, boolean>()
-  for (const row of tested(review.criteria)) replays.set(row.id, await replay(sandbox, row))
+  for (const row of review.criteria) {
+    if (row.kind === 'tested') replays.set(row.id, await replay(sandbox, row))
+  }
   await sandbox.exec(CLEAN)
   return replays
 }
 
-async function replay(sandbox: Sandbox, row: ReviewRow): Promise<boolean> {
+async function replay(sandbox: Sandbox, row: TestedRow): Promise<boolean> {
   if (!TEST_COMMAND.test(row.testCommand)) return false
   await sandbox.exec(CLEAN)
   const patch = row.sabotagePatch.endsWith('\n') ? row.sabotagePatch : `${row.sabotagePatch}\n`
@@ -648,6 +672,8 @@ async function replay(sandbox: Sandbox, row: ReviewRow): Promise<boolean> {
 interface Outcome {
   review: Review | null
   replays: Map<string, boolean>
+  /** The Seen rows' screenshots, as the host copied them to the run log. */
+  shots: Map<string, CopiedShots>
   checksPassed: boolean
   /** The Implementer's commits since origin/main. */
   commits: number
@@ -655,7 +681,7 @@ interface Outcome {
 
 /** Why the push gate fails, or nothing when it passes. */
 function pushGate(
-  { review, replays, checksPassed, commits }: Outcome,
+  { review, replays, shots, checksPassed, commits }: Outcome,
   criteria: Criterion[],
 ): string[] {
   const reasons: string[] = []
@@ -668,6 +694,7 @@ function pushGate(
       reasons.push(`${criterion.id}'s replay wasn't confirmed`)
     }
   }
+  reasons.push(...seenGate(criteria, review, shots))
   return reasons
 }
 
@@ -727,18 +754,39 @@ function reviewRows(review: Review, replays: Map<string, boolean>): string[] {
   return [
     '| Criterion | Test | Sabotage replay |',
     '| -- | -- | -- |',
-    ...review.criteria.map((row) => {
-      const replayed =
-        row.kind === 'seen' ? 'Seen' : replays.get(row.id) ? 'confirmed' : 'not confirmed'
-      return `| ${row.id} | ${row.test.replace(CLOSING, 'Related to$1')} | ${replayed} |`
-    }),
+    ...review.criteria.map(
+      (row) =>
+        `| ${row.id} | ${row.test.replace(CLOSING, 'Related to$1')} | ${proven(row, replays)} |`,
+    ),
   ]
 }
 
-function reviewComment(review: Review, replays: Map<string, boolean>): string {
+/** How a row was proven: its sabotage's replay (Tested), or the Reviewer's judgement (Seen). */
+function proven(row: ReviewRow, replays: Map<string, boolean>): string {
+  if (row.kind === 'seen') return `Seen: ${row.matches ? 'matches' : 'not matching'}`
+  return replays.get(row.id) ? 'confirmed' : 'not confirmed'
+}
+
+/**
+ * The Reviewer's verdict and rows, then each Seen criterion's judgement and its screenshots, by
+ * their raw URLs on `factory-screenshots` (`urls`, by run-log copy).
+ */
+function reviewComment(
+  review: Review,
+  replays: Map<string, boolean>,
+  shots: Map<string, CopiedShots>,
+  urls: Map<string, string>,
+): string {
+  const seen = seenRows(review).flatMap((row) => [
+    '',
+    `**${row.id}** (Seen): ${row.judgement.replace(CLOSING, 'Related to$1').replace(/\s+/g, ' ')}`,
+    '',
+    ...(shots.get(row.id)?.files ?? []).map((file) => `![${basename(file)}](${urls.get(file)})`),
+  ])
   return [
     `${FACTORY}: the Reviewer's verdict is **${review.verdict}**.`,
     '',
     ...reviewRows(review, replays),
+    ...seen,
   ].join('\n')
 }

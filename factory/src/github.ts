@@ -10,11 +10,12 @@
 // Thin on purpose, and not unit-tested: the pilot's first Run proves it (DEV-269).
 import { execFile, execFileSync, spawn } from 'node:child_process'
 import { createSign } from 'node:crypto'
-import { readFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
-import type { Forge, GitHubApp } from './ports.ts'
+import { hostGit } from './hostgit.ts'
+import type { Forge, GitHubApp, GitIdentity } from './ports.ts'
 
 const run = promisify(execFile)
 const API = 'https://api.github.com'
@@ -36,26 +37,50 @@ export function githubForge(app: GitHubApp, repoDir: string): Forge {
     return (await child).stdout.trim()
   }
 
-  return {
-    async botIdentity() {
+  // The user name in the URL keeps the host's global `insteadOf` rewrite to SSH from matching (the
+  // spike, DEV-251), and the token goes in a header set through the environment.
+  const remote = `https://x-access-token@github.com/${repo}.git`
+  const pushEnv = async (): Promise<Record<string, string>> => {
+    const header = Buffer.from(`x-access-token:${await installationToken()}`).toString('base64')
+    const untrusted = [
+      ['core.hooksPath', '/dev/null'],
+      ['core.fsmonitor', 'false'],
+      ['credential.helper', ''],
+      ['core.sshCommand', 'ssh'],
+      ['http.https://github.com/.extraHeader', `Authorization: Basic ${header}`],
+    ]
+    return {
+      GIT_TERMINAL_PROMPT: '0',
+      // Only HTTPS, so planted config can't send the push through ext:: or a local path.
+      GIT_ALLOW_PROTOCOL: 'https',
+      GIT_ASKPASS: '',
+      GIT_CONFIG_COUNT: String(untrusted.length),
+      ...Object.fromEntries(
+        untrusted.flatMap(([key, value], index) => [
+          [`GIT_CONFIG_KEY_${index}`, key],
+          [`GIT_CONFIG_VALUE_${index}`, value],
+        ]),
+      ),
+    }
+  }
+  let identity: Promise<GitIdentity> | undefined
+  const botIdentity = () =>
+    (identity ??= (async () => {
       await installationToken()
       const { slug } = await githubApi<{ slug: string }>('/app', `Bearer ${appJwt(app)}`)
       const name = `${slug}[bot]`
       const { id } = await githubApi<{ id: number }>(`/users/${encodeURIComponent(name)}`)
       return { name, email: `${id}+${name}@users.noreply.github.com` }
-    },
+    })().catch((error: unknown) => {
+      // Not cached: the next call asks GitHub again.
+      identity = undefined
+      throw error
+    }))
+
+  return {
+    botIdentity,
 
     async push(cwd, branch, options) {
-      // The user name in the URL keeps the host's global `insteadOf` rewrite to SSH from matching
-      // (the spike, DEV-251), and the token goes in a header set through the environment.
-      const header = Buffer.from(`x-access-token:${await installationToken()}`).toString('base64')
-      const untrusted = [
-        ['core.hooksPath', '/dev/null'],
-        ['core.fsmonitor', 'false'],
-        ['credential.helper', ''],
-        ['core.sshCommand', 'ssh'],
-        ['http.https://github.com/.extraHeader', `Authorization: Basic ${header}`],
-      ]
       try {
         await run(
           'git',
@@ -66,26 +91,10 @@ export function githubForge(app: GitHubApp, repoDir: string): Forge {
             ...(options
               ? [`--force-with-lease=refs/heads/${branch}:${options.forceWithLease}`]
               : []),
-            `https://x-access-token@github.com/${repo}.git`,
+            remote,
             `HEAD:refs/heads/${branch}`,
           ],
-          {
-            cwd,
-            env: {
-              ...process.env,
-              GIT_TERMINAL_PROMPT: '0',
-              // Only HTTPS, so planted config can't send the push through ext:: or a local path.
-              GIT_ALLOW_PROTOCOL: 'https',
-              GIT_ASKPASS: '',
-              GIT_CONFIG_COUNT: String(untrusted.length),
-              ...Object.fromEntries(
-                untrusted.flatMap(([key, value], index) => [
-                  [`GIT_CONFIG_KEY_${index}`, key],
-                  [`GIT_CONFIG_VALUE_${index}`, value],
-                ]),
-              ),
-            },
-          },
+          { cwd, env: { ...process.env, ...(await pushEnv()) } },
         )
       } catch (error) {
         // GitHub's answer when an App without the Workflows permission changes .github/workflows/.
@@ -217,6 +226,73 @@ export function githubForge(app: GitHubApp, repoDir: string): Forge {
         // Killed by a signal: not a result to wait again on.
         child.on('exit', (code) => resolve(code ?? 1))
       })
+    },
+
+    async pushFiles(branch, files) {
+      // A throwaway bare repo, so nothing touches the checkout or its git folder. The new commit
+      // goes on top of the branch as GitHub has it; another Run pushing first means a retry.
+      const author = await botIdentity()
+      const dir = mkdtempSync(join(tmpdir(), 'factory-files-'))
+      const index = join(dir, 'files.index')
+      const git = (args: string[], env: Record<string, string> = {}) =>
+        hostGit(dir, args, { protocols: 'https', env }).trim()
+      try {
+        git(['init', '--bare', '--quiet'])
+        for (let attempt = 1; ; attempt += 1) {
+          const auth = await pushEnv()
+          // No such branch yet: this commit starts it. A failed ls-remote throws, as it should.
+          const exists = git(['ls-remote', '--heads', remote, `refs/heads/${branch}`], auth) !== ''
+          let parent: string | undefined
+          if (exists) {
+            git(
+              [
+                'fetch',
+                '--quiet',
+                '--depth=1',
+                remote,
+                `+refs/heads/${branch}:refs/heads/${branch}`,
+              ],
+              auth,
+            )
+            parent = git(['rev-parse', `refs/heads/${branch}`])
+          }
+          rmSync(index, { force: true })
+          const withIndex = { GIT_INDEX_FILE: index }
+          if (parent) git(['read-tree', parent], withIndex)
+          for (const { path, from } of files) {
+            const blob = git(['hash-object', '-w', '--', from])
+            git(['update-index', '--add', '--cacheinfo', `100644,${blob},${path}`], withIndex)
+          }
+          const tree = git(['write-tree'], withIndex)
+          const commit = git(
+            [
+              'commit-tree',
+              tree,
+              ...(parent ? ['-p', parent] : []),
+              '-m',
+              `Add ${files.length} files`,
+            ],
+            {
+              GIT_AUTHOR_NAME: author.name,
+              GIT_AUTHOR_EMAIL: author.email,
+              GIT_COMMITTER_NAME: author.name,
+              GIT_COMMITTER_EMAIL: author.email,
+            },
+          )
+          try {
+            git(['push', '--quiet', '--no-verify', remote, `${commit}:refs/heads/${branch}`], auth)
+            break
+          } catch (error) {
+            if (attempt === 3) throw error
+          }
+        }
+      } finally {
+        rmSync(dir, { recursive: true, force: true })
+      }
+      const encoded = (path: string) => path.split('/').map(encodeURIComponent).join('/')
+      return files.map(
+        ({ path }) => `https://raw.githubusercontent.com/${repo}/${branch}/${encoded(path)}`,
+      )
     },
   }
 }

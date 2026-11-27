@@ -15,17 +15,24 @@ const UNTRUSTING = [
   'core.sshCommand=ssh',
 ]
 
-/** Runs git in `cwd` without trusting the repo's config. Throws when git exits non-zero. */
+/**
+ * Runs git in `cwd` without trusting the repo's config. Throws when git exits non-zero. `env` adds
+ * to git's environment, as a push's token header or a temporary index does.
+ */
 export function hostGit(
   cwd: string,
   args: string[],
-  { protocols = PROTOCOLS, quiet = false }: { protocols?: string; quiet?: boolean } = {},
+  {
+    protocols = PROTOCOLS,
+    quiet = false,
+    env = {},
+  }: { protocols?: string; quiet?: boolean; env?: Record<string, string> } = {},
 ): string {
   return execFileSync('git', [...UNTRUSTING.flatMap((setting) => ['-c', setting]), ...args], {
     cwd,
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', quiet ? 'ignore' : 'inherit'],
-    env: { ...process.env, GIT_ALLOW_PROTOCOL: protocols, GIT_TERMINAL_PROMPT: '0' },
+    env: { ...process.env, ...env, GIT_ALLOW_PROTOCOL: protocols, GIT_TERMINAL_PROMPT: '0' },
   })
 }
 
