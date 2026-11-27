@@ -1,12 +1,11 @@
 // The Reviewer's verdict and the host's replay of its sabotages (How specs prove themselves,
 // DEV-252; How a factory Run works, DEV-253).
 
-import type { CriterionKind } from './criteria.ts'
-
-export interface ReviewRow {
+/** The Reviewer's row for a Tested criterion. */
+export interface TestedRow {
   /** The criterion, such as AC-3.1. */
   id: string
-  kind: CriterionKind
+  kind: 'tested'
   /** The test that proves it: "file › name". */
   test: string
   /** Runs that test with Vitest, such as `pnpm --filter @myvgc/core exec vitest run <file> -t '<name>'`. */
@@ -14,6 +13,22 @@ export interface ReviewRow {
   /** The smallest compiling change to the implementation that breaks the criterion, as a diff. */
   sabotagePatch: string
 }
+
+/** The Reviewer's row for a Seen criterion: the screenshots it took and what it made of them. */
+export interface SeenRow {
+  id: string
+  kind: 'seen'
+  /** The page and `pnpm screenshots` options it shot. */
+  test: string
+  /** The shots' paths in the checkout, such as `.preview/screenshots/teams-phone.png`. */
+  screenshots: string[]
+  /** Whether the shots show what the criterion says. Only `true` passes. */
+  matches: boolean
+  /** Why, in a sentence or two. */
+  judgement: string
+}
+
+export type ReviewRow = TestedRow | SeenRow
 
 export interface Finding {
   severity: 'hard' | 'judgement'
@@ -44,18 +59,32 @@ export function readReview(stdout: string): Review | null {
   } catch {
     return null
   }
-  const review = value as Partial<Review>
+  const review = value as { verdict?: unknown; criteria?: unknown; findings?: unknown }
   if (review.verdict !== 'pass' && review.verdict !== 'fail') return null
   if (!Array.isArray(review.criteria) || !Array.isArray(review.findings)) return null
-  const rowsOk = review.criteria.every(
-    (row) =>
-      typeof row?.id === 'string' &&
-      (row.kind === 'tested' || row.kind === 'seen') &&
-      typeof row.test === 'string' &&
-      (row.kind === 'seen' ||
-        (typeof row.testCommand === 'string' && typeof row.sabotagePatch === 'string')),
-  )
-  return rowsOk ? (review as Review) : null
+  const criteria: ReviewRow[] = []
+  for (const row of review.criteria as Record<string, unknown>[]) {
+    if (typeof row?.id !== 'string' || typeof row.test !== 'string') return null
+    if (row.kind === 'tested') {
+      if (typeof row.testCommand !== 'string' || typeof row.sabotagePatch !== 'string') return null
+      criteria.push(row as unknown as TestedRow)
+    } else if (row.kind === 'seen') {
+      // A Seen row missing its shots or its judgement is still read, so the push gate can fail it.
+      criteria.push({
+        id: row.id,
+        kind: 'seen',
+        test: row.test,
+        screenshots: Array.isArray(row.screenshots)
+          ? row.screenshots.filter((path): path is string => typeof path === 'string')
+          : [],
+        matches: row.matches === true,
+        judgement: typeof row.judgement === 'string' ? row.judgement : '',
+      })
+    } else {
+      return null
+    }
+  }
+  return { verdict: review.verdict, criteria, findings: review.findings as Finding[] }
 }
 
 /** What Vitest's `--reporter=json` writes, as much of it as a replay reads. */

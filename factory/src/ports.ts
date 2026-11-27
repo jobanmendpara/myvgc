@@ -144,6 +144,12 @@ export interface Forge {
    * where GitHub gives it.
    */
   failedCheckLogs(pr: number): Promise<string>
+  /**
+   * Commits host files to `branch`, an orphan branch of files only (such as the screenshots of
+   * Seen criteria), each at its `path` there, on top of what the branch already holds. Returns each
+   * file's raw URL, in order, for a PR comment to embed.
+   */
+  pushFiles(branch: string, files: { path: string; from: string }[]): Promise<string[]>
 }
 
 export interface ExecResult {

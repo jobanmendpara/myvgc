@@ -73,11 +73,14 @@ Do the sabotage and verdict work yourself. Use subagents (Haiku 5.5) only to fin
 
 For every Tested criterion, write a sabotage: the smallest change to the implementation, never to a test file, that breaks that criterion's behaviour while everything still compiles. Apply it, run the criterion's test and check it fails on an assertion, not on a load or compile error. Undo it with \`git checkout -- .\` and check the test passes again. The host replays every sabotage itself, so each must apply with \`git apply\` to the committed branch, and its test command must be a Vitest run of the files that prove the criterion.
 
+For every Seen criterion, see it yourself: start the app with \`pnpm preview\`, take the shots that show the criterion with \`pnpm screenshots <path> [options]\` (docs/wiki/preview.md lists the options), and look at each shot. Judge whether the shots show what the criterion says, at every width they were taken. List each shot by the path \`pnpm screenshots\` printed, in .preview/screenshots/. Stop the app with \`pnpm preview:stop\` when you're done. The host copies the shots and shows them in the PR, so list only shots of this criterion.
+
 Print exactly one JSON object between <review> and </review>, shaped:
 {"verdict": "pass" | "fail",
- "criteria": [{"id": "AC-1.1", "kind": "tested", "test": "<file> › <test name>", "testCommand": "pnpm --filter <package> exec vitest run <file> -t '<test name>'", "sabotagePatch": "<unified diff>"}],
+ "criteria": [{"id": "AC-1.1", "kind": "tested", "test": "<file> › <test name>", "testCommand": "pnpm --filter <package> exec vitest run <file> -t '<test name>'", "sabotagePatch": "<unified diff>"},
+              {"id": "AC-2.1", "kind": "seen", "test": "<page and options shot>", "screenshots": [".preview/screenshots/<name>.png"], "matches": true | false, "judgement": "<what the shots show, against the criterion>"}],
  "findings": [{"severity": "hard" | "judgement", "file": "<path>", "summary": "<one sentence>"}]}
-Give the verdict "fail" when any criterion lacks a test whose sabotage fails it, when the host checks failed, or when there is any hard finding against the standards or the spec.`
+Give the verdict "fail" when any Tested criterion lacks a test whose sabotage fails it, when any Seen criterion's shots don't match it, when the host checks failed, or when there is any hard finding against the standards or the spec.`
 }
 
 const commitEnding = ({ specId }: TicketBrief, model: string) =>

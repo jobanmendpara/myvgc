@@ -130,6 +130,20 @@ export interface Script {
   sessions?: Record<string, string | string[]>
   /** A Tracker method that throws, as Linear does when it's down or turns a write down. */
   trackerThrows?: string
+  /** The files the Reviewer's `pnpm screenshots` left in the sandbox, by path; none by default. */
+  screenshots?: Record<string, Buffer>
+}
+
+/** A PNG file's bytes: its signature, then `text`, so each fake screenshot is told apart. */
+export const png = (text: string) =>
+  Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from(text)])
+
+/** A Reviewer's row for a Seen criterion. */
+export interface SeenRowInput {
+  id: string
+  screenshots?: unknown
+  matches?: unknown
+  judgement?: unknown
 }
 
 /** What `git rev-parse HEAD` prints in the fake sandbox: the branch as it was pushed. */
@@ -202,14 +216,18 @@ export function review(
   verdict: 'pass' | 'fail' = 'pass',
   ids = ['AC-1.1', 'AC-1.2'],
   findings: unknown[] = [],
+  seen: SeenRowInput[] = [],
 ): string {
-  const criteria = ids.map((id) => ({
-    id,
-    kind: 'tested',
-    test: `test/${id}.test.ts › ${id}`,
-    testCommand: testCommandOf(id),
-    sabotagePatch: sabotageOf(id),
-  }))
+  const criteria = [
+    ...ids.map((id) => ({
+      id,
+      kind: 'tested',
+      test: `test/${id}.test.ts › ${id}`,
+      testCommand: testCommandOf(id),
+      sabotagePatch: sabotageOf(id),
+    })),
+    ...seen.map((row) => ({ kind: 'seen', test: '/teams at both widths', ...row })),
+  ]
   return `Reviewed.\n<review>${JSON.stringify({ verdict, criteria, findings })}</review>`
 }
 
@@ -385,6 +403,10 @@ export async function run(
       events.push({ port: 'forge', method: 'waitForChecks', args: [pr] })
       return waits.shift() ?? 0
     },
+    async pushFiles(branch, files) {
+      events.push({ port: 'forge', method: 'pushFiles', args: [branch, files] })
+      return files.map(({ path }) => `https://raw.githubusercontent.com/o/r/${branch}/${path}`)
+    },
   }
 
   const sandboxes: Sandboxes = {
@@ -460,6 +482,12 @@ function fakeSandbox(script: Script, events: Event[], branch: string): Sandbox {
         checkout,
       })
       if (command.includes('pnpm install')) return exit(script.install ?? 0)
+      // Sandcastle's exec returns text, so a screenshot comes out base64-encoded.
+      const shot = /^base64 -w 0 -- '([^']+)'$/.exec(command)?.[1]
+      if (shot !== undefined) {
+        const bytes = script.screenshots?.[shot]
+        return bytes ? ok(bytes.toString('base64')) : exit(1)
+      }
       if (command === 'git diff --name-only origin/main...HEAD') {
         return ok((script.changedFiles ?? []).map((file) => `${file}\n`).join(''))
       }
