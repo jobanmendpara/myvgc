@@ -1,6 +1,13 @@
 // The real Tracker: Linear's GraphQL API with the maintainer's personal API key (DEV-253). Thin on
 // purpose, and not unit-tested: the pilot's first Run proves it (DEV-269, Testing Decisions).
-import type { Issue, Status, StatusType, Ticket, Tracker } from './ports.ts'
+import {
+  STATUS_TYPES,
+  type Issue,
+  type Status,
+  type StatusType,
+  type Ticket,
+  type Tracker,
+} from './ports.ts'
 
 const API = 'https://api.linear.app/graphql'
 
@@ -18,17 +25,20 @@ export function linearTracker(apiKey: string): Tracker {
     },
 
     async getSubIssues(id) {
-      // A spec has far fewer than 250 tickets, and a ticket far fewer than 50 relations.
-      const data = await query<{ issue: { children: { nodes: GraphQLTicket[] } } | null }>(
+      // A spec has far fewer than 250 tickets, and a ticket far fewer than 50 relations. Past
+      // either, this refuses rather than miss a ticket or a blocker.
+      const data = await query<{ issue: { children: Page<GraphQLTicket> } | null }>(
         apiKey,
         `query SubIssues($id: String!) {
           issue(id: $id) {
             children(first: 250) {
+              pageInfo { hasNextPage }
               nodes {
                 identifier title subIssueSortOrder
                 state { name type }
                 labels { nodes { name } }
                 inverseRelations(first: 50) {
+                  pageInfo { hasNextPage }
                   nodes { type issue { identifier state { name type } } }
                 }
               }
@@ -37,9 +47,20 @@ export function linearTracker(apiKey: string): Tracker {
         }`,
         { id },
       )
-      return (data?.issue?.children.nodes ?? []).map(toTicket)
+      return data?.issue ? allOf(data.issue.children, `${id}'s sub-issues`).map(toTicket) : []
     },
   }
+}
+
+interface Page<T> {
+  pageInfo: { hasNextPage: boolean }
+  nodes: T[]
+}
+
+/** The page's nodes, or an error when there are more than one page holds. */
+function allOf<T>(page: Page<T>, what: string): T[] {
+  if (page.pageInfo.hasNextPage) throw new Error(`Linear has more ${what} than the factory reads.`)
+  return page.nodes
 }
 
 interface GraphQLIssue {
@@ -57,16 +78,14 @@ interface GraphQLTicket extends GraphQLIssue {
   subIssueSortOrder: number | null
   state: GraphQLState
   /** Relations naming this ticket as their relatedIssue: for `blocks`, `issue` blocks this one. */
-  inverseRelations: {
-    nodes: { type: string; issue: { identifier: string; state: GraphQLState } }[]
-  }
+  inverseRelations: Page<{ type: string; issue: { identifier: string; state: GraphQLState } }>
 }
 
 function toTicket(ticket: GraphQLTicket): Ticket {
   return {
     ...toIssue(ticket),
     status: toStatus(ticket.state),
-    blockedBy: ticket.inverseRelations.nodes
+    blockedBy: allOf(ticket.inverseRelations, `relations on ${ticket.identifier}`)
       .filter((relation) => relation.type === 'blocks')
       .map((relation) => ({
         id: relation.issue.identifier,
@@ -77,20 +96,15 @@ function toTicket(ticket: GraphQLTicket): Ticket {
   }
 }
 
-const STATUS_TYPES: readonly string[] = [
-  'triage',
-  'backlog',
-  'unstarted',
-  'started',
-  'completed',
-  'canceled',
-] satisfies StatusType[]
-
 function toStatus(state: GraphQLState): Status {
-  if (!STATUS_TYPES.includes(state.type)) {
+  if (!isStatusType(state.type)) {
     throw new Error(`Linear gave a status of an unknown type: ${state.name} (${state.type}).`)
   }
-  return { name: state.name, type: state.type as StatusType }
+  return { name: state.name, type: state.type }
+}
+
+function isStatusType(type: string): type is StatusType {
+  return (STATUS_TYPES as readonly string[]).includes(type)
 }
 
 function toIssue(issue: GraphQLIssue): Issue {

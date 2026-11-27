@@ -9,7 +9,7 @@ import { join } from 'node:path'
 import { parseArgs, parseEnv } from 'node:util'
 import { frontier, whyNotTakeable } from './frontier.ts'
 import type { Ticket, Tracker } from './ports.ts'
-import { STEPS, type Step } from './settings.ts'
+import { TICKET_PLAN } from './settings.ts'
 
 export interface FactoryPorts {
   /** The checkout the factory runs from, which holds `.sandcastle/.env`. */
@@ -43,7 +43,7 @@ export async function factory(args: string[], ports: FactoryPorts): Promise<numb
     return REFUSED
   }
 
-  const { specId, dryRun, only } = command
+  const { specId, dryRun, onlyTicketId } = command
   const tracker = ports.tracker(setup.linearApiKey)
   const spec = await tracker.getIssue(specId)
   if (!spec) {
@@ -64,19 +64,21 @@ export async function factory(args: string[], ports: FactoryPorts): Promise<numb
   ports.print(`${specId} (${spec.title}) is signed off, and the factory is set up.`)
 
   const tickets = await tracker.getSubIssues(specId)
-  let takeable = frontier(tickets)
-  if (only) {
-    const ticket = tickets.find((candidate) => candidate.id === only)
+  let takeable: Ticket[]
+  if (onlyTicketId) {
+    const ticket = tickets.find((candidate) => candidate.id === onlyTicketId)
     if (!ticket) {
-      ports.print(`${only} isn't a ticket of ${specId}.`)
+      ports.print(`${onlyTicketId} isn't a ticket of ${specId}.`)
       return REFUSED
     }
     const reasons = whyNotTakeable(ticket)
     if (reasons.length > 0) {
-      ports.print(`${only} isn't takeable (${ticket.title}): ${reasons.join('; ')}.`)
+      ports.print(`${onlyTicketId} isn't takeable (${ticket.title}): ${reasons.join('; ')}.`)
       return REFUSED
     }
     takeable = [ticket]
+  } else {
+    takeable = frontier(tickets)
   }
 
   printFrontier(ports, specId, takeable)
@@ -96,33 +98,15 @@ function printFrontier({ print }: FactoryPorts, specId: string, tickets: Ticket[
   print(`The frontier of ${specId}, in Linear's order:`)
   tickets.forEach((ticket, index) => {
     print(`${index + 1}. ${ticket.id} ${ticket.title}`)
-    print(`   ${PLAN}`)
+    print(`   ${TICKET_PLAN}`)
   })
 }
-
-const model = (step: Step) => `${STEPS[step].model}, ${STEPS[step].effort}`
-
-/** The steps for one ticket (How a factory Run works, DEV-253), with each agent step's model. */
-const PLAN =
-  [
-    'claim',
-    'worktree and install',
-    `Implementer (${model('implementer')})`,
-    'host checks',
-    `Reviewer (${model('reviewer')})`,
-    'replay',
-    'push gate',
-    'push, PR and auto-merge',
-    'wait for checks',
-  ].join(' → ') +
-  `; if the push gate fails: fix round 1 (${model('fixRound1')}), ` +
-  `fix round 2 (${model('fixRound2')}), then park`
 
 interface Command {
   specId: string
   dryRun: boolean
   /** The one ticket to work, from `--only`. */
-  only: string | undefined
+  onlyTicketId: string | undefined
 }
 
 /** The parsed arguments, or null when they don't fit the usage. */
@@ -141,7 +125,7 @@ function readCommand(args: string[]): Command | null {
   const { only } = parsed.values
   if (!spec || rest.length > 0 || !ISSUE_ID.test(spec)) return null
   if (only !== undefined && !ISSUE_ID.test(only)) return null
-  return { specId: spec, dryRun: parsed.values['dry-run'] ?? false, only }
+  return { specId: spec, dryRun: parsed.values['dry-run'] ?? false, onlyTicketId: only }
 }
 
 /** The set-up a Run needs, or what's missing or wrong in it, each naming where it belongs. */

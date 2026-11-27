@@ -11,7 +11,15 @@ export interface Issue {
 }
 
 /** Linear's kinds of workflow state, whatever each team calls its statuses. */
-export type StatusType = 'triage' | 'backlog' | 'unstarted' | 'started' | 'completed' | 'canceled'
+export const STATUS_TYPES = [
+  'triage',
+  'backlog',
+  'unstarted',
+  'started',
+  'completed',
+  'canceled',
+] as const
+export type StatusType = (typeof STATUS_TYPES)[number]
 
 export interface Status {
   /** The team's name for it, such as "In Progress" or "Done". */
@@ -19,11 +27,17 @@ export interface Status {
   type: StatusType
 }
 
+/** An issue that blocks a ticket. */
+export interface Blocker {
+  id: string
+  status: Status
+}
+
 /** A sub-issue of a spec. */
 export interface Ticket extends Issue {
   status: Status
   /** The issues that block it, with their statuses. */
-  blockedBy: { id: string; status: Status }[]
+  blockedBy: Blocker[]
   /** Its place in Linear's manual order of the spec's sub-issues, lower first. */
   order: number
 }
