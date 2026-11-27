@@ -9,7 +9,7 @@ import { join } from 'node:path'
 import { parseArgs, parseEnv } from 'node:util'
 import type { Tracker } from './ports.ts'
 
-export interface FactoryEnv {
+export interface FactoryPorts {
   /** The checkout the factory runs from, which holds `.sandcastle/.env`. */
   repoDir: string
   /** The maintainer's factory config: `app.pem` and `config.env` (normally ~/.config/myvgc-factory). */
@@ -27,48 +27,46 @@ const USAGE_ERROR = 64
 const USAGE = 'Usage: pnpm factory <spec issue, such as DEV-269> [--dry-run] [--only DEV-M]'
 const ISSUE_ID = /^[A-Z]+-\d+$/
 
-export async function factory(args: string[], env: FactoryEnv): Promise<number> {
-  const command = readCommand(args)
-  if (!command) {
-    env.print(USAGE)
+export async function factory(args: string[], ports: FactoryPorts): Promise<number> {
+  const specId = readSpecId(args)
+  if (!specId) {
+    ports.print(USAGE)
     return USAGE_ERROR
   }
 
-  const setup = readSetup(env)
-  if (setup.problems.length > 0) {
-    env.print("The factory isn't set up yet:")
-    for (const problem of setup.problems) env.print(`- ${problem}`)
+  const setup = readSetup(ports)
+  if ('problems' in setup) {
+    ports.print("The factory isn't set up yet:")
+    for (const problem of setup.problems) ports.print(`- ${problem}`)
     return REFUSED
   }
 
-  const spec = await env.tracker(setup.linearApiKey).getIssue(command.spec)
+  const spec = await ports.tracker(setup.linearApiKey).getIssue(specId)
   if (!spec) {
-    env.print(`${command.spec} wasn't found in Linear.`)
+    ports.print(`${specId} wasn't found in Linear.`)
     return REFUSED
   }
   if (!spec.labels.includes('spec')) {
-    env.print(`${command.spec} isn't a spec: it has no \`spec\` label.`)
+    ports.print(`${specId} isn't a spec: it has no \`spec\` label.`)
     return REFUSED
   }
   if (!spec.labels.includes('signed-off')) {
-    env.print(
-      `${command.spec} (${spec.title}) isn't signed off: only the maintainer adds \`signed-off\`.`,
+    ports.print(
+      `${specId} (${spec.title}) isn't signed off: only the maintainer adds \`signed-off\`.`,
     )
     return REFUSED
   }
 
-  env.print(`${command.spec} (${spec.title}) is signed off, and the factory is set up.`)
+  ports.print(`${specId} (${spec.title}) is signed off, and the factory is set up.`)
   return READY
 }
 
-interface Command {
-  spec: string
-  dryRun: boolean
-  only: string | undefined
-}
-
-/** The parsed arguments, or null when they don't fit the usage. */
-function readCommand(args: string[]): Command | null {
+/**
+ * The spec's identifier, or null when the arguments don't fit the usage. `--dry-run` and `--only`
+ * are accepted, so set-up problems are reported for them too (AC-8.1); what they change comes with
+ * the frontier (DEV-277).
+ */
+function readSpecId(args: string[]): string | null {
   let parsed
   try {
     parsed = parseArgs({
@@ -83,17 +81,14 @@ function readCommand(args: string[]): Command | null {
   const { only } = parsed.values
   if (!spec || rest.length > 0 || !ISSUE_ID.test(spec)) return null
   if (only !== undefined && !ISSUE_ID.test(only)) return null
-  return { spec, dryRun: parsed.values['dry-run'] ?? false, only }
+  return spec
 }
 
-interface Setup {
-  /** What's missing or wrong, each naming where it belongs. */
-  problems: string[]
-  linearApiKey: string
-}
+/** The set-up a Run needs, or what's missing or wrong in it, each naming where it belongs. */
+type Setup = { linearApiKey: string } | { problems: string[] }
 
 /** Checks the set-up from DEV-271 (the GitHub App) and DEV-272 (credentials). */
-function readSetup({ repoDir, configDir }: FactoryEnv): Setup {
+function readSetup({ repoDir, configDir }: FactoryPorts): Setup {
   const problems: string[] = []
   const configFile = join(configDir, 'config.env')
   const sandcastleFile = join(repoDir, '.sandcastle', '.env')
@@ -121,7 +116,8 @@ function readSetup({ repoDir, configDir }: FactoryEnv): Setup {
       `CLAUDE_CODE_EFFORT_LEVEL in ${sandcastleFile}: remove it, since it overrides every step's own effort`,
     )
   }
-  return { problems, linearApiKey: config.LINEAR_API_KEY ?? '' }
+  if (problems.length > 0 || !config.LINEAR_API_KEY) return { problems }
+  return { linearApiKey: config.LINEAR_API_KEY }
 }
 
 /** The variables in a `.env`-style file, or none when the file doesn't exist. */

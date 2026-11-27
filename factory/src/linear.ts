@@ -40,7 +40,12 @@ async function query<T>(apiKey: string, text: string, variables: object): Promis
     headers: { 'Content-Type': 'application/json', Authorization: apiKey },
     body: JSON.stringify({ query: text, variables }),
   })
-  const body = (await response.json()) as { data?: T; errors?: { message: string }[] }
+  let body: { data?: T; errors?: { message: string }[] }
+  try {
+    body = (await response.json()) as typeof body
+  } catch {
+    throw new Error(`Linear answered ${response.status} ${response.statusText} without JSON.`)
+  }
   // Linear answers an unknown identifier with an "Entity not found" error rather than a null issue.
   if (body.errors?.some((error) => /not found/i.test(error.message))) return null
   if (!response.ok || body.errors || !body.data) {

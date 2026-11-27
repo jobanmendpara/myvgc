@@ -9,14 +9,15 @@ import type { Issue, Tracker } from '../src/ports.ts'
 
 const SPEC = 'DEV-269'
 
-interface Setup {
+/** What the temporary folders hold. */
+interface Layout {
   appKey?: boolean
   config?: Record<string, string>
   sandcastleEnv?: Record<string, string> | null
 }
 
 const CONFIG = { GITHUB_APP_ID: '123', GITHUB_INSTALLATION_ID: '456', LINEAR_API_KEY: 'lin_api_x' }
-const COMPLETE: Required<Setup> = {
+const COMPLETE: Required<Layout> = {
   appKey: true,
   config: CONFIG,
   sandcastleEnv: { CLAUDE_CODE_OAUTH_TOKEN: 'sk-ant-oat-x' },
@@ -34,8 +35,8 @@ function envFile(values: Record<string, string>): string {
 }
 
 /** Lays out the repo and config folders, runs factory() and records what it did. */
-async function run(args: string[], issues: Issue[], setup: Setup = {}) {
-  const { appKey, config, sandcastleEnv } = { ...COMPLETE, ...setup }
+async function run(args: string[], issues: Issue[], layout: Layout = {}) {
+  const { appKey, config, sandcastleEnv } = { ...COMPLETE, ...layout }
   const root = mkdtempSync(join(tmpdir(), 'factory-'))
   folders.push(root)
   const repoDir = join(root, 'repo')
@@ -47,12 +48,16 @@ async function run(args: string[], issues: Issue[], setup: Setup = {}) {
   if (sandcastleEnv) writeFileSync(join(repoDir, '.sandcastle', '.env'), envFile(sandcastleEnv))
 
   const trackerCalls: string[] = []
-  const tracker: Tracker = {
-    async getIssue(id) {
-      trackerCalls.push(`getIssue ${id}`)
-      return issues.find((issue) => issue.id === id) ?? null
-    },
-  }
+  // Records every call, including to methods later tickets add to the Tracker (claiming, comments,
+  // statuses), so "reads the spec and nothing else" keeps meaning something as the port grows.
+  const tracker = new Proxy({} as Tracker, {
+    get:
+      (_, method: string) =>
+      async (...callArgs: unknown[]) => {
+        trackerCalls.push(`${method} ${callArgs.join(' ')}`)
+        if (method === 'getIssue') return issues.find((issue) => issue.id === callArgs[0]) ?? null
+      },
+  })
   const lines: string[] = []
   const code = await factory(args, {
     repoDir,
@@ -113,7 +118,7 @@ describe('pnpm factory', () => {
   })
 
   const { LINEAR_API_KEY, GITHUB_APP_ID, GITHUB_INSTALLATION_ID } = CONFIG
-  test.each<[string, Setup, string[]]>([
+  test.each<[string, Layout, string[]]>([
     ['the App key', { appKey: false }, ['GitHub App private key', 'app.pem']],
     [
       'the App ID',
@@ -136,8 +141,8 @@ describe('pnpm factory', () => {
       ['CLAUDE_CODE_OAUTH_TOKEN', 'ANTHROPIC_API_KEY', '.sandcastle/.env'],
     ],
     ['.sandcastle/.env', { sandcastleEnv: null }, ['CLAUDE_CODE_OAUTH_TOKEN', '.sandcastle/.env']],
-  ])('names %s and where it belongs when it is missing', async (_, setup, named) => {
-    const result = await run([SPEC], [signedOff], setup)
+  ])('names %s and where it belongs when it is missing', async (_, layout, named) => {
+    const result = await run([SPEC], [signedOff], layout)
     expect(result.code).toBe(1)
     for (const text of named) expect(result.output).toContain(text)
     expect(result.trackerCalls).toEqual([])

@@ -27,7 +27,7 @@
 - `apps/web`: Nuxt (`ssr: false`), shadcn-vue components in `app/components/ui`, TanStack Query for server state.
 - `packages/core`: domain logic. `@myvgc/core` loads Showdown's data (about 900 KB gzipped), so the web app imports only `@myvgc/core/schema` and gets display names from the API.
 - `e2e`: the Playwright smoke test, run against the built image in Compose.
-- `factory`: the Factory (DEV-269), which turns a signed-off spec's tickets into merged PRs. Its vocabulary lives in `docs/wiki/factory.md`, never in `CONTEXT.md`.
+- `factory`: the Factory (DEV-269), which turns a signed-off spec's tickets into merged PRs. Its vocabulary goes in `docs/wiki/factory.md` (to be written in DEV-276), never in `CONTEXT.md`.
 
 ## Commands
 
@@ -38,5 +38,5 @@
 - `pnpm up:local`: build the image from this checkout and start it with Postgres (`compose.yaml` plus `compose.build.yaml`). Plain `compose.yaml` pulls the published GHCR image.
 - `pnpm accuracy`: the image reader against the real model on the fixtures in `apps/api/test/reading-fixtures` (costs money, needs `ANTHROPIC_API_KEY`; `--repeat n` runs each case n times). Never in CI. `pnpm --filter @myvgc/e2e reading-fixtures <folder> <team>` remakes a Team's fixtures from screenshots.
 - `pnpm smoke`: the Playwright smoke test against a running app (default `http://localhost:3000`).
-- `pnpm factory <spec> [--dry-run]`: checks the Factory's set-up (`~/.config/myvgc-factory/app.pem` and `config.env` with `GITHUB_APP_ID`, `GITHUB_INSTALLATION_ID` and `LINEAR_API_KEY`; `.sandcastle/.env` with `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY`) and that the spec carries `signed-off`. Never point it at DEV-269 itself: changes to the Factory are built interactively.
+- `pnpm factory <spec> [--dry-run] [--only DEV-M]`: checks the Factory's set-up (`~/.config/myvgc-factory/app.pem` and `config.env` with `GITHUB_APP_ID`, `GITHUB_INSTALLATION_ID` and `LINEAR_API_KEY`; `.sandcastle/.env` with `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY`) and that the spec carries `signed-off`. Never point it at DEV-269 itself: changes to the Factory are built interactively (DEV-269, Out of Scope).
 - Releases: pushing a tag such as `v0.1.0` runs the smoke test, then publishes `ghcr.io/jobanmendpara/myvgc:0.1.0` and `:latest`.
