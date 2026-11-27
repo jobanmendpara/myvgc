@@ -17,7 +17,7 @@ export function linearTracker(apiKey: string): Tracker {
       const data = await query<{ issue: GraphQLIssue | null }>(
         apiKey,
         `query Issue($id: String!) {
-          issue(id: $id) { identifier title labels { nodes { name } } }
+          issue(id: $id) { identifier title description labels { nodes { name } } }
         }`,
         { id },
       )
@@ -34,7 +34,7 @@ export function linearTracker(apiKey: string): Tracker {
             children(first: 250) {
               pageInfo { hasNextPage }
               nodes {
-                identifier title subIssueSortOrder
+                identifier title description branchName subIssueSortOrder
                 state { name type }
                 labels { nodes { name } }
                 inverseRelations(first: 50) {
@@ -49,6 +49,45 @@ export function linearTracker(apiKey: string): Tracker {
       )
       return data?.issue ? allOf(data.issue.children, `${id}'s sub-issues`).map(toTicket) : []
     },
+
+    async setStatus(id, status) {
+      const data = await query<{
+        issue: { team: { states: { nodes: { id: string; name: string }[] } } }
+      }>(
+        apiKey,
+        `query TeamStates($id: String!) {
+          issue(id: $id) { team { states { nodes { id name } } } }
+        }`,
+        { id },
+      )
+      const state = data?.issue.team.states.nodes.find((candidate) => candidate.name === status)
+      if (!state) throw new Error(`${id}'s team has no status named ${status}.`)
+      await mutate(
+        apiKey,
+        `mutation SetStatus($id: String!, $stateId: String!) {
+          issueUpdate(id: $id, input: { stateId: $stateId }) { success }
+        }`,
+        { id, stateId: state.id },
+      )
+    },
+
+    async comment(id, body) {
+      await mutate(
+        apiKey,
+        `mutation Comment($id: String!, $body: String!) {
+          commentCreate(input: { issueId: $id, body: $body }) { success }
+        }`,
+        { id, body },
+      )
+    },
+  }
+}
+
+/** Runs a mutation, which must succeed. */
+async function mutate(apiKey: string, text: string, variables: object): Promise<void> {
+  const data = await query<Record<string, { success: boolean }>>(apiKey, text, variables)
+  if (!data || Object.values(data).some((payload) => !payload.success)) {
+    throw new Error(`Linear didn't apply ${text.trim().split(/[ (]/)[1]}.`)
   }
 }
 
@@ -66,6 +105,7 @@ function allOf<T>(page: Page<T>, what: string): T[] {
 interface GraphQLIssue {
   identifier: string
   title: string
+  description: string | null
   labels: { nodes: { name: string }[] }
 }
 
@@ -75,6 +115,7 @@ interface GraphQLState {
 }
 
 interface GraphQLTicket extends GraphQLIssue {
+  branchName: string
   subIssueSortOrder: number | null
   state: GraphQLState
   /** Relations naming this ticket as their relatedIssue: for `blocks`, `issue` blocks this one. */
@@ -93,6 +134,7 @@ function toTicket(ticket: GraphQLTicket): Ticket {
       })),
     // Null only for top-level issues, which a spec's children never are.
     order: ticket.subIssueSortOrder ?? Number.MAX_VALUE,
+    branch: ticket.branchName,
   }
 }
 
@@ -112,6 +154,7 @@ function toIssue(issue: GraphQLIssue): Issue {
     id: issue.identifier,
     title: issue.title,
     labels: issue.labels.nodes.map((label) => label.name),
+    description: issue.description ?? '',
   }
 }
 

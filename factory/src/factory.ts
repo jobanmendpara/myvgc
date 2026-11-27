@@ -3,13 +3,25 @@
 //
 // It checks that it may start (the set-up is complete, DEV-271 and DEV-272, and the issue is a spec
 // the maintainer signed off), then reads the spec's frontier. `--dry-run` prints the frontier and
-// each ticket's steps; working the tickets comes with DEV-278.
-import { existsSync, readFileSync } from 'node:fs'
+// each ticket's steps. `--only DEV-M` works that one ticket to a merged PR (src/run.ts); working
+// the whole frontier comes with DEV-285.
+import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { parseArgs, parseEnv } from 'node:util'
+import { coveredIds, criteriaOf } from './criteria.ts'
 import { frontier, whyNotTakeable } from './frontier.ts'
-import type { Ticket, Tracker } from './ports.ts'
+import type { Forge, Sandboxes, Ticket, Tracker } from './ports.ts'
+import { workTicket } from './run.ts'
 import { TICKET_PLAN } from './settings.ts'
+import { describeWorkspace, workspacePackages } from './workspace.ts'
+
+/** The GitHub App the factory pushes and opens PRs as (DEV-271). */
+export interface GitHubApp {
+  /** Path to the App's private key. */
+  keyPath: string
+  appId: string
+  installationId: string
+}
 
 export interface FactoryPorts {
   /** The checkout the factory runs from, which holds `.sandcastle/.env`. */
@@ -18,6 +30,10 @@ export interface FactoryPorts {
   configDir: string
   /** Makes the Tracker from the Linear API key in `config.env`. */
   tracker: (linearApiKey: string) => Tracker
+  /** Makes the Forge, which mints the App's installation token when the Run starts. */
+  forge: (app: GitHubApp) => Forge
+  sandboxes: Sandboxes
+  now: () => Date
   print: (line: string) => void
 }
 
@@ -86,8 +102,53 @@ export async function factory(args: string[], ports: FactoryPorts): Promise<numb
     ports.print('Dry run: nothing was changed.')
     return READY
   }
-  ports.print("Working tickets isn't built yet (DEV-278), so nothing was changed. Use --dry-run.")
-  return REFUSED
+  const [ticket] = takeable
+  if (!onlyTicketId || !ticket) {
+    ports.print(
+      "Working the whole frontier isn't built yet (DEV-285), so nothing was changed. Use --only.",
+    )
+    return REFUSED
+  }
+
+  const criteria = criteriaOf(spec.description)
+  const covered = coveredIds(ticket.description)
+  const unknown = covered.filter((id) => !criteria.has(id))
+  if (covered.length === 0 || unknown.length > 0) {
+    ports.print(
+      covered.length === 0
+        ? `${ticket.id} says which criteria it covers in no "Covers:" line, so nothing was changed.`
+        : `${ticket.id} covers ${unknown.join(', ')}, which ${specId} doesn't have, so nothing was changed.`,
+    )
+    return REFUSED
+  }
+
+  const runId = `${stamp(ports.now())}-${specId}`
+  const runDir = join(ports.repoDir, '.factory', 'runs', runId)
+  mkdirSync(runDir, { recursive: true })
+  ports.print(`Run ${runId}: working ${ticket.id}. Its log is ${runDir}.`)
+  const merged = await workTicket(
+    {
+      runId,
+      specId,
+      runDir,
+      tracker,
+      forge: ports.forge(setup.github),
+      sandboxes: ports.sandboxes,
+      sandboxEnv: setup.sandboxEnv,
+      print: ports.print,
+    },
+    ticket,
+    covered.map((id) => criteria.get(id)!),
+    describeWorkspace(workspacePackages(ports.repoDir)),
+  )
+  ports.print(`Run ${runId} done: ${merged ? `${ticket.id} merged` : `${ticket.id} stopped`}.`)
+  return merged ? READY : REFUSED
+}
+
+/** The local date and time as yyyy-mm-dd-hhmm, for Run IDs. */
+function stamp(date: Date): string {
+  const pad = (value: number) => String(value).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}-${pad(date.getHours())}${pad(date.getMinutes())}`
 }
 
 function printFrontier({ print }: FactoryPorts, specId: string, tickets: Ticket[]) {
@@ -129,7 +190,9 @@ function readCommand(args: string[]): Command | null {
 }
 
 /** The set-up a Run needs, or what's missing or wrong in it, each naming where it belongs. */
-type Setup = { linearApiKey: string } | { problems: string[] }
+type Setup =
+  | { linearApiKey: string; github: GitHubApp; sandboxEnv: Record<string, string> }
+  | { problems: string[] }
 
 /** Checks the set-up from DEV-271 (the GitHub App) and DEV-272 (credentials). */
 function readSetup({ repoDir, configDir }: FactoryPorts): Setup {
@@ -160,8 +223,24 @@ function readSetup({ repoDir, configDir }: FactoryPorts): Setup {
       `CLAUDE_CODE_EFFORT_LEVEL in ${sandcastleFile}: remove it, since it overrides every step's own effort`,
     )
   }
-  if (problems.length > 0 || !config.LINEAR_API_KEY) return { problems }
-  return { linearApiKey: config.LINEAR_API_KEY }
+  const { LINEAR_API_KEY, GITHUB_APP_ID, GITHUB_INSTALLATION_ID } = config
+  if (problems.length > 0 || !LINEAR_API_KEY || !GITHUB_APP_ID || !GITHUB_INSTALLATION_ID) {
+    return { problems }
+  }
+  // The sandbox gets the Claude credential and nothing else: no GitHub token, no App key.
+  const { CLAUDE_CODE_OAUTH_TOKEN, ANTHROPIC_API_KEY } = sandcastle
+  const sandboxEnv: Record<string, string> = ANTHROPIC_API_KEY
+    ? { ANTHROPIC_API_KEY }
+    : { CLAUDE_CODE_OAUTH_TOKEN: CLAUDE_CODE_OAUTH_TOKEN ?? '' }
+  return {
+    linearApiKey: LINEAR_API_KEY,
+    github: {
+      keyPath: join(configDir, 'app.pem'),
+      appId: GITHUB_APP_ID,
+      installationId: GITHUB_INSTALLATION_ID,
+    },
+    sandboxEnv,
+  }
 }
 
 /** The variables in a `.env`-style file, or none when the file doesn't exist. */

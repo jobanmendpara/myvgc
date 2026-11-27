@@ -1,0 +1,6 @@
+# Sandcastle's local files: the Claude credential (DEV-272), logs and ticket worktrees.
+.env
+logs/
+worktrees/
+node_modules/
+spike-out/
