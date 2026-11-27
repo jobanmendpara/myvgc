@@ -124,6 +124,13 @@ From the claude-code-guide agent's report, 2026-11-25, citing code.claude.com/do
 - The Monitor tool is the documented fit for "poll a PR or CI job and report when its status changes". It has a default deadline of 5 minutes and a maximum of 30 in interactive sessions. The docs don't say whether every subagent has it.
 - As of 2026-11-25 nothing was changed. A Monitor-based wait would replace CLAUDE.md's "Wait in the foreground" rule, so it went to the maintainer.
 
+## Waiting on approved exits 5 (2026-11-27)
+
+- On 2026-11-27 DEV-273 (`jobanmendpara/myvgc@4069fd9`) taught `scripts/wait-for-checks.sh` the risky-path gate's check, `risky-change-gate`, part of the Factory spec ([DEV-269](https://linear.app/mendpara/issue/DEV-269)). DEV-273 picked the name. As of 2026-11-27 the gate's workflow, `.github/workflows/risky-change-gate.yml`, doesn't exist yet: DEV-289 (the spec's set-up step H-6) adds it with a job of that name.
+- When `check` and `smoke / smoke` have passed and the gate has failed, the script exits 5: the PR changes a risky path and waits on the maintainer to add `approved`. With auto-merge queued, adding the label merges it. CLAUDE.md's "Shipping" section tells interactive sessions to stop waiting and tell the maintainer; the factory is to mark the ticket `needs-human` and move on.
+- A failed `check` or `smoke / smoke` still exits 1 first, and a conflict (exit 4) comes before exit 5, since adding the label can't merge a `DIRTY` PR. A pending or cancelled gate run is waited for like a pending check, because a label event starts a new run, and a skipped one counts as passed. A PR on which the gate isn't reported, as on every PR before the workflow exists, behaves as before.
+- `gh pr checks` shows each check's latest run on the commit, so after a label event only the newest gate run counts.
+
 ## Releases
 
 - On 2026-11-19 v0.2.0 was released from `jobanmendpara/myvgc@8e8a992` (tag `v0.2.0`, published 16:25 UTC, [release notes](https://github.com/jobanmendpara/myvgc/releases/tag/v0.2.0)). The "Release" workflow on the tag passed, so the smoke test ran on code that has both DEV-148 and DEV-149. This closes, for that combination, the 2026-11-18 gap noted above. The notes carried DEV-151's `S3_REGION` note (see the [2026-11-17 Refactor round](refactor-round-2026-11-17.md)). The only earlier release was v0.1.0, a pre-release, on 2026-11-03.

@@ -155,6 +155,65 @@ describe.concurrent('wait-for-checks.sh', { timeout: 20_000 }, () => {
     expect(result.code).toBe(1)
   })
 
+  // The risky-path gate (DEV-273): a required check that fails until the maintainer adds `approved`.
+  test.each([
+    ['auto-merge is queued', QUEUED],
+    ['no auto-merge is queued', 'OPEN\\tfalse\\tBLOCKED\\t'],
+  ])('exits 5 when only the risky-path gate is failing and %s', async (_, view) => {
+    const result = await run({ GH_CHECKS: `${PASSING}fail\\trisky-change-gate\\n`, GH_VIEW: view })
+    expect(result.code).toBe(5)
+    expect(result.output).toContain('waiting on the maintainer')
+    expect(result.output).toContain('`approved`')
+  })
+
+  test('exits 1, not 5, when another check fails beside the risky-path gate', async () => {
+    const result = await run({
+      GH_CHECKS: 'fail\\tcheck\\npass\\tsmoke / smoke\\nfail\\trisky-change-gate\\n',
+    })
+    expect(result.code).toBe(1)
+    expect(result.output).toContain('A check failed')
+  })
+
+  test('exits 4, not 5, when a PR waiting on the risky-path gate conflicts with main', async () => {
+    const result = await run({
+      GH_CHECKS: `${PASSING}fail\\trisky-change-gate\\n`,
+      GH_VIEW: DIRTY,
+    })
+    expect(result.code).toBe(4)
+    expect(result.output).toContain('conflicts with main')
+  })
+
+  // A label event starts a new gate run, which can cancel the one before it.
+  test.each([
+    ['the other checks are pending', `${SMOKE_PASSED}fail\\trisky-change-gate\\n`],
+    ['the gate is pending', `${PASSING}pending\\trisky-change-gate\\n`],
+    ['the gate run was cancelled', `${PASSING}cancel\\trisky-change-gate\\n`],
+  ])('keeps waiting, not exit 5, while %s', async (_, checks) => {
+    const result = await run({ GH_CHECKS: checks })
+    expect(result.code).toBe(2)
+    expect(result.output).toContain('Run this script again')
+  })
+
+  test.each([
+    ['0 once the PR is merged', { GH_VIEW: 'MERGED\\tfalse\\tUNKNOWN\\tabc123' }, 0],
+    ['2 while auto-merge is pending', {}, 2],
+    ['4 when the PR conflicts with main', { GH_VIEW: DIRTY }, 4],
+  ])('with the risky-path gate passing, exits %s', async (_, env, code) => {
+    const result = await run({ GH_CHECKS: `${PASSING}pass\\trisky-change-gate\\n`, ...env })
+    expect(result.code).toBe(code)
+    // It got past the checks, rather than reaching the same exit while still waiting on the gate.
+    expect(result.output).toContain('Both checks passed')
+  })
+
+  test('counts a skipped risky-path gate as passed', async () => {
+    const result = await run({
+      GH_CHECKS: `${PASSING}skipping\\trisky-change-gate\\n`,
+      GH_VIEW: 'MERGED\\tfalse\\tUNKNOWN\\tabc123',
+    })
+    expect(result.code).toBe(0)
+    expect(result.output).toContain('Both checks passed')
+  })
+
   test('exits 3 when gh fails, without retrying', async () => {
     const result = await run({ GH_CHECKS_ERROR: 'HTTP 401: Bad credentials' })
     expect(result.code).toBe(3)
