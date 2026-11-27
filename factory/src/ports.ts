@@ -1,6 +1,6 @@
 // The factory's ports: the outside world the Run engine talks to. Tests pass fakes; src/cli.ts
-// passes the real adapters. Each later ticket of DEV-269 adds the port it needs (a Notifier, a
-// Clock that can sleep, a Run store), so none is declared before something uses it. Telling the
+// passes the real adapters. Each later ticket of DEV-269 adds the port it needs (a Clock that can
+// sleep, a Run store), so none is declared before something uses it. Telling the
 // time is FactoryPorts' `now`.
 
 /** The GitHub App the factory pushes and opens PRs as (DEV-271). */
@@ -62,6 +62,8 @@ export interface Ticket extends Issue {
   order: number
   /** Linear's suggested branch name, such as jobanmendpara/dev-273-…, which links the PR. */
   branch: string
+  /** Its page in Linear, which a notification links when the ticket has no PR. */
+  url: string
 }
 
 /**
@@ -150,6 +152,22 @@ export interface Forge {
    * file's raw URL, in order, for a PR comment to embed.
    */
   pushFiles(branch: string, files: { path: string; from: string }[]): Promise<string[]>
+}
+
+/** A macOS notification for the maintainer (DEV-259): what needs them, and where to look. */
+export interface Notification {
+  /** Starts with 🏭, and names a ticket by its title, never by a bare ID. */
+  text: string
+  /** The PR, the Linear ticket or the run log; none when there's nothing to point at. */
+  link?: string
+}
+
+/**
+ * Interrupts the maintainer, for an exit-5 wait, a park, a crash or the Run's end only (DEV-259).
+ * It never throws: a notification that can't be shown mustn't stop the Run.
+ */
+export interface Notifier {
+  notify(notification: Notification): Promise<void>
 }
 
 export interface ExecResult {
