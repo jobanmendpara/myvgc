@@ -75,7 +75,7 @@ async function save(body: TeamBody) {
 </script>
 
 <template>
-  <div class="mx-auto flex w-full max-w-3xl flex-col gap-6">
+  <div class="mx-auto flex w-full flex-col gap-6" :class="usePrototypeEditor().focus.value ? 'max-w-none' : 'max-w-3xl'">
     <h1 class="text-2xl font-semibold">{{ rejected ? 'Fix Team' : 'Edit Team' }}</h1>
     <p v-if="teamQuery.isPending.value && !team" class="text-muted-foreground">Loading…</p>
     <template v-else-if="team">

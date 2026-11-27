@@ -32,6 +32,8 @@ const props = defineProps<{
   problems?: LegalityProblem[]
   /** What the reader wasn't sure of, for a slot read from a file (ADR 24). */
   flags?: string[]
+  /** PROTOTYPE (DEV-267): the slot open in the editor. */
+  active?: boolean
 }>()
 const emit = defineEmits<{ edit: []; remove: []; reorder: [to: number] }>()
 
@@ -54,7 +56,11 @@ const MENU_ITEM =
 <template>
   <li
     class="flex items-center gap-1 rounded-lg border p-2"
-    :class="props.error ? 'border-destructive/50' : ''"
+    :class="[
+      props.error ? 'border-destructive/50' : '',
+      props.active ? 'border-primary bg-primary/10 ring-primary ring-2' : '',
+    ]"
+    :aria-current="props.active ? 'true' : undefined"
     data-testid="build-slot"
   >
     <GripVerticalIcon

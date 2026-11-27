@@ -127,10 +127,33 @@ onBeforeRouteLeave(() => {
   return false
 })
 const { DiscardDialog } = useDiscardGuard(dirty, 'this Team')
+
+// PROTOTYPE (DEV-267): on desktop the build opens in columns beside the slots, not a sheet.
+const { variant: editorVariant, focus } = usePrototypeEditor()
+const desk = useMediaQuery('(min-width: 1024px)')
+const xl = useMediaQuery('(min-width: 1280px)')
+const docked = computed(() => desk.value && editing.value !== null && !!draft.pokemon[editing.value])
+watchEffect(() => (focus.value = docked.value))
+onUnmounted(() => (focus.value = false))
+const GRIDS = {
+  A: ['grid-cols-[minmax(0,1fr)_26rem]', 'grid-cols-[minmax(0,1fr)_26rem_20rem]'],
+  B: ['grid-cols-[12rem_minmax(0,1fr)]', 'grid-cols-[12rem_28rem_minmax(0,1fr)]'],
+  C: ['grid-cols-[minmax(0,1fr)]', 'grid-cols-[28rem_minmax(0,1fr)]'],
+} as const
+const gridClass = computed(() => `grid items-start gap-5 ${GRIDS[editorVariant.value][xl.value ? 1 : 0]}`)
+const COLUMN = 'sticky top-0 max-h-[calc(100dvh-9rem)] overflow-y-auto rounded-lg border p-4'
 </script>
 
 <template>
-  <form class="flex flex-col gap-5" novalidate @submit.prevent="submit">
+  <form :class="docked ? 'block' : 'flex flex-col gap-5'" novalidate @submit.prevent="submit">
+    <div v-if="docked && editorVariant === 'C'" class="bg-background sticky top-0 z-10 mb-4 border-b pb-3">
+      <PrototypeSlotPicker layout="strip" :builds="draft.pokemon" :editing="editing!" :team-name="draft.name" @edit="editing = $event" @add="add" @done="editing = null" />
+    </div>
+    <div :class="docked ? gridClass : 'contents'">
+    <div v-if="docked && editorVariant === 'B'" class="sticky top-0">
+      <PrototypeSlotPicker layout="rail" :builds="draft.pokemon" :editing="editing!" :team-name="draft.name" @edit="editing = $event" @add="add" @done="editing = null" />
+    </div>
+    <div v-show="!docked || editorVariant === 'A'" class="flex min-w-0 flex-col gap-5">
     <TeamFieldsSection v-model:fields="draft" :errors="errors">
       <section class="flex flex-col gap-2" aria-labelledby="slots-title">
         <h2 id="slots-title" class="text-sm leading-none font-medium">Pokémon</h2>
@@ -155,6 +178,7 @@ const { DiscardDialog } = useDiscardGuard(dirty, 'this Team')
             :error="slotError(index)"
             :problems="problemsOf(index)"
             :flags="build.readFlags"
+            :active="editing === index"
             :draggable="finePointer"
             @dragstart="startDrag($event, index)"
             @dragend="dragging = null"
@@ -215,8 +239,29 @@ const { DiscardDialog } = useDiscardGuard(dirty, 'this Team')
       </Button>
     </div>
 
+    </div>
+    <template v-if="docked">
+      <section :class="COLUMN" aria-label="Build editor">
+        <details v-if="!xl" class="mb-4 rounded-lg border p-3">
+          <summary class="cursor-pointer text-sm font-medium">Pokédex entry</summary>
+          <div class="pt-3"><PrototypeEntryColumn :species="draft.pokemon[editing!]!.species" /></div>
+        </details>
+        <PrototypeBuildEditorBody
+          v-model:build="draft.pokemon[editing!]!"
+          :index="editing!"
+          :errors="errors"
+          :problems="problemsOf(editing!)"
+          @done="editing = null"
+        />
+      </section>
+      <aside v-if="xl" :class="COLUMN" aria-label="Pokédex entry">
+        <PrototypeEntryColumn :species="draft.pokemon[editing!]!.species" />
+      </aside>
+    </template>
+    </div>
+
     <BuildEditor
-      v-if="editing !== null && draft.pokemon[editing]"
+      v-if="!docked && editing !== null && draft.pokemon[editing]"
       v-model:open="editorOpen"
       v-model:build="draft.pokemon[editing]!"
       :index="editing"
@@ -225,5 +270,6 @@ const { DiscardDialog } = useDiscardGuard(dirty, 'this Team')
     />
 
     <DiscardDialog />
+    <PrototypeEditorBar />
   </form>
 </template>

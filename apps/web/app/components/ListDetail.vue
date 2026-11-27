@@ -25,6 +25,8 @@ defineSlots<{
 
 const route = useRoute()
 const wide = useWideLayout()
+// PROTOTYPE (DEV-267): the list column steps aside while a build is open on desktop.
+const { focus } = usePrototypeEditor()
 const atBase = computed(() => route.path.replace(/\/$/, '') === props.base)
 
 // The window no longer scrolls on wide screens, so start each page at the top of the pane and
@@ -42,8 +44,8 @@ watch(
 </script>
 
 <template>
-  <div v-if="wide" class="grid h-full grid-cols-[auto_1fr]">
-    <aside ref="column" :aria-label="label" class="flex min-h-0 flex-col border-r">
+  <div v-if="wide" class="grid h-full" :class="focus ? 'grid-cols-1' : 'grid-cols-[auto_1fr]'">
+    <aside v-show="!focus" ref="column" :aria-label="label" class="flex min-h-0 flex-col border-r">
       <slot name="list" :wide="true" />
     </aside>
     <div ref="pane" class="min-h-0 overflow-y-auto p-4 pb-16">
