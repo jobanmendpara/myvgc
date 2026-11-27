@@ -11,7 +11,7 @@ import { parseArgs, parseEnv } from 'node:util'
 import { coveredIds, criteriaOf } from './criteria.ts'
 import { frontier, whyNotTakeable } from './frontier.ts'
 import type { Forge, GitHubApp, Sandboxes, Ticket, Tracker } from './ports.ts'
-import { workTicket } from './run.ts'
+import { type RunContext, workTicket } from './run.ts'
 import { type Settings, STEP_NAMES, ticketPlan, withOverrides } from './settings.ts'
 import { describeWorkspace, workspacePackages } from './workspace.ts'
 
@@ -131,6 +131,7 @@ export async function factory(args: string[], ports: FactoryPorts): Promise<numb
       forge,
       sandboxes: ports.sandboxes,
       sandboxEnv: setup.sandboxEnv,
+      accuracyKey: setup.accuracyKey,
       author,
       settings,
       print: ports.print,
@@ -218,7 +219,12 @@ function readCommand(args: string[]): Command | null {
 
 /** The set-up a Run needs, or what's missing or wrong in it, each naming where it belongs. */
 type Setup =
-  | { linearApiKey: string; github: GitHubApp; sandboxEnv: Record<string, string> }
+  | {
+      linearApiKey: string
+      github: GitHubApp
+      sandboxEnv: Record<string, string>
+      accuracyKey: RunContext['accuracyKey']
+    }
   | { problems: string[] }
 
 /** Checks the set-up from DEV-271 (the GitHub App) and DEV-272 (credentials). */
@@ -267,6 +273,8 @@ function readSetup({ repoDir, configDir }: FactoryPorts): Setup {
       installationId: GITHUB_INSTALLATION_ID,
     },
     sandboxEnv,
+    // Optional: only a ticket that changes an ADR 24 path needs it, and parks without it.
+    accuracyKey: { value: config.ANTHROPIC_API_KEY || undefined, home: configFile },
   }
 }
 

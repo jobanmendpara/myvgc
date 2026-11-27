@@ -148,8 +148,15 @@ export interface AgentStep {
 export interface Sandbox {
   /** The worktree's path on the host. */
   worktreePath: string
-  /** Runs a shell command in the sandbox's checkout. A non-zero exit is returned, not thrown. */
-  exec(command: string, options?: { stdin?: string }): Promise<ExecResult>
+  /**
+   * Runs a shell command in the sandbox's checkout. A non-zero exit is returned, not thrown. `env`
+   * is added to that command's environment alone, as the accuracy check gets its API key: the
+   * sandbox and its agents never hold it.
+   */
+  exec(
+    command: string,
+    options?: { stdin?: string; env?: Record<string, string> },
+  ): Promise<ExecResult>
   /** Runs an agent and returns what it printed, and its session when one was captured. */
   runAgent(step: AgentStep): Promise<{ stdout: string; sessionId?: string }>
   close(): Promise<void>

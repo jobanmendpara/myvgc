@@ -2,9 +2,11 @@
 // push gate fails, up to two fix rounds resume the Implementer's session on rising models
 // (DEV-283). A ticket the factory still can't finish is parked for the maintainer (DEV-279): Todo
 // with `needs-human`, its branch on a draft PR, and a Linear comment saying why. When CI fails
-// after the push, the Run stops and says so; handling that comes with DEV-284.
+// after the push, the Run stops and says so; handling that comes with DEV-284. A branch that
+// changes an ADR 24 path has `pnpm accuracy` run before and after it, ahead of the push (DEV-280).
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { type Accuracy, type AccuracyRun, measureAccuracy } from './accuracy.ts'
 import type { Criterion } from './criteria.ts'
 import {
   type AgentStep,
@@ -54,6 +56,11 @@ export interface RunContext {
   author: GitIdentity
   /** Each agent step's model and effort, with the Run's flags applied. */
   settings: Settings
+  /**
+   * The Anthropic API key `pnpm accuracy` runs with (src/accuracy.ts), when the set-up has one, and
+   * where it belongs. Only that command gets it, never the sandbox's environment.
+   */
+  accuracyKey: { value: string | undefined; home: string }
   print: (line: string) => void
 }
 
@@ -205,6 +212,22 @@ export async function workTicket(
     if (!review || !replays) throw new Error('The push gate passed with no review.')
     say('push gate', 'passed')
 
+    const accuracy = await measureAccuracy(
+      sandbox,
+      ticket.branch,
+      context.accuracyKey.value,
+      context.accuracyKey.home,
+    )
+    if (accuracy.kind === 'unmeasured') {
+      say('accuracy', 'not measured')
+      return await parkHere(accuracy.problem, { sandbox, commits, review, replays })
+    }
+    if (accuracy.kind === 'measured') {
+      writeLog(logDir, 'accuracy-base.log', accuracy.before.log)
+      writeLog(logDir, 'accuracy-branch.log', accuracy.after.log)
+      say('accuracy', `${firstLine(accuracy.before)} before; ${firstLine(accuracy.after)} after`)
+    }
+
     if ((await forge.push(sandbox.worktreePath, ticket.branch)) === 'workflows refused') {
       return await parkHere('the branch changes workflow files', {
         sandbox,
@@ -218,7 +241,7 @@ export async function workTicket(
     const pr = await forge.openPr({
       branch: ticket.branch,
       title: prTitle(ticket),
-      body: prBody(context, working, mapping.exitCode === 0 ? mapping.stdout.trim() : ''),
+      body: prBody(context, working, mapping.exitCode === 0 ? mapping.stdout.trim() : '', accuracy),
       draft: false,
     })
     await forge.commentOnPr(pr.number, reviewComment(review, replays))
@@ -463,7 +486,36 @@ function pushGate(
  */
 const CLOSING = /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)(\s+[A-Z]+-\d+)/gi
 
-function prBody(context: RunContext, { ticket }: TicketBrief, mapping: string): string {
+const firstLine = ({ summary }: AccuracyRun) => summary.split('\n')[0] ?? ''
+
+/** Both `pnpm accuracy` summaries, for the PR body (CLAUDE.md: "pastes both summaries"). */
+function accuracySection(accuracy: Accuracy): string[] {
+  if (accuracy.kind !== 'measured') return []
+  // The branch's code printed them, so they mustn't close another issue.
+  const block = ({ on, summary }: AccuracyRun) => [
+    `On ${on}:`,
+    '',
+    '```text',
+    summary.replace(CLOSING, 'Related to$1').replaceAll('```', "'''"),
+    '```',
+    '',
+  ]
+  return [
+    '## Reading accuracy',
+    '',
+    'The branch changes an ADR 24 path, so `pnpm accuracy` ran before and after (ADR 24).',
+    '',
+    ...block(accuracy.before),
+    ...block(accuracy.after),
+  ]
+}
+
+function prBody(
+  context: RunContext,
+  { ticket }: TicketBrief,
+  mapping: string,
+  accuracy: Accuracy,
+): string {
   return [
     `Built by the factory Run \`${context.runId}\` from the spec ${context.specId}.`,
     '',
@@ -471,6 +523,7 @@ function prBody(context: RunContext, { ticket }: TicketBrief, mapping: string): 
     '',
     mapping.replace(CLOSING, 'Related to$1') || 'The Implementer wrote no mapping table.',
     '',
+    ...accuracySection(accuracy),
     `Closes ${ticket.id}`,
     `Part of ${context.specId}`,
     '',

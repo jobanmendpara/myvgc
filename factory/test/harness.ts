@@ -112,7 +112,23 @@ export interface Script {
   commits?: number
   /** scripts/wait-for-checks.sh's exit codes, call by call. */
   waits?: number[]
+  /** The files the branch changes since origin/main; none by default. */
+  changedFiles?: string[]
+  /** What `pnpm accuracy` prints on each checkout; by default a summary naming the checkout. */
+  accuracy?: Partial<Record<'base' | 'branch', string>>
 }
+
+/** The commit `git merge-base origin/main HEAD` gives in the fake sandbox. */
+export const BASE_COMMIT = 'b45e0000c0ffee'
+
+/** What `pnpm accuracy` prints: its run lines, its summary, and the report it wrote. */
+export const accuracyOutput = (checkout: string, passed: number) =>
+  [
+    `PASS sun-charizard moves (jpeg): 1200 in, 300 out, $0.01, 4 s on ${checkout}`,
+    `Reading accuracy, claude-haiku-5-5: ${passed} of 4 passed, $0.04 in all`,
+    `  PASS  sun-charizard moves (jpeg)    0 differences  on ${checkout}`,
+    `Report: /home/agent/repo/apps/api/.accuracy/${checkout}.json`,
+  ].join('\n')
 
 /** A sabotage patch whose text names its criterion, so the fake sandbox knows which one is applied. */
 export const sabotageOf = (id: string) =>
@@ -206,7 +222,15 @@ export type Event =
   | { port: 'tracker'; method: string; args: unknown[] }
   | { port: 'forge'; method: string; args: unknown[] }
   | { port: 'sandboxes'; method: 'create'; options: Parameters<Sandboxes['create']>[0] }
-  | { port: 'sandbox'; method: 'exec'; command: string; stdin?: string }
+  | {
+      port: 'sandbox'
+      method: 'exec'
+      command: string
+      stdin?: string
+      env?: Record<string, string>
+      /** What the sandbox had checked out: the branch, or the commit a detached checkout named. */
+      checkout: string
+    }
   | { port: 'sandbox'; method: 'runAgent'; step: AgentStep }
   | { port: 'sandbox'; method: 'close' }
 
@@ -323,14 +347,39 @@ function fakeSandbox(script: Script, events: Event[]): Sandbox {
   /** The criterion whose sabotage is applied, if any. */
   let sabotaged: string | null = null
   let reviewers = 0
+  let checkout = 'branch'
   const ok = (stdout = ''): ExecResult => ({ exitCode: 0, stdout, stderr: '' })
   const exit = (exitCode: number, stdout = ''): ExecResult => ({ exitCode, stdout, stderr: '' })
   const outcomeOf = (id: string): ReplayOutcome => script.replays?.[id] ?? 'caught'
   return {
     worktreePath: WORKTREE,
     async exec(command, options) {
-      events.push({ port: 'sandbox', method: 'exec', command, stdin: options?.stdin })
+      events.push({
+        port: 'sandbox',
+        method: 'exec',
+        command,
+        stdin: options?.stdin,
+        env: options?.env,
+        checkout,
+      })
       if (command.includes('pnpm install')) return exit(script.install ?? 0)
+      if (command === 'git diff --name-only origin/main...HEAD') {
+        return ok((script.changedFiles ?? []).map((file) => `${file}\n`).join(''))
+      }
+      if (command === 'git merge-base origin/main HEAD') return ok(`${BASE_COMMIT}\n`)
+      const detached = /^git checkout --detach (\S+)$/.exec(command)?.[1]
+      if (detached) {
+        checkout = detached
+        return ok()
+      }
+      if (/^git checkout [\w./-]+$/.test(command) && !command.includes('--')) {
+        checkout = 'branch'
+        return ok()
+      }
+      if (command === 'pnpm accuracy') {
+        const which = checkout === 'branch' ? 'branch' : 'base'
+        return ok(script.accuracy?.[which] ?? accuracyOutput(checkout, which === 'base' ? 3 : 4))
+      }
       if (command === 'git rev-list --count origin/main..HEAD')
         return ok(`${script.commits ?? 1}\n`)
       const check = /^pnpm (test|typecheck|lint|format:check)$/.exec(command)?.[1]
