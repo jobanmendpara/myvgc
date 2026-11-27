@@ -74,5 +74,7 @@ onUnmounted(() => (syncBarShown.value = false))
     </main>
     <SyncBar v-if="shownBar" :bar="shownBar" :online="online" />
     <ChangesSheet />
+    <!-- PROTOTYPE (DEV-265), throwaway. -->
+    <PrototypeTooltipsBar v-if="!route.path.startsWith('/pokedex')" />
   </div>
 </template>

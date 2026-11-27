@@ -46,6 +46,25 @@ const options = computed(() => {
 })
 watch(options, () => (active.value = 0))
 
+// PROTOTYPE (DEV-265): details in the picker, in the bar's variant.
+//   A: a pane at the bottom of the list shows the highlighted option's details.
+//   B: a card beside the list shows them (mouse); an ⓘ on each option expands them (phone).
+//   C: each option shows its short description under its name.
+const { variant: tipVariant, touch } = usePrototypeTooltips()
+const pokedex = usePrototypePokedexData()
+const detailKind = computed(() => (props.kind === 'species' ? undefined : props.kind))
+const shortDesc = (id: string) =>
+  detailKind.value ? pokedex.data.value?.[detailKind.value][id]?.shortDesc : undefined
+const expandedOption = ref<string | null>(null)
+const activeId = computed(() => options.value[active.value]?.id)
+// B's card sits left of the list, outside the build editor's sheet, so it goes to <body>.
+const listbox = useTemplateRef<HTMLElement>('listbox')
+const sideCard = ref<{ top: number; right: number } | null>(null)
+watch([open, activeId, listbox], () => {
+  const rect = listbox.value?.getBoundingClientRect()
+  sideCard.value = rect ? { top: rect.top, right: window.innerWidth - rect.left + 8 } : null
+}, { flush: 'post' })
+
 const chosenName = computed(() =>
   choice.value ? (table.value?.[choice.value] ?? choice.value) : undefined,
 )
@@ -120,8 +139,18 @@ function onKeydown(event: KeyboardEvent) {
         @keydown="onKeydown"
         @blur="open = false"
       />
+      <Teleport to="body">
+        <div
+          v-if="open && options.length && detailKind && tipVariant === 'B' && !touch && activeId && sideCard"
+          class="bg-popover text-popover-foreground fixed z-[70] w-72 rounded-lg border p-3 shadow-lg"
+          :style="{ top: `${sideCard.top}px`, right: `${sideCard.right}px` }"
+        >
+          <PrototypeDetailContent :kind="detailKind" :id="activeId" full />
+        </div>
+      </Teleport>
       <ul
         v-if="open && options.length"
+        ref="listbox"
         :id="listId"
         role="listbox"
         class="bg-popover absolute z-10 mt-1 max-h-72 w-full overflow-y-auto rounded-md border p-1 shadow-md"
@@ -147,7 +176,35 @@ function onKeydown(event: KeyboardEvent) {
             :type="moveType(option.id)"
             :size="PICKER_ICON_SIZE"
           />
-          <span class="min-w-0 flex-1">{{ option.name }}</span>
+          <span class="flex min-w-0 flex-1 flex-col">
+            <span>{{ option.name }}</span>
+            <span
+              v-if="
+                (tipVariant === 'C' || (tipVariant === 'B' && touch && expandedOption === option.id)) &&
+                shortDesc(option.id)
+              "
+              class="text-muted-foreground text-xs"
+              :class="{ 'line-clamp-2': tipVariant === 'C' }"
+              >{{ shortDesc(option.id) }}</span
+            >
+          </span>
+          <button
+            v-if="tipVariant === 'B' && touch && detailKind"
+            type="button"
+            class="text-muted-foreground -my-2 -mr-2 shrink-0 self-stretch px-3"
+            aria-label="Details"
+            @mousedown.prevent.stop
+            @click.stop="expandedOption = expandedOption === option.id ? null : option.id"
+          >
+            ⓘ
+          </button>
+        </li>
+        <li
+          v-if="tipVariant === 'A' && detailKind && activeId"
+          role="presentation"
+          class="bg-popover sticky -bottom-1 -mx-1 -mb-1 border-t p-3"
+        >
+          <PrototypeDetailContent :kind="detailKind" :id="activeId" />
         </li>
       </ul>
     </div>

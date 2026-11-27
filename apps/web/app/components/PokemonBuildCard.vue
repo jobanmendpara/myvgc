@@ -59,6 +59,10 @@ const moveTypeIconSize = computed(() =>
 // Types and power/accuracy come from the names list (DEV-222); until it has loaded, the build
 // shows no Type icons and each move a gap where its Type icon goes.
 const names = useChampionsNames()
+// PROTOTYPE (DEV-265): detail tooltips, and variant C's card-level ⓘ.
+const { variant: tipVariant } = usePrototypeTooltips()
+const inlineDetails = ref(false)
+const pokedex = usePrototypePokedexData()
 const types = computed(() => names.data.value?.typesBySpecies[props.build.species] ?? [])
 const moveRows = computed(() =>
   props.build.names.moves.map((name, index) => {
@@ -66,6 +70,7 @@ const moveRows = computed(() =>
     const powerAccuracy = names.data.value?.powerAndAccuracy[id]
     return {
       name,
+      id,
       type: names.data.value?.moveTypes[id],
       powerAccuracy: powerAccuracy && {
         text: powerAccuracyText(powerAccuracy),
@@ -133,15 +138,16 @@ const moveRows = computed(() =>
               v-if="labelled"
               class="min-w-0 truncate whitespace-nowrap"
               :title="build.names.item"
-              >{{ build.names.item }}</span
+              ><PrototypeDetail kind="items" :id="build.item ?? undefined">{{ build.names.item }}</PrototypeDetail></span
             >
-            <span v-else class="min-w-0">{{ build.names.item }}</span>
+            <span v-else class="min-w-0"><PrototypeDetail kind="items" :id="build.item ?? undefined">{{ build.names.item }}</PrototypeDetail></span>
           </p>
           <div
             v-if="labelledUnderItem && types.length"
             class="mt-1 flex flex-wrap gap-1"
             data-testid="build-types"
           >
+            <PrototypeDetail kind="types" :types="types" trigger-class="flex flex-wrap gap-1">
             <TypeIcon
               v-for="type in types"
               :key="type"
@@ -149,6 +155,7 @@ const moveRows = computed(() =>
               :size="LABELLED_TYPE_ICON_SIZE"
               labelled
             />
+            </PrototypeDetail>
           </div>
         </div>
       </div>
@@ -159,12 +166,14 @@ const moveRows = computed(() =>
           class="absolute -right-1 -bottom-1 flex gap-0.5"
           data-testid="build-types"
         >
+          <PrototypeDetail kind="types" :types="types" trigger-class="flex gap-0.5">
           <TypeIcon
             v-for="type in types"
             :key="type"
             :type="type"
             :size="STACKED_BADGE_TYPE_ICON_SIZE"
           />
+          </PrototypeDetail>
         </div>
       </div>
       <div
@@ -172,7 +181,9 @@ const moveRows = computed(() =>
         class="flex shrink-0 flex-col gap-1"
         data-testid="build-types"
       >
+        <PrototypeDetail kind="types" :types="types" trigger-class="flex flex-col gap-1">
         <TypeIcon v-for="type in types" :key="type" :type="type" :size="BADGE_TYPE_ICON_SIZE" />
+        </PrototypeDetail>
       </div>
       <div
         v-else-if="labelled && !stacked && types.length"
@@ -180,6 +191,7 @@ const moveRows = computed(() =>
         :class="{ 'col-start-3 row-start-1 self-start': itemUnderPills }"
         data-testid="build-types"
       >
+        <PrototypeDetail kind="types" :types="types" trigger-class="flex flex-col items-end gap-1">
         <TypeIcon
           v-for="type in types"
           :key="type"
@@ -187,6 +199,7 @@ const moveRows = computed(() =>
           :size="LABELLED_TYPE_ICON_SIZE"
           labelled
         />
+        </PrototypeDetail>
       </div>
       <div
         v-else-if="stacked || (typeIconStyle === 'compact' && types.length)"
@@ -198,7 +211,9 @@ const moveRows = computed(() =>
           class="flex gap-1"
           data-testid="build-types"
         >
+          <PrototypeDetail kind="types" :types="types" trigger-class="flex gap-1">
           <TypeIcon v-for="type in types" :key="type" :type="type" />
+          </PrototypeDetail>
         </div>
       </div>
     </header>
@@ -208,13 +223,29 @@ const moveRows = computed(() =>
     <dl class="flex flex-col gap-y-1 text-sm">
       <div v-if="build.names.ability" class="flex flex-wrap justify-between gap-x-3">
         <dt class="text-muted-foreground whitespace-nowrap">Ability</dt>
-        <dd class="ml-auto whitespace-nowrap">{{ build.names.ability }}</dd>
+        <dd class="ml-auto whitespace-nowrap"><PrototypeDetail kind="abilities" :id="build.ability ?? undefined">{{ build.names.ability }}</PrototypeDetail></dd>
       </div>
       <div v-if="build.names.nature" class="flex flex-wrap justify-between gap-x-3">
         <dt class="text-muted-foreground whitespace-nowrap">Stat Alignment</dt>
         <dd class="ml-auto whitespace-nowrap">{{ build.names.nature }}</dd>
       </div>
     </dl>
+
+    <!-- PROTOTYPE (DEV-265) variant C: details inline, from the card's own ⓘ. -->
+    <div
+      v-if="tipVariant === 'C' && inlineDetails"
+      class="bg-muted/50 flex flex-col gap-2 rounded-md p-2 text-xs"
+    >
+      <p v-if="build.item && pokedex.data.value?.items[build.item]">
+        <span class="font-medium">{{ build.names.item }}:</span>
+        <span class="text-muted-foreground ml-1">{{ pokedex.data.value.items[build.item]!.shortDesc }}</span>
+      </p>
+      <p v-if="build.ability && pokedex.data.value?.abilities[build.ability]">
+        <span class="font-medium">{{ build.names.ability }}:</span>
+        <span class="text-muted-foreground ml-1">{{ pokedex.data.value.abilities[build.ability]!.shortDesc }}</span>
+      </p>
+      <PrototypeDetailContent v-if="types.length" kind="types" :types="types" />
+    </div>
 
     <!-- A Type icon before each move's name, which stays on one line; in Badges it sits in a
          shaded block on the row's left edge. One column shows power/accuracy at the right; Two
@@ -242,9 +273,9 @@ const moveRows = computed(() =>
           </span>
           <TypeIcon v-else class="self-center" :type="move.type" :size="moveTypeIconSize" />
           <span class="flex min-w-0 flex-1 items-center gap-1.5" :class="{ 'py-1 pr-2': badges }">
-            <span class="min-w-0 flex-1 truncate whitespace-nowrap" :title="move.name">{{
+            <span class="min-w-0 flex-1 truncate whitespace-nowrap" :title="move.name"><PrototypeDetail kind="moves" :id="move.id">{{
               move.name
-            }}</span>
+            }}</PrototypeDetail></span>
             <span
               v-if="moveLayout === 'one-column' && move.powerAccuracy"
               class="text-muted-foreground shrink-0 text-xs tabular-nums"
@@ -253,6 +284,13 @@ const moveRows = computed(() =>
             >
           </span>
         </span>
+        <p
+          v-if="tipVariant === 'C' && inlineDetails && pokedex.data.value?.moves[move.id]"
+          class="text-muted-foreground px-0.5 text-xs"
+          :class="{ 'px-2 pb-1': badges }"
+        >
+          {{ pokedex.data.value.moves[move.id]!.shortDesc }}
+        </p>
         <LegalityWarnings
           v-if="moveWarnings[index]?.length"
           :class="{ 'px-2 pb-1': badges }"
@@ -295,5 +333,14 @@ const moveRows = computed(() =>
     </div>
 
     <LegalityWarnings v-if="buildWarnings.length" :problems="buildWarnings" />
+    <button
+      v-if="tipVariant === 'C'"
+      type="button"
+      class="text-muted-foreground hover:text-foreground -mb-1 flex items-center gap-1 self-start text-xs"
+      :aria-expanded="inlineDetails"
+      @click="inlineDetails = !inlineDetails"
+    >
+      ⓘ {{ inlineDetails ? 'Hide details' : 'Details' }}
+    </button>
   </article>
 </template>
