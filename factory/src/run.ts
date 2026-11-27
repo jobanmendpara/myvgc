@@ -6,6 +6,7 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Criterion } from './criteria.ts'
 import {
+  type AgentStep,
   type Forge,
   type GitIdentity,
   type Sandbox,
@@ -14,9 +15,16 @@ import {
   type Ticket,
   type Tracker,
 } from './ports.ts'
-import { implementerPrompt, MAPPING_FILE, reviewerPrompt, type TicketBrief } from './prompts.ts'
+import {
+  fixRoundPrompt,
+  type GateFailure,
+  implementerPrompt,
+  MAPPING_FILE,
+  reviewerPrompt,
+  type TicketBrief,
+} from './prompts.ts'
 import { caughtByAssertion, lastTag, readReview, type Review, type ReviewRow } from './review.ts'
-import { STEPS, type Step } from './settings.ts'
+import type { Settings, Step } from './settings.ts'
 
 /** Longer than any command an agent runs silently (the spike, DEV-251, lesson 6). */
 const IDLE_TIMEOUT_SECONDS = 1800
@@ -43,8 +51,13 @@ export interface RunContext {
   sandboxEnv: Record<string, string>
   /** Who the sandbox's commits are by: the App's bot user, read when the Run started. */
   author: GitIdentity
+  /** Each agent step's model and effort, with the Run's flags applied. */
+  settings: Settings
   print: (line: string) => void
 }
+
+/** How many fix rounds a ticket gets before it parks (How a factory Run works, DEV-253). */
+const FIX_ROUNDS = 2
 
 /** How a ticket's turn in a Run ended. */
 export type TicketOutcome = 'merged' | 'parked' | 'stopped'
@@ -101,39 +114,71 @@ export async function workTicket(
     }
     say('worktree and install', `${ticket.branch}, installed`)
 
-    const implementer = await sandbox.runAgent(agentStep('implementer', implementerPrompt(working)))
-    const commits = Number((await sandbox.exec('git rev-list --count origin/main..HEAD')).stdout)
-    say('Implementer', `finished, ${commits} commit${commits === 1 ? '' : 's'}`)
-    const parkSignal = lastTag(implementer.stdout, 'park')
-    if (parkSignal) {
-      return await parkHere(`the Implementer parked it: ${parkSignal}`, { sandbox, commits })
-    }
-
-    const checks = await hostChecks(sandbox, logDir)
-    say('host checks', checks.passed ? 'all passed' : `failed: ${checks.failed.join(', ')}`)
-
-    const reviewer = await sandbox.runAgent(
-      agentStep('reviewer', reviewerPrompt(working, checks.summary)),
+    const { settings } = context
+    let agent = await sandbox.runAgent(
+      agentStep(settings, 'implementer', implementerPrompt(working, settings.implementer.model)),
     )
-    const review = readReview(reviewer.stdout)
-    say('Reviewer', review ? review.verdict : 'no readable <review>')
+    const session = agent.sessionId
+    let review: Review
+    let replays: Map<string, boolean>
+    let commits: number
+    for (let round = 0; ; round += 1) {
+      const step = round === 0 ? 'Implementer' : `fix round ${round}`
+      commits = Number((await sandbox.exec('git rev-list --count origin/main..HEAD')).stdout)
+      say(step, `finished, ${commits} commit${commits === 1 ? '' : 's'}`)
+      const parkSignal = lastTag(agent.stdout, 'park')
+      if (parkSignal) {
+        return await parkHere(`the ${step} parked it: ${parkSignal}`, { sandbox, commits })
+      }
 
-    const replays = review ? await replayAll(sandbox, review) : new Map<string, boolean>()
-    const confirmed = [...replays.values()].filter(Boolean).length
-    say('replay', `${confirmed} of ${replays.size} confirmed`)
+      const checks = await hostChecks(sandbox, logDir)
+      say('host checks', checks.passed ? 'all passed' : `failed: ${checks.failed.join(', ')}`)
 
-    const gate = pushGate(
-      { review, replays, checksPassed: checks.passed, commits },
-      working.criteria,
-    )
-    if (!review || gate.length > 0) {
-      say('push gate', `failed: ${gate.join('; ')}`)
-      return await parkHere(`the push gate failed: ${gate.join('; ')}`, {
+      const read = await readableReview(
         sandbox,
-        commits,
-        review,
-        replays,
-      })
+        settings,
+        reviewerPrompt(working, checks.summary),
+        say,
+      )
+      if (!read) {
+        return await parkHere("the Reviewer's answer couldn't be read, twice", { sandbox, commits })
+      }
+      review = read
+      replays = await replayAll(sandbox, review)
+      const confirmed = [...replays.values()].filter(Boolean).length
+      say('replay', `${confirmed} of ${replays.size} confirmed`)
+
+      const gate = pushGate(
+        { review, replays, checksPassed: checks.passed, commits },
+        working.criteria,
+      )
+      if (gate.length === 0) break
+      say('push gate', `failed: ${gate.join('; ')}`)
+      if (round === FIX_ROUNDS) {
+        return await parkHere(
+          `the push gate failed after ${FIX_ROUNDS} fix rounds: ${gate.join('; ')}`,
+          { sandbox, commits, review, replays },
+        )
+      }
+      const fix: Step = round === 0 ? 'fix-round-1' : 'fix-round-2'
+      const failure: GateFailure = {
+        reasons: gate,
+        hostChecks: checks.summary,
+        rows: reviewRows(review, replays),
+        findings: findingLines(review),
+      }
+      const prompt = fixRoundPrompt(round + 1, working, failure, settings[fix].model)
+      // The Implementer's own session goes on, on this round's model. Without one captured, the
+      // round starts afresh, told the ticket as well.
+      agent = await sandbox.runAgent(
+        session
+          ? { ...agentStep(settings, fix, prompt), resumeSession: session }
+          : agentStep(
+              settings,
+              fix,
+              `${implementerPrompt(working, settings[fix].model)}\n\n${prompt}`,
+            ),
+      )
     }
     say('push gate', 'passed')
 
@@ -213,14 +258,7 @@ async function park(
         '',
         ...reviewRows(review, work?.replays ?? new Map()),
         ...(review.findings.length > 0
-          ? [
-              '',
-              "The Reviewer's findings:",
-              ...review.findings.map(
-                ({ severity, file, summary }) =>
-                  `- ${severity}, ${file}: ${summary.replace(CLOSING, 'Related to$1')}`,
-              ),
-            ]
+          ? ['', "The Reviewer's findings:", ...findingLines(review)]
           : []),
       ]
     : ['No review ran.']
@@ -291,9 +329,36 @@ function writeLog(logDir: string, name: string, text: string) {
   writeFileSync(join(logDir, name), text)
 }
 
-function agentStep(step: Step, prompt: string) {
-  const { model, effort } = STEPS[step]
+function agentStep(settings: Settings, step: Step, prompt: string): AgentStep {
+  const { model, effort } = settings[step]
   return { name: step, model, effort, prompt, idleTimeoutSeconds: IDLE_TIMEOUT_SECONDS }
+}
+
+/**
+ * The Reviewer's review, from a fresh session; when its answer can't be read, from one more.
+ * Null when neither can be.
+ */
+async function readableReview(
+  sandbox: Sandbox,
+  settings: Settings,
+  prompt: string,
+  say: (step: string, result: string) => void,
+): Promise<Review | null> {
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    const review = readReview(
+      (await sandbox.runAgent(agentStep(settings, 'reviewer', prompt))).stdout,
+    )
+    say('Reviewer', review ? review.verdict : 'no readable <review>')
+    if (review) return review
+  }
+  return null
+}
+
+function findingLines(review: Review): string[] {
+  return review.findings.map(
+    ({ severity, file, summary }) =>
+      `- ${severity}, ${file}: ${summary.replace(CLOSING, 'Related to$1')}`,
+  )
 }
 
 /** Runs CI's checks as host commands, saving each one's output and the results to the run log. */
