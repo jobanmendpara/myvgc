@@ -15,8 +15,13 @@
 #       only when the retry fails too.
 #   4   the PR conflicts with main (`mergeStateStatus` is `DIRTY`), so auto-merge can't land: rebase
 #       onto origin/main, push with `--force-with-lease`, and call it again.
+#   5   both checks passed but the risky-path gate (`risky-change-gate`) is failing: the PR changes a
+#       risky path and is waiting on the maintainer to add `approved` (DEV-273). Don't call it
+#       again: tell the maintainer. Auto-merge stays queued, so adding the label is the merge.
 #   64  a bad PR number or setting.
-# A failed check is reported before a conflict. While checks are pending, and while auto-merge is
+# A failed check is reported before a conflict or a waiting gate. The gate counts only once it is
+# reported: on a PR that runs no gate, as before the gate's workflow exists, the script behaves as
+# it did without it. While the gate is pending, the script waits for it like a check. While checks are pending, and while auto-merge is
 # queued, it also asks `gh pr view` whether the PR has gone `DIRTY`, as when another PR merged first
 # (DEV-181).
 #
@@ -38,6 +43,8 @@ set -euo pipefail
 trap 'exit 3' ERR
 
 CHECKS=('check' 'smoke / smoke')
+# The risky-path gate's check: the job name in .github/workflows/risky-change-gate.yml (DEV-289).
+GATE='risky-change-gate'
 timeout=${WAIT_FOR_CHECKS_TIMEOUT:-170}
 interval=${WAIT_FOR_CHECKS_INTERVAL:-30}
 retry_delay=${WAIT_FOR_CHECKS_RETRY_DELAY:-5}
@@ -115,7 +122,7 @@ pause() {
 
 # Prints one "<state><tab><check>" line per named check, where the state is pass, fail or pending.
 # A check that isn't reported yet is pending, and so is every check when gh hasn't answered by the
-# deadline. Exits its subshell with 3 when gh fails for any reason other than having no checks to
+# deadline. Then, when the gate is reported, one "gate-<state><tab><gate>" line for it. Exits its subshell with 3 when gh fails for any reason other than having no checks to
 # report, which ends the script with 3 too.
 poll() {
   local output errors status=0
@@ -145,6 +152,13 @@ poll() {
       *) printf 'fail\t%s (%s)\n' "$name" "$bucket" ;;
     esac
   done
+  bucket=$(printf '%s\n' "$output" | awk -F '\t' -v name="$GATE" '$2 == name { print $1; exit }')
+  case $bucket in
+    '') ;;
+    pass) printf 'gate-pass\t%s\n' "$GATE" ;;
+    pending) printf 'gate-pending\t%s\n' "$GATE" ;;
+    *) printf 'gate-fail\t%s (%s)\n' "$GATE" "$bucket" ;;
+  esac
 }
 
 # Asks gh about the PR and sets state and queued. Exits 0 when the PR is merged (printing the merge
@@ -188,8 +202,15 @@ while true; do
     exit 1
   fi
   if ! grep -q '^pending' <<<"$states"; then
-    echo "Both checks passed on PR #$pr."
-    break
+    if grep -q '^gate-fail' <<<"$states"; then
+      echo "Both checks passed on PR #$pr, but it changes a risky path: it's waiting on the maintainer"
+      echo "to add \`approved\` (the $GATE check). Tell the maintainer; adding the label merges it."
+      exit 5
+    fi
+    if ! grep -q '^gate-pending' <<<"$states"; then
+      echo "Both checks passed on PR #$pr."
+      break
+    fi
   fi
   # A check is pending; one reason is a conflict, since GitHub runs no checks on a DIRTY PR.
   if ((SECONDS >= deadline)); then out_of_time 'Still pending'; fi
