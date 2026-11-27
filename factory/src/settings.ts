@@ -2,12 +2,13 @@
 // DEV-254). Every step sets its effort explicitly, which is why .sandcastle/.env may not hold
 // CLAUDE_CODE_EFFORT_LEVEL: it would override them all. A Run can override one step with a flag
 // such as `--implementer opus-5-5` (DEV-283).
+import type { Effort } from './ports.ts'
 
 export type Step = 'implementer' | 'fixRound1' | 'fixRound2' | 'reviewer'
 
 export interface StepSettings {
   model: string
-  effort: 'low' | 'medium' | 'high' | 'xhigh'
+  effort: Effort
 }
 
 export const STEPS: Record<Step, StepSettings> = {
@@ -41,3 +42,9 @@ export const TICKET_PLAN =
   ].join(' → ') +
   `; when the push gate fails: fix round 1 (${model('fixRound1')}), then fix round 2 ` +
   `(${model('fixRound2')}), each back to host checks, then park`
+
+/** A model's name for a Co-Authored-By line: claude-sonnet-5-5 is "Claude Sonnet 5.5". */
+export function modelName(model: string): string {
+  const [, family = model, version = ''] = /^claude-([a-z]+)-(.+)$/.exec(model) ?? []
+  return `Claude ${family.charAt(0).toUpperCase()}${family.slice(1)} ${version.replace(/-/g, '.')}`.trim()
+}

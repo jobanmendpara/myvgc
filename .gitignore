@@ -37,3 +37,6 @@ playwright-report/
 
 # The app run by pnpm preview (DEV-184): state, logs and screenshots
 /.preview/
+
+# The Factory's run logs and retro bundles (DEV-269)
+/.factory/

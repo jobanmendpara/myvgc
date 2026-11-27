@@ -1,108 +1,20 @@
-// Tests `pnpm factory` through its command entry, factory(), with a fake Tracker and real temporary
-// folders standing in for the repo (.sandcastle/.env) and ~/.config/myvgc-factory.
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
-import { afterEach, describe, expect, test } from 'vitest'
-import { factory } from '../src/factory.ts'
-import type { Issue, Status, Ticket, Tracker } from '../src/ports.ts'
-
-const SPEC = 'DEV-269'
-
-/** What the temporary folders hold. */
-interface Layout {
-  appKey?: boolean
-  config?: Record<string, string>
-  sandcastleEnv?: Record<string, string> | null
-}
-
-const CONFIG = { GITHUB_APP_ID: '123', GITHUB_INSTALLATION_ID: '456', LINEAR_API_KEY: 'lin_api_x' }
-const COMPLETE: Required<Layout> = {
-  appKey: true,
-  config: CONFIG,
-  sandcastleEnv: { CLAUDE_CODE_OAUTH_TOKEN: 'sk-ant-oat-x' },
-}
-
-const folders: string[] = []
-afterEach(() => {
-  for (const folder of folders.splice(0)) rmSync(folder, { recursive: true, force: true })
-})
-
-function envFile(values: Record<string, string>): string {
-  return Object.entries(values)
-    .map(([key, value]) => `${key}=${value}\n`)
-    .join('')
-}
-
-/** Lays out the repo and config folders, runs factory() and records what it did. */
-async function run(
-  args: string[],
-  issues: Issue[],
-  { layout = {}, tickets = [] }: { layout?: Layout; tickets?: Ticket[] } = {},
-) {
-  const { appKey, config, sandcastleEnv } = { ...COMPLETE, ...layout }
-  const root = mkdtempSync(join(tmpdir(), 'factory-'))
-  folders.push(root)
-  const repoDir = join(root, 'repo')
-  const configDir = join(root, 'config')
-  mkdirSync(join(repoDir, '.sandcastle'), { recursive: true })
-  mkdirSync(configDir)
-  if (appKey) writeFileSync(join(configDir, 'app.pem'), '-----BEGIN RSA PRIVATE KEY-----\n')
-  if (Object.keys(config).length > 0) writeFileSync(join(configDir, 'config.env'), envFile(config))
-  if (sandcastleEnv) writeFileSync(join(repoDir, '.sandcastle', '.env'), envFile(sandcastleEnv))
-
-  const trackerCalls: string[] = []
-  // Records every call, including to methods later tickets add to the Tracker (claiming, comments,
-  // statuses), so "reads the spec and nothing else" keeps meaning something as the port grows.
-  const tracker = new Proxy({} as Tracker, {
-    get:
-      (_, method: string) =>
-      async (...callArgs: unknown[]) => {
-        trackerCalls.push(`${method} ${callArgs.join(' ')}`)
-        if (method === 'getIssue') return issues.find((issue) => issue.id === callArgs[0]) ?? null
-        if (method === 'getSubIssues') return callArgs[0] === SPEC ? tickets : []
-      },
-  })
-  const lines: string[] = []
-  const code = await factory(args, {
-    repoDir,
-    configDir,
-    tracker: () => tracker,
-    print: (line) => lines.push(line),
-  })
-  return { code, output: lines.join('\n'), trackerCalls }
-}
-
-const signedOff: Issue = {
-  id: SPEC,
-  title: 'Factory spec',
-  labels: ['spec', 'signed-off', 'Chore'],
-}
-
-const TODO: Status = { name: 'Todo', type: 'unstarted' }
-const BACKLOG: Status = { name: 'Backlog', type: 'backlog' }
-const IN_PROGRESS: Status = { name: 'In Progress', type: 'started' }
-const DONE: Status = { name: 'Done', type: 'completed' }
-const CANCELED: Status = { name: 'Canceled', type: 'canceled' }
-
-let nextOrder = 0
-/** A takeable ticket of the spec unless `changes` say otherwise. */
-function ticket(id: string, changes: Partial<Ticket> = {}): Ticket {
-  return {
-    id,
-    title: `Ticket ${id}`,
-    labels: ['ready-for-agent', 'Chore'],
-    status: TODO,
-    blockedBy: [],
-    order: nextOrder++,
-    ...changes,
-  }
-}
-
-/** The frontier as `--dry-run` lists it: the identifiers on its numbered lines, in order. */
-function listed(output: string): string[] {
-  return [...output.matchAll(/^\d+\. (\S+)/gm)].map((match) => match[1] ?? '')
-}
+// Tests `pnpm factory`'s start-up checks and frontier through its command entry (test/harness.ts).
+import { describe, expect, test } from 'vitest'
+import {
+  BACKLOG,
+  CANCELED,
+  COMPLETE,
+  CONFIG,
+  DONE,
+  IN_PROGRESS,
+  type Layout,
+  listed,
+  run,
+  SPEC,
+  signedOff,
+  ticket,
+} from './harness.ts'
+import type { Ticket } from '../src/ports.ts'
 
 describe('pnpm factory', () => {
   test('starts on a signed-off spec once everything is set up', async () => {
