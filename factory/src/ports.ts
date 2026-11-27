@@ -91,6 +91,16 @@ export interface Tracker {
   comment(id: string, body: string): Promise<void>
   /** The issue's comments, oldest first. */
   getComments(id: string): Promise<Comment[]>
+  /**
+   * Creates an issue in the team and project of `relatedTo`, with this one label and no other, and
+   * relates it to `relatedTo`.
+   */
+  createIssue(issue: {
+    title: string
+    description: string
+    label: 'Improvement'
+    relatedTo: string
+  }): Promise<{ id: string; url: string }>
 }
 
 /** GitHub, as the `myvgc-factory` App. Only the host talks to it: sandboxes have no credentials. */
@@ -172,8 +182,11 @@ export interface Sandbox {
     command: string,
     options?: { stdin?: string; env?: Record<string, string> },
   ): Promise<ExecResult>
-  /** Runs an agent and returns what it printed, and its session when one was captured. */
-  runAgent(step: AgentStep): Promise<{ stdout: string; sessionId?: string }>
+  /**
+   * Runs an agent and returns what it printed, and its session when one was captured: its ID and
+   * the text of its JSONL, which the Run saves and costs.
+   */
+  runAgent(step: AgentStep): Promise<{ stdout: string; sessionId?: string; session?: string }>
   close(): Promise<void>
 }
 

@@ -96,7 +96,8 @@ describe('when CI fails after the push', () => {
     ])
     const waitedOn = calls(events, 'forge', 'waitForChecks').map((event) => event.args[0])
     expect(waitedOn).toEqual([42, 42])
-    expect(output).toContain(`Run ${RUN_ID} done: DEV-2 merged`)
+    expect(output).toContain(`Run ${RUN_ID} done: 1 merged, 0 parked`)
+    expect(output).toContain('- DEV-2 Ticket DEV-2: merged')
   })
 
   test('saves the CI log in the run log, beside the round', async () => {
@@ -174,7 +175,10 @@ describe('when the PR waits on `approved`', () => {
     expect(comment).toMatch(/^🏭 Factory: Waiting for approval/)
     expect(comment).toContain('`approved`')
     expect(comment).toContain('https://github.com/o/r/pull/42')
-    expect(result.output).toContain(`Run ${RUN_ID} done: DEV-2 waiting for approval`)
+    expect(result.output).toContain(
+      `Run ${RUN_ID} done: 0 merged, 0 parked, 1 waiting for approval, $0.00.`,
+    )
+    expect(result.output).toContain('- DEV-2 Ticket DEV-2: waiting for approval')
     // A hand-off to the maintainer, not a failure.
     expect(result.code).toBe(0)
   })

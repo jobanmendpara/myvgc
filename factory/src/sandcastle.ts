@@ -70,7 +70,14 @@ export function sandcastleSandboxes(repoDir: string): Sandboxes {
             idleTimeoutSeconds: step.idleTimeoutSeconds,
             ...(step.resumeSession ? { resumeSession: step.resumeSession } : {}),
           })
-          return { stdout: result.stdout, sessionId: result.iterations.at(-1)?.sessionId }
+          const last = result.iterations.at(-1)
+          // Sandcastle captures the session JSONL to the host; the Run saves and costs it.
+          const path = last?.sessionFilePath
+          return {
+            stdout: result.stdout,
+            sessionId: last?.sessionId,
+            ...(path && existsSync(path) ? { session: readFileSync(path, 'utf8') } : {}),
+          }
         },
         async close() {
           await sandbox.close()

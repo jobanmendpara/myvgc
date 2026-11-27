@@ -67,7 +67,8 @@ describe('pnpm factory --only', () => {
     expect(result.code).toBe(0)
     expect(result.trackerCalls.filter((call) => call.includes('DEV-1'))).toEqual([])
     expect(result.events.filter((event) => event.port === 'sandboxes')).toHaveLength(1)
-    expect(result.output).toContain(`Run ${RUN_ID} done: DEV-2 merged`)
+    expect(result.output).toContain(`Run ${RUN_ID} done: 1 merged, 0 parked`)
+    expect(result.output).toContain('- DEV-2 Ticket DEV-2: merged')
   })
 
   test('prints one line per finished step, with the ticket title and the result', async () => {

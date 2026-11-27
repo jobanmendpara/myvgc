@@ -122,6 +122,14 @@ export interface Script {
   ciLog?: string
   /** How `git rebase origin/main` goes after an exit 4; clean by default. */
   rebase?: 'clean' | 'conflicts'
+  /**
+   * The session JSONL each agent step hands back, by step name (implementer, reviewer,
+   * fix-round-1, …); a list gives each run of that step its own, the last one repeating. A step
+   * with none hands back no session.
+   */
+  sessions?: Record<string, string | string[]>
+  /** A Tracker method that throws, as Linear does when it's down or turns a write down. */
+  trackerThrows?: string
 }
 
 /** What `git rev-parse HEAD` prints in the fake sandbox: the branch as it was pushed. */
@@ -138,6 +146,51 @@ export const accuracyOutput = (checkout: string, passed: number) =>
     `  PASS  sun-charizard moves (jpeg)    0 differences  on ${checkout}`,
     `Report: /home/agent/repo/apps/api/.accuracy/${checkout}.json`,
   ].join('\n')
+
+/** One assistant message's usage, as a session JSONL line records it. */
+export interface Usage {
+  input?: number
+  output?: number
+  cacheRead?: number
+  cacheWrite5m?: number
+  cacheWrite1h?: number
+}
+
+let blocks = 0
+/**
+ * A line of a Claude Code session JSONL: one content block of the API message `id`. A message
+ * with several blocks is written as several lines, each repeating the message's usage.
+ */
+export function sessionLine(id: string, model: string, usage: Usage): string {
+  const { input = 0, output = 0, cacheRead = 0, cacheWrite5m = 0, cacheWrite1h = 0 } = usage
+  return JSON.stringify({
+    type: 'assistant',
+    uuid: `${id}-${blocks++}`,
+    message: {
+      id,
+      model,
+      role: 'assistant',
+      usage: {
+        input_tokens: input,
+        output_tokens: output,
+        cache_read_input_tokens: cacheRead,
+        cache_creation_input_tokens: cacheWrite5m + cacheWrite1h,
+        cache_creation: {
+          ephemeral_5m_input_tokens: cacheWrite5m,
+          ephemeral_1h_input_tokens: cacheWrite1h,
+        },
+      },
+    },
+  })
+}
+
+/** A session JSONL from its lines, with the user and system lines a real one holds between. */
+export const session = (...lines: string[]) =>
+  [
+    JSON.stringify({ type: 'user', uuid: 'u', message: { role: 'user', content: 'Go.' } }),
+    ...lines,
+    JSON.stringify({ type: 'system', uuid: 's', content: 'done' }),
+  ].join('\n') + '\n'
 
 /** A sabotage patch whose text names its criterion, so the fake sandbox knows which one is applied. */
 export const sabotageOf = (id: string) =>
@@ -277,9 +330,13 @@ export async function run(
       (_, method: string) =>
       async (...callArgs: unknown[]) => {
         events.push({ port: 'tracker', method, args: callArgs })
+        if (method === script.trackerThrows) throw new Error(`Linear answered 500 to ${method}`)
         if (method === 'getIssue') return issues.find((issue) => issue.id === callArgs[0]) ?? null
         if (method === 'getSubIssues') return callArgs[0] === SPEC ? tickets : []
         if (method === 'getComments') return script.comments ?? []
+        if (method === 'createIssue') {
+          return { id: 'DEV-900', url: 'https://linear.app/mendpara/issue/DEV-900' }
+        }
       },
   })
 
@@ -338,19 +395,35 @@ export async function run(
   }
 
   const lines: string[] = []
+  // A second passes between one reading of the clock and the next, so the Run's times differ.
+  let ticks = 0
+  // What factory() threw, if it did: a test of a crash still reads what it printed and wrote.
+  let thrown: unknown
   const code = await factory(args, {
     repoDir,
     configDir,
     tracker: () => tracker,
     forge: () => forge,
     sandboxes,
-    now: () => NOW,
+    now: () => new Date(NOW.getTime() + 1000 * ticks++),
     print: (line) => lines.push(line),
+  }).catch((error: unknown) => {
+    thrown = error
+    return null
   })
   const trackerCalls = events
     .filter((event) => event.port === 'tracker')
     .map((event) => `${event.method} ${event.args.join(' ')}`)
-  return { code, output: lines.join('\n'), lines, events, trackerCalls, repoDir }
+  return {
+    code,
+    thrown,
+    output: lines.join('\n'),
+    lines,
+    events,
+    trackerCalls,
+    repoDir,
+    runDir: join(repoDir, '.factory', 'runs', RUN_ID),
+  }
 }
 
 /** A small workspace: @myvgc/api depends on @myvgc/core. */
@@ -370,6 +443,8 @@ function fakeSandbox(script: Script, events: Event[], branch: string): Sandbox {
   let sabotaged: string | null = null
   let reviewers = 0
   let checkout = 'branch'
+  /** How many times each agent step has run, to hand each its own session. */
+  const sessionRuns: Record<string, number> = {}
   const ok = (stdout = ''): ExecResult => ({ exitCode: 0, stdout, stderr: '' })
   const exit = (exitCode: number, stdout = ''): ExecResult => ({ exitCode, stdout, stderr: '' })
   const outcomeOf = (id: string): ReplayOutcome => script.replays?.[id] ?? 'caught'
@@ -443,23 +518,30 @@ function fakeSandbox(script: Script, events: Event[], branch: string): Sandbox {
     },
     async runAgent(step) {
       events.push({ port: 'sandbox', method: 'runAgent', step })
-      if (step.name === 'reviewer') {
-        // A list gives each Reviewer its own answer, the last one repeating.
-        const answers = [script.reviewer ?? review()].flat()
-        const answer = answers[Math.min(reviewers++, answers.length - 1)] ?? review()
-        return { stdout: answer, sessionId: `reviewer-session-${reviewers}` }
-      }
-      if (step.name.startsWith('fix-round-')) {
-        const answer = script.fixRounds?.[Number(step.name.slice('fix-round-'.length)) - 1]
-        return { stdout: answer ?? 'Fixed.', sessionId: step.resumeSession }
-      }
-      return {
-        stdout: script.implementer ?? 'Implemented.',
-        sessionId: script.noSession ? undefined : 'implementer-session',
-      }
+      const answer = answerOf(step)
+      const sessions = [script.sessions?.[step.name] ?? []].flat()
+      const text = sessions[Math.min(sessionRuns[step.name] ?? 0, sessions.length - 1)]
+      sessionRuns[step.name] = (sessionRuns[step.name] ?? 0) + 1
+      return text === undefined ? answer : { ...answer, session: text }
     },
     async close() {
       events.push({ port: 'sandbox', method: 'close' })
     },
+  }
+  function answerOf(step: AgentStep): { stdout: string; sessionId?: string } {
+    if (step.name === 'reviewer') {
+      // A list gives each Reviewer its own answer, the last one repeating.
+      const answers = [script.reviewer ?? review()].flat()
+      const answer = answers[Math.min(reviewers++, answers.length - 1)] ?? review()
+      return { stdout: answer, sessionId: `reviewer-session-${reviewers}` }
+    }
+    if (step.name.startsWith('fix-round-')) {
+      const answer = script.fixRounds?.[Number(step.name.slice('fix-round-'.length)) - 1]
+      return { stdout: answer ?? 'Fixed.', sessionId: step.resumeSession }
+    }
+    return {
+      stdout: script.implementer ?? 'Implemented.',
+      sessionId: script.noSession ? undefined : 'implementer-session',
+    }
   }
 }
