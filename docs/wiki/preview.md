@@ -13,9 +13,9 @@ On 2026-11-23 the DEV-180 agent shipped three Sprite styles without seeing them 
 - The API runs from `apps/api/scripts/preview-server.ts` against an in-memory PGlite database. It never reads `.env`, so it cannot reach the dev Postgres.
 - The web app runs under `nuxt dev`, pointed at the API by `API_PORT`.
 - State lives in `.preview/state.json`, which git ignores.
-- The database is seeded with the User `preview@example.com`. Since [DEV-197](https://linear.app/mendpara/issue/DEV-197) (2026-11-24) `apps/api/scripts/preview-seed.ts` seeds it through the app's routes before the API listens: three Teams (the Worlds 2026 winner's, one with long species names, one with Cramorant-Gulping, which has no Sprite file), a Tournament in the current Regulation with three Rounds, Games with Brought and Leads, and a Bye, and three Opponents with Opponent's Teams. `/statistics` has rows without a query. `pnpm preview` prints a path for each seeded page. `apps/api/test/preview-seed.test.ts` runs the seed against a fresh PGlite.
-- Species the API turned down for the seed on 2026-11-23: Urshifu, Amoonguss, Tornadus and Ogerpon-Hearthflame. Meloetta-Pirouette has no Sprite but is Mythical, so illegal in Reg M-C.
-- Since [DEV-199](https://linear.app/mendpara/issue/DEV-199) (2026-11-24) the seed also has a fourth played Round against Riley Park, whose Opponent's Team has an item, ability, Nature and four moves on each Pokémon, and whose Leads include Cramorant-Gulping, so Statistics has a Lead pair with no Sprite. `pnpm preview` prints that Opponent and that Round.
+- The database is seeded with the User `preview@example.com`. Since [DEV-197](https://linear.app/mendpara/issue/DEV-197) (2026-11-24) `apps/api/scripts/preview-seed.ts` seeds it through the app's routes before the API listens: three Teams (the Worlds 2026 winner's, one with long species names, one with the longest item names), a Tournament in the current Regulation with three Rounds, Games with Brought and Leads, and a Bye, and three Opponents with Opponent's Teams. `/statistics` has rows without a query. `pnpm preview` prints a path for each seeded page. `apps/api/test/preview-seed.test.ts` runs the seed against a fresh PGlite.
+- Species the API turned down for the seed on 2026-11-23: Urshifu, Amoonguss, Tornadus and Ogerpon-Hearthflame. Since DEV-173 the API turns down the battle-only forms that aren't in Champions (such as Cramorant-Gulping), so the seed has no species without a Sprite.
+- Since [DEV-199](https://linear.app/mendpara/issue/DEV-199) (2026-11-24) the seed also has a fourth played Round against Riley Park, whose Opponent's Team has an item, ability, Nature and four moves on each Pokémon, and whose Leads include Basculegion, so Statistics has a Lead pair from an Opponent's Team. (DEV-173 removed the seed's species with no Sprite.) `pnpm preview` prints that Opponent and that Round.
 - Screenshots are taken at 375 and 1280 px wide and saved to `.preview/screenshots/`. Since DEV-199, `--dark` takes a shot in the dark theme (stored as `myvgc-mode`, as the theme Device setting is), `--2x` takes it at 2× pixel ratio, and `--help` prints the usage and exits 0.
 
 ## Known gaps
@@ -60,7 +60,7 @@ From the implementers' reports, 2026-11-24:
 
 - On macOS, `sips --cropOffset 0 0` crops from the middle, not the top left. Use `--cropOffset 1 0`.
 - No pixel library is installed. To measure an element, write a short Playwright script.
-- The seed's Lead with no Sprite (Cramorant-Gulping) is always the back Sprite of its pair, so DEV-189's fill on the front Sprite hasn't been seen. See [sprites rollout](sprites-rollout.md).
+- The seed no longer has a Lead with no Sprite (DEV-173 made Cramorant-Gulping, its only one, invalid), so DEV-189's fill on a Sprite that fails to load can't be seen from the seed. See [sprites rollout](sprites-rollout.md).
 
 ## Known issues
 

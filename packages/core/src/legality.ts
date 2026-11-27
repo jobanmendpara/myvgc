@@ -1,5 +1,5 @@
 import { type ChampionsMod, REGULATION_MODS } from './calendar'
-import { modDexes, modLearnsets } from './champions'
+import { champions, modDexes, modLearnsets } from './champions'
 import type { Legality, LegalityBuild, LegalityProblem, Regulation } from './team'
 
 /** Species tags a Regulation bans. Sub-Legendary Pokémon are allowed. */
@@ -62,7 +62,7 @@ export function judgeTeam(pokemon: readonly LegalityBuild[], regulation: Regulat
         path: path('species'),
         message: `${name} is a ${banned} Pokémon, banned in Reg ${regulation}.`,
       })
-    } else if (!species.exists || species.isNonstandard) {
+    } else if (!species.exists || species.isNonstandard || !champions.species(build.species)) {
       problems.push({ path: path('species'), message: notAllowed(name) })
     }
 

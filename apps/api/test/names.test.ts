@@ -44,7 +44,7 @@ describe('GET /api/names', () => {
     expect(body.powerAndAccuracy.moonblast).toEqual({ power: 95, accuracy: 100 })
     expect(body.powerAndAccuracy.kowtowcleave).toEqual({ power: 85, accuracy: null })
     expect(body.powerAndAccuracy.protect).toBeUndefined()
-    expect(Object.keys(body.species)).toHaveLength(392)
+    expect(Object.keys(body.species)).toHaveLength(382)
   })
 
   it('needs a session', async () => {
