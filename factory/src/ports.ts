@@ -102,10 +102,20 @@ export interface Forge {
   botIdentity(): Promise<GitIdentity>
   /**
    * Pushes the branch checked out in the worktree at `cwd`. GitHub turns down a push that changes
-   * workflow files, since the App has no Workflows permission (DEV-256).
+   * workflow files, since the App has no Workflows permission (DEV-256). With `forceWithLease`,
+   * the commit the branch was pushed at, it replaces the branch (`--force-with-lease`) only while
+   * GitHub still has it there, as after a rebase.
    */
-  push(cwd: string, branch: string): Promise<'pushed' | 'workflows refused'>
-  /** A draft PR gets no auto-merge: it carries a parked ticket's work. */
+  push(
+    cwd: string,
+    branch: string,
+    options?: { forceWithLease: string },
+  ): Promise<'pushed' | 'workflows refused'>
+  /**
+   * A draft PR gets no auto-merge: it carries a parked ticket's work. A branch has one open PR:
+   * opening it again brings that one up to date, and asking for a draft turns a ready PR back into
+   * one and cancels its auto-merge.
+   */
   openPr(pr: {
     branch: string
     title: string
@@ -119,6 +129,11 @@ export interface Forge {
   queueAutoMerge(pr: number): Promise<void>
   /** Runs `scripts/wait-for-checks.sh` once and returns its exit code. */
   waitForChecks(pr: number): Promise<number>
+  /**
+   * The failed checks of the PR's last CI run: each one's name and link, and its failed steps' log
+   * where GitHub gives it.
+   */
+  failedCheckLogs(pr: number): Promise<string>
 }
 
 export interface ExecResult {

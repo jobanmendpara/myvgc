@@ -93,6 +93,24 @@ export interface GateFailure {
   findings: string[]
 }
 
+/**
+ * The prompt that resumes the Implementer's session for a fix round after CI failed on the pushed
+ * branch. `log` is the end of the failed checks' logs.
+ */
+export function ciFixRoundPrompt(
+  round: number,
+  rounds: number,
+  brief: TicketBrief,
+  log: string,
+  model: string,
+): string {
+  return `Fix round ${round} of ${rounds}. The host pushed your branch and opened its PR, but CI failed on it. This is a new sandbox on the pushed branch, with the workspace installed. The end of the failed checks' logs:
+
+${log}
+
+Find why CI failed where the host checks passed, and fix it test-first, without changing any criterion. Run single test files only, as before; the host runs the full checks and a fresh Reviewer again after you. Commit, ending each commit message with ${commitEnding(brief, model)}, and bring ${MAPPING_FILE} up to date. If a criterion is wrong or impossible, print <park>why, naming the criterion</park> and stop.`
+}
+
 /** The prompt that resumes the Implementer's session for a fix round. */
 export function fixRoundPrompt(
   round: number,

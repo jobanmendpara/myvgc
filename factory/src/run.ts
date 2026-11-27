@@ -1,9 +1,12 @@
 // One ticket's way through a Run, from claim to merge (How a factory Run works, DEV-253). When the
 // push gate fails, up to two fix rounds resume the Implementer's session on rising models
 // (DEV-283). A ticket the factory still can't finish is parked for the maintainer (DEV-279): Todo
-// with `needs-human`, its branch on a draft PR, and a Linear comment saying why. When CI fails
-// after the push, the Run stops and says so; handling that comes with DEV-284. A branch that
-// changes an ADR 24 path has `pnpm accuracy` run before and after it, ahead of the push (DEV-280).
+// with `needs-human`, its branch on a draft PR, and a Linear comment saying why. After the push it
+// acts on what scripts/wait-for-checks.sh reports (DEV-284): a CI failure gets a fix round in a new
+// sandbox, counted towards the two; a conflict with main gets a rebase and a force-push, or a park
+// when the rebase stops on conflicts; and a PR waiting on `approved` is left with the maintainer,
+// auto-merge still queued, while the Run moves on. A branch that changes an ADR 24 path has
+// `pnpm accuracy` run before and after it, ahead of each push (DEV-280).
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import {
@@ -25,6 +28,7 @@ import {
   type Tracker,
 } from './ports.ts'
 import {
+  ciFixRoundPrompt,
   fixRoundPrompt,
   type GateFailure,
   implementerPrompt,
@@ -44,6 +48,10 @@ const CLEAN = 'git checkout -- . && git clean -fd'
  * them, so nothing else it could put there (another command, a redirect) reaches the shell.
  */
 const TEST_COMMAND = /^pnpm --filter [@\w./-]+ exec vitest run [\w@./ '"*:-]+$/
+/** A full commit ID, as `git rev-parse HEAD` prints it. */
+const COMMIT = /^[0-9a-f]{40}$/
+/** How much of a CI log goes in a fix round's prompt: its end, where the failures are. */
+const CI_LOG_LINES = 300
 
 /** The full checks the host runs itself (CI's commands), with no idle limit. */
 const HOST_CHECKS = ['test', 'typecheck', 'lint', 'format:check'] as const
@@ -71,13 +79,17 @@ export interface RunContext {
 }
 
 /**
- * How many fix rounds a ticket gets before it parks (How a factory Run works, DEV-253). Each has
- * its own step in the settings table: fix-round-1, fix-round-2.
+ * How many fix rounds a ticket gets before it parks (How a factory Run works, DEV-253), whether
+ * the push gate or CI failed it. Each has its own step in the settings table: fix-round-1,
+ * fix-round-2.
  */
 const FIX_ROUNDS = 2
 
-/** How a ticket's turn in a Run ended. */
-export type TicketOutcome = 'merged' | 'parked' | 'stopped'
+/**
+ * How a ticket's turn in a Run ended. "waiting for approval": its PR changes a risky path and waits
+ * for the maintainer's `approved`, with auto-merge queued.
+ */
+export type TicketOutcome = 'merged' | 'parked' | 'waiting for approval' | 'stopped'
 
 /** Every comment the factory writes starts with this (DEV-259). */
 const FACTORY = '🏭 Factory'
@@ -93,7 +105,7 @@ export async function workTicket(
   brief: TicketBrief,
   unstartable?: string,
 ): Promise<TicketOutcome> {
-  const { tracker, forge, print } = context
+  const { tracker, forge, settings, print } = context
   const { ticket } = brief
   const say = (step: string, result: string) =>
     print(`${ticket.id} ${ticket.title} · ${step}: ${result}`)
@@ -107,40 +119,80 @@ export async function workTicket(
   await tracker.comment(ticket.id, `${FACTORY}: Claimed by factory Run \`${context.runId}\`.`)
   say('claim', 'In Progress')
 
-  const sandbox = await context.sandboxes.create({
-    branch: ticket.branch,
-    base: 'origin/main',
-    env: context.sandboxEnv,
-    author: context.author,
-  })
-  let closed = false
-  const close = async () => {
-    if (closed) return
-    closed = true
+  const open = new Set<Sandbox>()
+  const newSandbox = async () => {
+    const sandbox = await context.sandboxes.create({
+      branch: ticket.branch,
+      base: 'origin/main',
+      env: context.sandboxEnv,
+      author: context.author,
+    })
+    open.add(sandbox)
+    return sandbox
+  }
+  const close = async (sandbox: Sandbox) => {
+    if (!open.delete(sandbox)) return
     await sandbox.close()
     say('close sandbox', 'closed')
   }
-  try {
+  /** A new sandbox with the workspace installed, or null when the install failed. */
+  const installed = async (): Promise<Sandbox | null> => {
+    const sandbox = await newSandbox()
     const install = await sandbox.exec(
       // Where the Implementer writes the mapping table and the host its replay reports.
       `mkdir -p /home/agent/factory && pnpm install --frozen-lockfile --store-dir ${STORE_DIR}`,
     )
     if (install.exitCode !== 0) {
       writeLog(logDir, 'install.log', install.stdout + install.stderr)
-      return await parkHere('`pnpm install` failed in the sandbox: see install.log in the run log')
+      return null
     }
     say('worktree and install', `${ticket.branch}, installed`)
+    return sandbox
+  }
 
-    const { settings } = context
-    let agent = await sandbox.runAgent(
-      agentStep(settings, 'implementer', implementerPrompt(working, settings.implementer.model)),
+  // What the ticket's work has come to so far, across sandboxes and pushes.
+  let round = 0
+  let session: string | undefined
+  // The last review, kept so a park in a later round still reports it.
+  let review: Review | undefined
+  let replays: Map<string, boolean> | undefined
+  let commits = 0
+  let pr: { number: number; url: string } | undefined
+  /** The work as it stands, for a park; `sandbox` when the branch's last commits aren't pushed. */
+  const work = (sandbox?: Sandbox, more: Partial<Work> = {}): Work => ({
+    sandbox,
+    commits,
+    review,
+    replays,
+    ...more,
+  })
+
+  /** Runs the next fix round in `sandbox`, resuming the Implementer's session on its model. */
+  const fixRound = (sandbox: Sandbox, promptFor: (round: number, model: string) => string) => {
+    round += 1
+    const fix = `fix-round-${round}` as Step
+    const prompt = promptFor(round, settings[fix].model)
+    // Without a session captured, the round starts afresh, told the ticket as well.
+    return sandbox.runAgent(
+      session
+        ? { ...agentStep(settings, fix, prompt), resumeSession: session }
+        : agentStep(
+            settings,
+            fix,
+            `${implementerPrompt(working, settings[fix].model)}\n\n${prompt}`,
+          ),
     )
-    const session = agent.sessionId
-    // The last review, kept so a park in a later round still reports it.
-    let review: Review | undefined
-    let replays: Map<string, boolean> | undefined
-    let commits: number
-    for (let round = 0; ; round += 1) {
+  }
+
+  /**
+   * From the agent's last step to a passing push gate: the host checks, a fresh Reviewer and the
+   * replays, then a fix round while the gate fails and rounds are left. Parks it otherwise.
+   */
+  const untilGatePasses = async (
+    sandbox: Sandbox,
+    agent: { stdout: string },
+  ): Promise<'passed' | 'parked'> => {
+    for (;;) {
       const who = round === 0 ? 'the Implementer' : `fix round ${round}`
       commits = Number((await sandbox.exec('git rev-list --count origin/main..HEAD')).stdout)
       say(
@@ -148,20 +200,10 @@ export async function workTicket(
         `finished, ${commits} commit${commits === 1 ? '' : 's'}`,
       )
       const parkSignal = lastTag(agent.stdout, 'park')
-      if (parkSignal) {
-        return await parkHere(`${who} parked it: ${parkSignal}`, {
-          sandbox,
-          commits,
-          review,
-          replays,
-        })
-      }
+      if (parkSignal) return parkHere(`${who} parked it: ${parkSignal}`, work(sandbox))
 
       // Each round's checks keep their own logs: the first in checks/, then fix-round-n/checks/.
-      const checks = await hostChecks(
-        sandbox,
-        round === 0 ? logDir : join(logDir, `fix-round-${round}`),
-      )
+      const checks = await hostChecks(sandbox, roundDir(logDir, round))
       say('host checks', checks.passed ? 'all passed' : `failed: ${checks.failed.join(', ')}`)
 
       const read = await readableReview(
@@ -171,12 +213,7 @@ export async function workTicket(
         say,
       )
       if (!read) {
-        return await parkHere("the Reviewer's answer couldn't be read, twice", {
-          sandbox,
-          commits,
-          review,
-          replays,
-        })
+        return parkHere("the Reviewer's answer couldn't be read, twice", work(sandbox))
       }
       review = read
       replays = await replayAll(sandbox, review)
@@ -187,59 +224,59 @@ export async function workTicket(
         { review, replays, checksPassed: checks.passed, commits },
         working.criteria,
       )
-      if (gate.length === 0) break
+      if (gate.length === 0) {
+        say('push gate', 'passed')
+        return 'passed'
+      }
       say('push gate', `failed: ${gate.join('; ')}`)
       if (round === FIX_ROUNDS) {
-        return await parkHere(
+        return parkHere(
           `the push gate failed after ${FIX_ROUNDS} fix rounds: ${gate.join('; ')}`,
-          { sandbox, commits, review, replays },
+          work(sandbox),
         )
       }
-      const fix = `fix-round-${round + 1}` as Step
       const failure: GateFailure = {
         reasons: gate,
         hostChecks: checks.summary,
         rows: reviewRows(review, replays),
         findings: findingLines(review),
       }
-      const prompt = fixRoundPrompt(round + 1, FIX_ROUNDS, working, failure, settings[fix].model)
-      // The Implementer's own session goes on, on this round's model. Without one captured, the
-      // round starts afresh, told the ticket as well.
-      agent = await sandbox.runAgent(
-        session
-          ? { ...agentStep(settings, fix, prompt), resumeSession: session }
-          : agentStep(
-              settings,
-              fix,
-              `${implementerPrompt(working, settings[fix].model)}\n\n${prompt}`,
-            ),
+      agent = await fixRound(sandbox, (next, model) =>
+        fixRoundPrompt(next, FIX_ROUNDS, working, failure, model),
       )
     }
-    if (!review || !replays) throw new Error('The push gate passed with no review.')
-    say('push gate', 'passed')
+  }
 
+  /**
+   * Pushes the branch, opens its PR (or brings the open one up to date), posts the review and
+   * queues auto-merge, then closes the sandbox.
+   */
+  /** Pushes the branch from `sandbox`, or parks the ticket when GitHub turns the push down. */
+  const pushOrPark = async (
+    sandbox: Sandbox,
+    options?: { forceWithLease: string },
+  ): Promise<'pushed' | 'parked'> => {
+    if ((await forge.push(sandbox.worktreePath, ticket.branch, options)) === 'pushed') {
+      return 'pushed'
+    }
+    return parkHere('the branch changes workflow files', work(sandbox, { pushRefused: true }))
+  }
+
+  const ship = async (sandbox: Sandbox): Promise<'shipped' | 'parked'> => {
+    if (!review || !replays) throw new Error('The push gate passed with no review.')
     const accuracy = await measureAccuracy(sandbox, ticket.branch, context.accuracyKey)
     if (accuracy.kind === 'unmeasured') {
       say('accuracy', 'not measured')
-      return await parkHere(accuracy.problem, { sandbox, commits, review, replays })
+      return parkHere(accuracy.problem, work(sandbox))
     }
     if (accuracy.kind === 'measured') {
-      writeLog(logDir, 'accuracy-base.log', accuracy.before.log)
-      writeLog(logDir, 'accuracy-branch.log', accuracy.after.log)
+      writeLog(roundDir(logDir, round), 'accuracy-base.log', accuracy.before.log)
+      writeLog(roundDir(logDir, round), 'accuracy-branch.log', accuracy.after.log)
       say('accuracy', `${headline(accuracy.before)} before; ${headline(accuracy.after)} after`)
     }
-
-    if ((await forge.push(sandbox.worktreePath, ticket.branch)) === 'workflows refused') {
-      return await parkHere('the branch changes workflow files', {
-        sandbox,
-        commits,
-        review,
-        replays,
-        pushRefused: true,
-      })
-    }
+    if ((await pushOrPark(sandbox)) === 'parked') return 'parked'
     const mapping = await sandbox.exec(`cat ${MAPPING_FILE}`)
-    const pr = await forge.openPr({
+    pr = await forge.openPr({
       branch: ticket.branch,
       title: prTitle(ticket),
       body: prBody(context, working, mapping.exitCode === 0 ? mapping.stdout.trim() : '', accuracy),
@@ -249,28 +286,136 @@ export async function workTicket(
     await forge.queueAutoMerge(pr.number)
     await tracker.setStatus(ticket.id, 'In Review')
     say('push, PR and auto-merge', pr.url)
-    await close()
+    await close(sandbox)
+    return 'shipped'
+  }
+
+  /**
+   * Rebases the pushed branch onto origin/main in `sandbox` and force-pushes it, leased to the
+   * commit it was pushed at. Parks the ticket when the rebase stops on conflicts.
+   */
+  const rebase = async (sandbox: Sandbox): Promise<'rebased' | 'parked'> => {
+    const pushedAt = (await sandbox.exec('git rev-parse HEAD')).stdout.trim()
+    if (!COMMIT.test(pushedAt)) throw new Error(`git rev-parse HEAD printed ${pushedAt}.`)
+    const rebased = await sandbox.exec('git rebase origin/main')
+    if (rebased.exitCode !== 0) {
+      writeLog(logDir, 'rebase.log', rebased.stdout + rebased.stderr)
+      await sandbox.exec('git rebase --abort')
+      say('rebase', 'conflicts with origin/main')
+      return parkHere(
+        `the PR conflicts with main, and \`git rebase origin/main\` stops on conflicts: see rebase.log in the run log and ${pr?.url}`,
+        work(),
+      )
+    }
+    if ((await pushOrPark(sandbox, { forceWithLease: pushedAt })) === 'parked') return 'parked'
+    say('rebase', 'onto origin/main, force-pushed')
+    await close(sandbox)
+    return 'rebased'
+  }
+
+  try {
+    const first = await installed()
+    if (!first) return await parkHere(INSTALL_FAILED)
+    const implementer = await first.runAgent(
+      agentStep(settings, 'implementer', implementerPrompt(working, settings.implementer.model)),
+    )
+    session = implementer.sessionId
+    if ((await untilGatePasses(first, implementer)) === 'parked') return 'parked'
+    if ((await ship(first)) === 'parked') return 'parked'
 
     for (;;) {
+      if (!pr) throw new Error('Waiting on checks with no PR.')
       const code = await forge.waitForChecks(pr.number)
-      if (code === 0) {
+      if (code === WAIT.pending || code === WAIT.ghError) continue
+      if (code === WAIT.merged) {
         say('wait for checks', 'merged')
         return 'merged'
       }
-      // 2: still pending; 3: a gh error. Both mean wait again (scripts/wait-for-checks.sh).
-      if (code !== 2 && code !== 3) {
-        say('wait for checks', `exit ${code}; handling it comes with DEV-284`)
+      if (code === WAIT.awaitingApproval) {
+        return await waitForApproval(context, ticket, pr.url, say)
+      }
+      if (code === WAIT.conflicts) {
+        const rebased = await rebase(await newSandbox())
+        if (rebased !== 'rebased') return rebased
+        continue
+      }
+      if (code !== WAIT.checkFailed) {
+        say('wait for checks', `exit ${code}, which the factory doesn't know`)
         return 'stopped'
       }
+
+      // CI failed: a fix round, from the pushed branch, counted towards the two.
+      if (round === FIX_ROUNDS) {
+        return await parkHere(
+          `CI failed, and the ticket has had its ${FIX_ROUNDS} fix rounds: see ${pr.url}`,
+          work(),
+        )
+      }
+      const log = await forge.failedCheckLogs(pr.number)
+      writeLog(roundDir(logDir, round + 1), 'ci.log', log)
+      say('wait for checks', `CI failed, so fix round ${round + 1} starts`)
+      const sandbox = await installed()
+      if (!sandbox) return await parkHere(INSTALL_FAILED, work())
+      const agent = await fixRound(sandbox, (next, model) =>
+        ciFixRoundPrompt(next, FIX_ROUNDS, working, lastLines(log, CI_LOG_LINES), model),
+      )
+      if ((await untilGatePasses(sandbox, agent)) === 'parked') return 'parked'
+      if ((await ship(sandbox)) === 'parked') return 'parked'
     }
   } finally {
-    await close()
+    for (const sandbox of [...open]) await close(sandbox)
   }
 }
 
-/** What a ticket's sandbox holds when it parks. */
+const INSTALL_FAILED = '`pnpm install` failed in the sandbox: see install.log in the run log'
+
+/** scripts/wait-for-checks.sh's exit codes, as its comment block lists them. */
+const WAIT = {
+  merged: 0,
+  checkFailed: 1,
+  /** A check or the queued merge is still pending: wait again. */
+  pending: 2,
+  /** `gh` failed: wait again. */
+  ghError: 3,
+  /** The PR conflicts with main. */
+  conflicts: 4,
+  /** The risky-path gate waits for the maintainer's `approved`. */
+  awaitingApproval: 5,
+} as const
+
+/** Where a round's logs go: the ticket's folder for the first, then fix-round-n/. */
+const roundDir = (logDir: string, round: number) =>
+  round === 0 ? logDir : join(logDir, `fix-round-${round}`)
+
+const lastLines = (text: string, count: number) => text.split('\n').slice(-count).join('\n')
+
+/**
+ * Leaves a PR waiting on `approved` with the maintainer: the ticket stays In Review and gets
+ * `needs-human`, auto-merge stays queued, and the Run moves on.
+ */
+async function waitForApproval(
+  context: RunContext,
+  ticket: Ticket,
+  url: string,
+  say: (step: string, result: string) => void,
+): Promise<'waiting for approval'> {
+  await context.tracker.setAgentLabel(ticket.id, 'needs-human')
+  await context.tracker.comment(
+    ticket.id,
+    [
+      `${FACTORY}: Waiting for approval. The PR changes a risky path, so the risky-path gate waits for the maintainer to add \`approved\` to it: ${url}`,
+      '',
+      `Auto-merge stays queued, so adding the label merges it. Run \`${context.runId}\` has moved on.`,
+    ].join('\n'),
+  )
+  say('wait for checks', 'waiting for `approved`')
+  return 'waiting for approval'
+}
+
+/** What a ticket's work holds when it parks. */
 interface Work {
-  sandbox: Sandbox
+  /** The sandbox holding commits not pushed yet; none when the branch is pushed as it stands. */
+  sandbox?: Sandbox
   commits: number
   /** The last review, when one ran; with the host's replays of its sabotages. */
   review?: Review | null
@@ -285,8 +430,9 @@ const WORKFLOWS_REFUSED =
   "GitHub turned the push down because the branch changes workflow files, which the factory's App may not push. The branch stays local, and that change has to be made by hand"
 
 /**
- * Parks the ticket for the maintainer: its branch on a draft PR when it has commits, then Todo with
- * `needs-human` and a Linear comment with the reason, the last review and the run log.
+ * Parks the ticket for the maintainer: its branch on a draft PR when it has commits (an open PR
+ * is turned back into a draft, its auto-merge cancelled), then Todo with `needs-human` and a
+ * Linear comment with the reason, the last review and the run log.
  */
 async function park(
   context: RunContext,
@@ -314,7 +460,8 @@ async function park(
     pr = 'No draft PR: the branch has no commits.'
   } else if (
     work.pushRefused ||
-    (await forge.push(work.sandbox.worktreePath, ticket.branch)) === 'workflows refused'
+    (work.sandbox &&
+      (await forge.push(work.sandbox.worktreePath, ticket.branch)) === 'workflows refused')
   ) {
     pr = `${WORKFLOWS_REFUSED}.`
   } else {

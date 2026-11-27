@@ -45,7 +45,7 @@ export function githubForge(app: GitHubApp, repoDir: string): Forge {
       return { name, email: `${id}+${name}@users.noreply.github.com` }
     },
 
-    async push(cwd, branch) {
+    async push(cwd, branch, options) {
       // The user name in the URL keeps the host's global `insteadOf` rewrite to SSH from matching
       // (the spike, DEV-251), and the token goes in a header set through the environment.
       const header = Buffer.from(`x-access-token:${await installationToken()}`).toString('base64')
@@ -62,6 +62,10 @@ export function githubForge(app: GitHubApp, repoDir: string): Forge {
           [
             'push',
             '--no-verify',
+            // Leased to the commit GitHub had: a push made since is never overwritten.
+            ...(options
+              ? [`--force-with-lease=refs/heads/${branch}:${options.forceWithLease}`]
+              : []),
             `https://x-access-token@github.com/${repo}.git`,
             `HEAD:refs/heads/${branch}`,
           ],
@@ -122,6 +126,12 @@ export function githubForge(app: GitHubApp, repoDir: string): Forge {
           body,
         )
         if (!draft && existing.isDraft) await gh(['pr', 'ready', String(existing.number)])
+        // A parked ticket's PR that was ready, as after CI failed twice: no auto-merge for it.
+        if (draft && !existing.isDraft) {
+          // It fails when no auto-merge is queued, which is what's wanted anyway.
+          await gh(['pr', 'merge', String(existing.number), '--disable-auto']).catch(() => '')
+          await gh(['pr', 'ready', String(existing.number), '--undo'])
+        }
         return { number: existing.number, url: existing.url }
       }
       const url = await gh(
@@ -151,6 +161,48 @@ export function githubForge(app: GitHubApp, repoDir: string): Forge {
 
     async queueAutoMerge(pr) {
       await gh(['pr', 'merge', String(pr), '--auto', '--merge', '--delete-branch'])
+    },
+
+    // Only what the Implementer reads, so it isn't tested: a wrong line here costs a fix round its
+    // log, never a wrong merge or park.
+    async failedCheckLogs(pr) {
+      // Check runs (Actions) carry `name`, `conclusion` and `detailsUrl`; status contexts carry
+      // `context`, `state` and `targetUrl`.
+      const { statusCheckRollup } = JSON.parse(
+        await gh(['pr', 'view', String(pr), '--json', 'statusCheckRollup']),
+      ) as {
+        statusCheckRollup: {
+          name?: string
+          context?: string
+          conclusion?: string
+          state?: string
+          detailsUrl?: string
+          targetUrl?: string
+        }[]
+      }
+      const failed = statusCheckRollup
+        .map((check) => ({
+          name: check.name ?? check.context ?? 'a check',
+          result: check.conclusion ?? check.state ?? '',
+          url: check.detailsUrl ?? check.targetUrl ?? '',
+        }))
+        .filter(({ result }) =>
+          ['FAILURE', 'ERROR', 'CANCELLED', 'TIMED_OUT', 'STARTUP_FAILURE'].includes(result),
+        )
+      const logs: string[] = []
+      for (const { name, result, url } of failed) {
+        logs.push(`## ${name}: ${result.toLowerCase()} (${url})`)
+        const job = /\/actions\/runs\/\d+\/job\/(\d+)/.exec(url)?.[1]
+        // Reading a job's log needs the App's Actions: read permission; without it, the link alone.
+        logs.push(
+          job
+            ? await gh(['run', 'view', '--job', job, '--log-failed']).catch(
+                () => "(GitHub didn't give the log: open the link)",
+              )
+            : '(no job log: open the link)',
+        )
+      }
+      return logs.join('\n')
     },
 
     async waitForChecks(pr) {

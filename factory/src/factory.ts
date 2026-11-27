@@ -146,7 +146,8 @@ export async function factory(args: string[], ports: FactoryPorts): Promise<numb
     unstartable,
   )
   ports.print(`Run ${runId} done: ${ticket.id} ${outcome}.`)
-  return outcome === 'merged' ? READY : REFUSED
+  // A PR waiting on `approved` is a hand-off to the maintainer, not a failure: the Run moved on.
+  return outcome === 'merged' || outcome === 'waiting for approval' ? READY : REFUSED
 }
 
 /** The local date and time as yyyy-mm-dd-hhmm, for Run IDs. */
