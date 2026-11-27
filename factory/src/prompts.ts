@@ -13,6 +13,22 @@ export interface TicketBrief {
   criteria: Criterion[]
   /** The workspace's packages and their dependencies (src/workspace.ts). */
   workspace: string
+  /** When the ticket was parked before: the factory's park note and what was said since. */
+  previousPark?: { note: string; since: string[] }
+}
+
+function describePreviousPark({ previousPark }: TicketBrief): string {
+  if (!previousPark) return ''
+  const since =
+    previousPark.since.length > 0
+      ? previousPark.since.map((comment) => `- ${comment}`).join('\n')
+      : '- (nothing)'
+  return `
+The factory parked this ticket before, and the maintainer has sent it back. The branch holds the work so far, with any commits the maintainer added: build on it. The factory's note:
+${previousPark.note}
+What was said on the ticket since:
+${since}
+`
 }
 
 function describeTicket({ ticket, specId, criteria }: TicketBrief): string {
@@ -30,7 +46,7 @@ export function implementerPrompt(brief: TicketBrief): string {
   return `You are the Implementer in a factory Run for the MyVGC repo. Follow CLAUDE.md, CONTEXT.md and the ADRs in docs/adr/.
 
 ${describeTicket(brief)}
-
+${describePreviousPark(brief)}
 Work test-first (the tdd skill) at the highest seam the spec's Testing Decisions name. Every Tested criterion needs a test that checks its behaviour through a public interface. Don't put criterion IDs in test names.
 
 The workspace's packages:
@@ -39,7 +55,9 @@ Run the tests of every package you change and of every package that depends on o
 
 Commit your work on the current branch. End each commit message with "Part of ${brief.specId}" and then the line "Co-Authored-By: ${modelName(STEPS.implementer.model)} <noreply@anthropic.com>". Don't push, open a PR or touch Linear: the host does that.
 
-Write ${MAPPING_FILE}: a Markdown table with the columns Criterion | Test file | Test name, one row per criterion you cover (for a Seen criterion, the page and options to screenshot in place of the test).`
+Write ${MAPPING_FILE}: a Markdown table with the columns Criterion | Test file | Test name, one row per criterion you cover (for a Seen criterion, the page and options to screenshot in place of the test).
+
+If a criterion is wrong or impossible, don't bend it: commit what you have, print <park>why, naming the criterion</park>, and stop. The host parks the ticket for the maintainer.`
 }
 
 export function reviewerPrompt(brief: TicketBrief, hostChecks: string): string {

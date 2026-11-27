@@ -64,8 +64,20 @@ export interface Ticket extends Issue {
   branch: string
 }
 
-/** The statuses the factory moves a ticket to. It never sets Done: the PR's "Closes" does. */
-export type FactoryStatus = 'In Progress' | 'In Review'
+/**
+ * The statuses the factory moves a ticket to: In Progress when it claims one, In Review once its
+ * PR is open, Todo when it parks one. It never sets Done: the PR's "Closes" does.
+ */
+export type FactoryStatus = 'In Progress' | 'In Review' | 'Todo'
+
+/** The factory's labels from DEV's single-select "Agent" group (DEV-260). */
+export type AgentLabel = 'ready-for-agent' | 'needs-human'
+
+export interface Comment {
+  body: string
+  /** ISO 8601. */
+  createdAt: string
+}
 
 /** Linear. */
 export interface Tracker {
@@ -74,7 +86,11 @@ export interface Tracker {
   /** The issue's direct sub-issues, in any order. */
   getSubIssues(id: string): Promise<Ticket[]>
   setStatus(id: string, status: FactoryStatus): Promise<void>
+  /** Sets the issue's Agent label, in place of any other from the group. */
+  setAgentLabel(id: string, label: AgentLabel): Promise<void>
   comment(id: string, body: string): Promise<void>
+  /** The issue's comments, oldest first. */
+  getComments(id: string): Promise<Comment[]>
 }
 
 /** GitHub, as the `myvgc-factory` App. Only the host talks to it: sandboxes have no credentials. */
@@ -84,13 +100,20 @@ export interface Forge {
    * asks first, before it claims anything, and a broken App key stops it there.
    */
   botIdentity(): Promise<GitIdentity>
-  /** Pushes the branch checked out in the worktree at `cwd`. */
-  push(cwd: string, branch: string): Promise<void>
+  /**
+   * Pushes the branch checked out in the worktree at `cwd`. GitHub turns down a push that changes
+   * workflow files, since the App has no Workflows permission (DEV-256).
+   */
+  push(cwd: string, branch: string): Promise<'pushed' | 'workflows refused'>
+  /** A draft PR gets no auto-merge: it carries a parked ticket's work. */
   openPr(pr: {
     branch: string
     title: string
     body: string
+    draft: boolean
   }): Promise<{ number: number; url: string }>
+  /** The maintainer's GitHub login, to @mention when a PR needs them: the repo's owner. */
+  maintainer(): string
   commentOnPr(pr: number, body: string): Promise<void>
   /** Queues the merge for when the checks pass (`gh pr merge --auto --merge --delete-branch`). */
   queueAutoMerge(pr: number): Promise<void>
@@ -129,8 +152,9 @@ export interface Sandbox {
 
 export interface Sandboxes {
   /**
-   * Fetches `base` and makes a worktree on `branch` (forked from `base` when the branch doesn't
-   * exist yet) and a sandbox on it. `env` is the only credential its agents get: the Claude one.
+   * Fetches `base` and `branch`, and makes a worktree on `branch` and a sandbox on it. A branch
+   * pushed before, as a parked ticket's is, continues from its pushed state, with any commits the
+   * maintainer added; a new one forks `base`. `env` is the only credential its agents get: the Claude one.
    * Commits made in it are by `author`, set for the sandbox alone, never in the shared git config.
    */
   create(options: {

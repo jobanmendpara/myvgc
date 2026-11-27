@@ -1,6 +1,7 @@
-// One ticket's way through a Run, from claim to merge (How a factory Run works, DEV-253). This is
-// the happy path (DEV-278): when the push gate or CI fails, the Run stops and says so. Fix rounds,
-// parking and the rest come in later tickets of DEV-269.
+// One ticket's way through a Run, from claim to merge (How a factory Run works, DEV-253). A ticket
+// the factory can't finish is parked for the maintainer (DEV-279): Todo with `needs-human`, its
+// branch on a draft PR, and a Linear comment saying why. When CI fails after the push, the Run
+// stops and says so. Fix rounds and the rest come in later tickets of DEV-269.
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Criterion } from './criteria.ts'
@@ -13,7 +14,7 @@ import {
   type Tracker,
 } from './ports.ts'
 import { implementerPrompt, MAPPING_FILE, reviewerPrompt, type TicketBrief } from './prompts.ts'
-import { caughtByAssertion, readReview, type Review, type ReviewRow } from './review.ts'
+import { caughtByAssertion, lastTag, readReview, type Review, type ReviewRow } from './review.ts'
 import { STEPS, type Step } from './settings.ts'
 
 /** Longer than any command an agent runs silently (the spike, DEV-251, lesson 6). */
@@ -44,13 +45,31 @@ export interface RunContext {
   print: (line: string) => void
 }
 
-/** Works one ticket to a merged PR. True when it merged. */
-export async function workTicket(context: RunContext, brief: TicketBrief): Promise<boolean> {
+/** How a ticket's turn in a Run ended. */
+export type TicketOutcome = 'merged' | 'parked' | 'stopped'
+
+/** The note a park leaves on the ticket starts with this, which is how a later Run finds it. */
+const PARKED = '🏭 Factory: Parked'
+
+/**
+ * Works one ticket to a merged PR, or parks it. `unstartable` says why it can't start at all, such
+ * as a criterion the spec lacks: it is parked before any agent runs.
+ */
+export async function workTicket(
+  context: RunContext,
+  brief: TicketBrief,
+  unstartable?: string,
+): Promise<TicketOutcome> {
   const { tracker, forge, print } = context
   const { ticket } = brief
   const say = (step: string, result: string) =>
     print(`${ticket.id} ${ticket.title} · ${step}: ${result}`)
   const logDir = join(context.runDir, ticket.id)
+  const parkHere = (reason: string, work?: Work) => park(context, brief, say, reason, work)
+
+  if (unstartable) return parkHere(unstartable)
+  const previousPark = await previousParkOf(tracker, ticket.id)
+  if (previousPark) brief = { ...brief, previousPark }
 
   await tracker.setStatus(ticket.id, 'In Progress')
   await tracker.comment(ticket.id, `🏭 Factory: Claimed by factory Run \`${context.runId}\`.`)
@@ -75,13 +94,18 @@ export async function workTicket(context: RunContext, brief: TicketBrief): Promi
       `mkdir -p /home/agent/factory && pnpm install --frozen-lockfile --store-dir ${STORE_DIR}`,
     )
     if (install.exitCode !== 0) {
-      return stop(say, 'worktree and install', install.stdout + install.stderr)
+      writeLog(logDir, 'install.log', install.stdout + install.stderr)
+      return await parkHere('`pnpm install` failed in the sandbox: see install.log in the run log')
     }
     say('worktree and install', `${ticket.branch}, installed`)
 
-    await sandbox.runAgent(agentStep('implementer', implementerPrompt(brief)))
+    const implementer = await sandbox.runAgent(agentStep('implementer', implementerPrompt(brief)))
     const commits = Number((await sandbox.exec('git rev-list --count origin/main..HEAD')).stdout)
     say('Implementer', `finished, ${commits} commit${commits === 1 ? '' : 's'}`)
+    const parkSignal = lastTag(implementer.stdout, 'park')
+    if (parkSignal) {
+      return await parkHere(`the Implementer parked it: ${parkSignal}`, { sandbox, commits })
+    }
 
     const checks = await hostChecks(sandbox, logDir)
     say('host checks', checks.passed ? 'all passed' : `failed: ${checks.failed.join(', ')}`)
@@ -98,16 +122,30 @@ export async function workTicket(context: RunContext, brief: TicketBrief): Promi
 
     const gate = pushGate({ review, replays, checksPassed: checks.passed, commits }, brief.criteria)
     if (!review || gate.length > 0) {
-      return stop(say, 'push gate', `failed (${gate.join('; ')}); fix rounds come with DEV-283`)
+      say('push gate', `failed: ${gate.join('; ')}`)
+      return await parkHere(`the push gate failed: ${gate.join('; ')}`, {
+        sandbox,
+        commits,
+        review,
+        replays,
+      })
     }
     say('push gate', 'passed')
 
-    await forge.push(sandbox.worktreePath, ticket.branch)
+    if ((await forge.push(sandbox.worktreePath, ticket.branch)) === 'workflows refused') {
+      return await parkHere('the branch changes workflow files', {
+        sandbox,
+        commits,
+        review,
+        replays,
+      })
+    }
     const mapping = await sandbox.exec(`cat ${MAPPING_FILE}`)
     const pr = await forge.openPr({
       branch: ticket.branch,
       title: `${ticket.title} (${ticket.id})`,
       body: prBody(context, brief, mapping.exitCode === 0 ? mapping.stdout.trim() : ''),
+      draft: false,
     })
     await forge.commentOnPr(pr.number, reviewComment(review, replays))
     await forge.queueAutoMerge(pr.number)
@@ -119,11 +157,12 @@ export async function workTicket(context: RunContext, brief: TicketBrief): Promi
       const code = await forge.waitForChecks(pr.number)
       if (code === 0) {
         say('wait for checks', 'merged')
-        return true
+        return 'merged'
       }
       // 2: still pending; 3: a gh error. Both mean wait again (scripts/wait-for-checks.sh).
       if (code !== 2 && code !== 3) {
-        return stop(say, 'wait for checks', `exit ${code}; handling it comes with DEV-284`)
+        say('wait for checks', `exit ${code}; handling it comes with DEV-284`)
+        return 'stopped'
       }
     }
   } finally {
@@ -131,9 +170,97 @@ export async function workTicket(context: RunContext, brief: TicketBrief): Promi
   }
 }
 
-function stop(say: (step: string, result: string) => void, step: string, why: string): false {
-  say(step, why)
-  return false
+/** What a ticket's sandbox holds when it parks. */
+interface Work {
+  sandbox: Sandbox
+  commits: number
+  review?: Review | null
+  replays?: Map<string, boolean>
+}
+
+const WORKFLOWS_REFUSED =
+  "GitHub turned the push down because the branch changes workflow files, which the factory's App may not push. The branch stays local, and that change has to be made by hand"
+
+/**
+ * Parks the ticket for the maintainer: its branch on a draft PR when it has commits, then Todo with
+ * `needs-human` and a Linear comment with the reason, the last review and the run log.
+ */
+async function park(
+  context: RunContext,
+  { ticket }: TicketBrief,
+  say: (step: string, result: string) => void,
+  reason: string,
+  work?: Work,
+): Promise<'parked'> {
+  const { tracker, forge } = context
+  const rows = work?.review ? reviewRows(work.review, work.replays ?? new Map()) : []
+  const verdict = work?.review ? `Last verdict: **${work.review.verdict}**.` : 'No review ran.'
+  let pr: string
+  if (!work || !(work.commits > 0)) {
+    pr = 'No draft PR: the branch has no commits.'
+  } else if ((await forge.push(work.sandbox.worktreePath, ticket.branch)) === 'workflows refused') {
+    pr = `${WORKFLOWS_REFUSED}.`
+  } else {
+    const draft = await forge.openPr({
+      branch: ticket.branch,
+      title: `${ticket.title} (${ticket.id})`,
+      body: [
+        `Parked by the factory Run \`${context.runId}\`: ${reason}.`,
+        '',
+        verdict,
+        '',
+        ...rows,
+        '',
+        `Related to ${ticket.id}`,
+        `Part of ${context.specId}`,
+      ].join('\n'),
+      draft: true,
+    })
+    await forge.commentOnPr(
+      draft.number,
+      `🏭 Factory: @${forge.maintainer()} this ticket is parked and needs you: ${reason}.`,
+    )
+    pr = `Draft PR: ${draft.url}`
+  }
+  await tracker.setStatus(ticket.id, 'Todo')
+  await tracker.setAgentLabel(ticket.id, 'needs-human')
+  await tracker.comment(
+    ticket.id,
+    [
+      `${PARKED} by factory Run \`${context.runId}\`: ${reason}.`,
+      '',
+      verdict,
+      ...(rows.length > 0 ? ['', ...rows] : []),
+      '',
+      pr,
+      `Run log: ${join(context.runDir, ticket.id)}`,
+      '',
+      'To send it back to the factory, answer here, then swap `needs-human` for `ready-for-agent`.',
+    ].join('\n'),
+  )
+  say('park', reason)
+  return 'parked'
+}
+
+/** The ticket's last park note and the comments since that the factory didn't write, if any. */
+async function previousParkOf(
+  tracker: Tracker,
+  id: string,
+): Promise<TicketBrief['previousPark'] | undefined> {
+  const comments = await tracker.getComments(id)
+  const at = comments.findLastIndex((comment) => comment.body.startsWith(PARKED))
+  const note = comments[at]
+  if (!note) return undefined
+  const since = comments
+    .slice(at + 1)
+    .filter((comment) => !comment.body.startsWith('🏭 Factory'))
+    .map((comment) => comment.body)
+  return { note: note.body, since }
+}
+
+function writeLog(logDir: string, name: string, text: string) {
+  mkdirSync(logDir, { recursive: true })
+  writeFileSync(join(logDir, name), text)
 }
 
 function agentStep(step: Step, prompt: string) {
@@ -235,17 +362,23 @@ function prBody(context: RunContext, { ticket }: TicketBrief, mapping: string): 
   ].join('\n')
 }
 
+/** The Reviewer's rows as a Markdown table, with each replay's result. */
+function reviewRows(review: Review, replays: Map<string, boolean>): string[] {
+  return [
+    '| Criterion | Test | Sabotage replay |',
+    '| -- | -- | -- |',
+    ...review.criteria.map((row) => {
+      const replayed =
+        row.kind === 'seen' ? 'Seen' : replays.get(row.id) ? 'confirmed' : 'not confirmed'
+      return `| ${row.id} | ${row.test.replace(CLOSING, 'Related to$1')} | ${replayed} |`
+    }),
+  ]
+}
+
 function reviewComment(review: Review, replays: Map<string, boolean>): string {
-  const rows = review.criteria.map((row) => {
-    const replayed =
-      row.kind === 'seen' ? 'Seen' : replays.get(row.id) ? 'confirmed' : 'not confirmed'
-    return `| ${row.id} | ${row.test.replace(CLOSING, 'Related to$1')} | ${replayed} |`
-  })
   return [
     `🏭 Factory: the Reviewer's verdict is **${review.verdict}**.`,
     '',
-    '| Criterion | Test | Sabotage replay |',
-    '| -- | -- | -- |',
-    ...rows,
+    ...reviewRows(review, replays),
   ].join('\n')
 }

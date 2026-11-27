@@ -105,14 +105,13 @@ export async function factory(args: string[], ports: FactoryPorts): Promise<numb
   const criteria = criteriaOf(spec.description)
   const covered = coveredIds(ticket.description)
   const unknown = covered.filter((id) => !criteria.has(id))
-  if (covered.length === 0 || unknown.length > 0) {
-    ports.print(
-      covered.length === 0
-        ? `${ticket.id} says which criteria it covers in no "Covers:" line, so nothing was changed.`
-        : `${ticket.id} covers ${unknown.join(', ')}, which ${specId} doesn't have, so nothing was changed.`,
-    )
-    return REFUSED
-  }
+  // Parked before any agent runs (AC-14.2): the maintainer fixes the ticket or the spec.
+  const unstartable =
+    covered.length === 0
+      ? `it has no "Covers:" line naming the criteria it covers`
+      : unknown.length > 0
+        ? `it covers ${unknown.join(', ')}, which ${specId} doesn't have`
+        : undefined
 
   const runId = `${stamp(ports.now())}-${specId}`
   const runDir = join(ports.repoDir, '.factory', 'runs', runId)
@@ -121,7 +120,7 @@ export async function factory(args: string[], ports: FactoryPorts): Promise<numb
   const forge = ports.forge(setup.github)
   // Mints the installation token now, so a broken App key stops the Run before it claims anything.
   const author = await forge.botIdentity()
-  const merged = await workTicket(
+  const outcome = await workTicket(
     {
       runId,
       specId,
@@ -139,9 +138,10 @@ export async function factory(args: string[], ports: FactoryPorts): Promise<numb
       criteria: covered.flatMap((id) => criteria.get(id) ?? []),
       workspace: describeWorkspace(workspacePackages(ports.repoDir)),
     },
+    unstartable,
   )
-  ports.print(`Run ${runId} done: ${merged ? `${ticket.id} merged` : `${ticket.id} stopped`}.`)
-  return merged ? READY : REFUSED
+  ports.print(`Run ${runId} done: ${ticket.id} ${outcome}.`)
+  return outcome === 'merged' ? READY : REFUSED
 }
 
 /** The local date and time as yyyy-mm-dd-hhmm, for Run IDs. */

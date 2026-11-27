@@ -27,14 +27,15 @@ export function sandcastleSandboxes(repoDir: string): Sandboxes {
       requireImage()
       const gitDir = commonGitDir(repoDir)
       // So `base` is today's main, not whatever the host last fetched.
-      const [remote, ...rest] = base.split('/')
-      git(repoDir, ['fetch', remote ?? 'origin', rest.join('/')])
+      const [remote = 'origin', ...rest] = base.split('/')
+      git(repoDir, ['fetch', remote, rest.join('/')])
+      const start = continueFrom(repoDir, remote, branch) ?? base
       // The host keeps pnpm's store, so each sandbox's install reuses what the last one fetched.
       const store = join(homedir(), '.cache', 'myvgc-factory', 'pnpm-store')
       mkdirSync(store, { recursive: true })
       const sandbox = await createSandbox({
         branch,
-        baseBranch: base,
+        baseBranch: start,
         cwd: repoDir,
         sandbox: docker({
           imageName: IMAGE,
@@ -83,12 +84,38 @@ export function sandcastleSandboxes(repoDir: string): Sandboxes {
 }
 
 /** Host git with the repo's hooks and fsmonitor turned off, in case an agent planted one. */
-function git(cwd: string, args: string[]): string {
+function git(cwd: string, args: string[], stderr: 'inherit' | 'ignore' = 'inherit'): string {
   return execFileSync(
     'git',
     ['-c', 'core.hooksPath=/dev/null', '-c', 'core.fsmonitor=false', ...args],
-    { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] },
+    { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', stderr] },
   )
+}
+
+/**
+ * Where a branch pushed before (a parked ticket's) continues from, so the Run builds on its pushed
+ * state, maintainer's commits included. Returns the remote branch when there's no local one, and
+ * moves a local one up to it when the local one is behind. A local branch with commits the remote
+ * lacks, as when GitHub turned the push down, stays as it is. Undefined for a branch never pushed.
+ */
+function continueFrom(repoDir: string, remote: string, branch: string): string | undefined {
+  const pushed = `${remote}/${branch}`
+  if (!succeeds(repoDir, ['fetch', remote, branch])) return undefined
+  if (!succeeds(repoDir, ['rev-parse', '--verify', '--quiet', `refs/heads/${branch}`]))
+    return pushed
+  if (succeeds(repoDir, ['merge-base', '--is-ancestor', branch, pushed])) {
+    git(repoDir, ['branch', '--force', branch, pushed])
+  }
+  return undefined
+}
+
+function succeeds(cwd: string, args: string[]): boolean {
+  try {
+    git(cwd, args, 'ignore')
+    return true
+  } catch {
+    return false
+  }
 }
 
 /** The git folder the checkout and all its worktrees share. */
