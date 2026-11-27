@@ -1,7 +1,8 @@
-// One ticket's way through a Run, from claim to merge (How a factory Run works, DEV-253). A ticket
-// the factory can't finish is parked for the maintainer (DEV-279): Todo with `needs-human`, its
-// branch on a draft PR, and a Linear comment saying why. When CI fails after the push, the Run
-// stops and says so. Fix rounds and the rest come in later tickets of DEV-269.
+// One ticket's way through a Run, from claim to merge (How a factory Run works, DEV-253). When the
+// push gate fails, up to two fix rounds resume the Implementer's session on rising models
+// (DEV-283). A ticket the factory still can't finish is parked for the maintainer (DEV-279): Todo
+// with `needs-human`, its branch on a draft PR, and a Linear comment saying why. When CI fails
+// after the push, the Run stops and says so; handling that comes with DEV-284.
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Criterion } from './criteria.ts'
@@ -56,7 +57,10 @@ export interface RunContext {
   print: (line: string) => void
 }
 
-/** How many fix rounds a ticket gets before it parks (How a factory Run works, DEV-253). */
+/**
+ * How many fix rounds a ticket gets before it parks (How a factory Run works, DEV-253). Each has
+ * its own step in the settings table: fix-round-1, fix-round-2.
+ */
 const FIX_ROUNDS = 2
 
 /** How a ticket's turn in a Run ended. */
@@ -119,19 +123,32 @@ export async function workTicket(
       agentStep(settings, 'implementer', implementerPrompt(working, settings.implementer.model)),
     )
     const session = agent.sessionId
-    let review: Review
-    let replays: Map<string, boolean>
+    // The last review, kept so a park in a later round still reports it.
+    let review: Review | undefined
+    let replays: Map<string, boolean> | undefined
     let commits: number
     for (let round = 0; ; round += 1) {
-      const step = round === 0 ? 'Implementer' : `fix round ${round}`
+      const who = round === 0 ? 'the Implementer' : `fix round ${round}`
       commits = Number((await sandbox.exec('git rev-list --count origin/main..HEAD')).stdout)
-      say(step, `finished, ${commits} commit${commits === 1 ? '' : 's'}`)
+      say(
+        round === 0 ? 'Implementer' : `fix round ${round}`,
+        `finished, ${commits} commit${commits === 1 ? '' : 's'}`,
+      )
       const parkSignal = lastTag(agent.stdout, 'park')
       if (parkSignal) {
-        return await parkHere(`the ${step} parked it: ${parkSignal}`, { sandbox, commits })
+        return await parkHere(`${who} parked it: ${parkSignal}`, {
+          sandbox,
+          commits,
+          review,
+          replays,
+        })
       }
 
-      const checks = await hostChecks(sandbox, logDir)
+      // Each round's checks keep their own logs: the first in checks/, then fix-round-n/checks/.
+      const checks = await hostChecks(
+        sandbox,
+        round === 0 ? logDir : join(logDir, `fix-round-${round}`),
+      )
       say('host checks', checks.passed ? 'all passed' : `failed: ${checks.failed.join(', ')}`)
 
       const read = await readableReview(
@@ -141,7 +158,12 @@ export async function workTicket(
         say,
       )
       if (!read) {
-        return await parkHere("the Reviewer's answer couldn't be read, twice", { sandbox, commits })
+        return await parkHere("the Reviewer's answer couldn't be read, twice", {
+          sandbox,
+          commits,
+          review,
+          replays,
+        })
       }
       review = read
       replays = await replayAll(sandbox, review)
@@ -160,14 +182,14 @@ export async function workTicket(
           { sandbox, commits, review, replays },
         )
       }
-      const fix: Step = round === 0 ? 'fix-round-1' : 'fix-round-2'
+      const fix = `fix-round-${round + 1}` as Step
       const failure: GateFailure = {
         reasons: gate,
         hostChecks: checks.summary,
         rows: reviewRows(review, replays),
         findings: findingLines(review),
       }
-      const prompt = fixRoundPrompt(round + 1, working, failure, settings[fix].model)
+      const prompt = fixRoundPrompt(round + 1, FIX_ROUNDS, working, failure, settings[fix].model)
       // The Implementer's own session goes on, on this round's model. Without one captured, the
       // round starts afresh, told the ticket as well.
       agent = await sandbox.runAgent(
@@ -180,6 +202,7 @@ export async function workTicket(
             ),
       )
     }
+    if (!review || !replays) throw new Error('The push gate passed with no review.')
     say('push gate', 'passed')
 
     if ((await forge.push(sandbox.worktreePath, ticket.branch)) === 'workflows refused') {

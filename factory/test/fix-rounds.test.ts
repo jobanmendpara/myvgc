@@ -1,6 +1,8 @@
 // Tests fix rounds: when the push gate fails, the Implementer's own session is resumed on rising
 // models before the ticket parks, and per-Run flags override a step's model. Through
 // `pnpm factory <spec> --only DEV-M` with fake ports (test/harness.ts).
+import { existsSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, expect, test } from 'vitest'
 import type { AgentStep } from '../src/ports.ts'
 import {
@@ -151,6 +153,55 @@ describe('fix rounds', () => {
     expect(parked(result.events)).toBe(true)
     expect(stepNamed(result.events, 'fix-round-2')).toEqual([])
     expect(result.output).toContain('AC-1.2 needs a decision from the maintainer.')
+  })
+})
+
+describe('fix rounds, more closely', () => {
+  test('push nothing before round 1 starts', async () => {
+    const { events } = await workDev2({ reviewer: [FAILED, PASSED] })
+    const round1 = events.findIndex(
+      (event) =>
+        event.method === 'runAgent' && 'step' in event && event.step.name === 'fix-round-1',
+    )
+    expect(round1).toBeGreaterThan(0)
+    expect(events.slice(0, round1).filter(isForge('push'))).toEqual([])
+  })
+
+  test('tell round 2 what failed after round 1', async () => {
+    const result = await workDev2({ reviewer: [FAILED, FAILED, PASSED] })
+    const [round2] = stepNamed(result.events, 'fix-round-2')
+    expect(round2?.prompt).toContain('Fix round 2 of 2.')
+    expect(round2?.prompt).toContain('- hard, src/a.ts: AC-1.2 refuses with the wrong exit code.')
+    expect(round2?.prompt).toContain('| AC-1.1 | test/AC-1.1.test.ts › AC-1.1 | confirmed |')
+  })
+
+  test("keep each round's host check logs", async () => {
+    const result = await workDev2({ reviewer: [FAILED, FAILED, PASSED] })
+    const ticketLog = join(result.repoDir, '.factory', 'runs', RUN_ID, 'DEV-2')
+    for (const folder of ['', 'fix-round-1', 'fix-round-2']) {
+      expect(existsSync(join(ticketLog, folder, 'checks', 'results.md'))).toBe(true)
+    }
+  })
+
+  test('start a round afresh, told the ticket, when no session was captured', async () => {
+    const { events } = await workDev2({ reviewer: [FAILED, PASSED], noSession: true })
+    const [round1] = stepNamed(events, 'fix-round-1')
+    expect(round1?.resumeSession).toBeUndefined()
+    expect(round1?.prompt).toContain(TICKET.description)
+    expect(round1?.prompt).toContain('Fix round 1 of 2.')
+  })
+
+  test('report the last review when a fix round parks the ticket', async () => {
+    const result = await workDev2({
+      reviewer: FAILED,
+      fixRounds: ['<park>AC-1.2 needs a decision from the maintainer.</park>'],
+    })
+    const comments = result.events.flatMap((event) =>
+      event.port === 'tracker' && event.method === 'comment' ? [String(event.args[1])] : [],
+    )
+    const park = comments.at(-1) ?? ''
+    expect(park).toContain('fix round 1 parked it')
+    expect(park).toContain('Last verdict: **fail**')
   })
 })
 

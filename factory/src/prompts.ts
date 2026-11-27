@@ -96,11 +96,12 @@ export interface GateFailure {
 /** The prompt that resumes the Implementer's session for a fix round. */
 export function fixRoundPrompt(
   round: number,
+  rounds: number,
   brief: TicketBrief,
   failure: GateFailure,
   model: string,
 ): string {
-  return `Fix round ${round} of 2. The push gate failed, so nothing was pushed: ${failure.reasons.join('; ')}.
+  return `Fix round ${round} of ${rounds}. The push gate failed, so nothing was pushed: ${failure.reasons.join('; ')}.
 
 The host checks:
 ${failure.hostChecks}

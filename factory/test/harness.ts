@@ -102,6 +102,8 @@ export interface Script {
   implementer?: string
   /** What each fix round prints, round by round. */
   fixRounds?: string[]
+  /** Whether Sandcastle captures no session for the Implementer. */
+  noSession?: boolean
   /** The ticket's Linear comments, oldest first. */
   comments?: Comment[]
   /** Whether GitHub turns down the push for changing workflow files. */
@@ -372,7 +374,10 @@ function fakeSandbox(script: Script, events: Event[]): Sandbox {
         const answer = script.fixRounds?.[Number(step.name.slice('fix-round-'.length)) - 1]
         return { stdout: answer ?? 'Fixed.', sessionId: step.resumeSession }
       }
-      return { stdout: script.implementer ?? 'Implemented.', sessionId: 'implementer-session' }
+      return {
+        stdout: script.implementer ?? 'Implemented.',
+        sessionId: script.noSession ? undefined : 'implementer-session',
+      }
     },
     async close() {
       events.push({ port: 'sandbox', method: 'close' })
