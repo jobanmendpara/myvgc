@@ -32,3 +32,5 @@ export {
   type WriteTeamsheetInput,
   type WriteTeamsheetResult,
 } from './teamsheet-writer'
+// PROTOTYPE (DEV-264), throwaway.
+export { prototypePokedex, type PrototypePokedex } from './prototype-pokedex'
