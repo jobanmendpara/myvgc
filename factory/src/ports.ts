@@ -1,7 +1,19 @@
 // The factory's ports: the outside world the Run engine talks to. Tests pass fakes; src/cli.ts
-// passes the real adapters. Each later ticket of DEV-269 adds the port it needs (a Clock that can
-// sleep, a Run store), so none is declared before something uses it. Telling the
-// time is FactoryPorts' `now`.
+// passes the real adapters. Each later ticket of DEV-269 adds the port it needs, so none is
+// declared before something uses it. The Run store is the run folder itself (src/runlog.ts), on a
+// temporary folder in tests.
+
+/** Telling the time and waiting, so a usage-limit pause and a token's expiry are testable. */
+export interface Clock {
+  now(): Date
+  sleep(milliseconds: number): Promise<void>
+}
+
+/** An installation token of the GitHub App, which GitHub gives for an hour. */
+export interface InstallationToken {
+  token: string
+  expiresAt: Date
+}
 
 /** The GitHub App the factory pushes and opens PRs as (DEV-271). */
 export interface GitHubApp {
@@ -107,10 +119,7 @@ export interface Tracker {
 
 /** GitHub, as the `myvgc-factory` App. Only the host talks to it: sandboxes have no credentials. */
 export interface Forge {
-  /**
-   * The App's bot user, who factory commits are by. Asking mints the installation token, so a Run
-   * asks first, before it claims anything, and a broken App key stops it there.
-   */
+  /** The App's bot user, who factory commits are by. */
   botIdentity(): Promise<GitIdentity>
   /**
    * Pushes the branch checked out in the worktree at `cwd`. GitHub turns down a push that changes
@@ -208,11 +217,25 @@ export interface Sandbox {
   ): Promise<ExecResult>
   /**
    * Runs an agent and returns what it printed, and its session when one was captured: its ID and
-   * the text of its JSONL, which the Run saves and costs.
+   * the text of its JSONL, which the Run saves and costs. An agent that didn't finish is returned
+   * with `stopped`, not thrown, with its session when the mounted session folder holds it.
    */
-  runAgent(step: AgentStep): Promise<{ stdout: string; sessionId?: string; session?: string }>
+  runAgent(step: AgentStep): Promise<AgentResult>
   close(): Promise<void>
 }
+
+export interface AgentResult {
+  stdout: string
+  sessionId?: string
+  session?: string
+  /**
+   * Why the agent didn't finish: Sandcastle's idle timeout killed it, or it reported an error, such
+   * as a 429 when the subscription's usage limit is reached (the message says so, and when it resets).
+   */
+  stopped?: AgentStop
+}
+
+export type AgentStop = { kind: 'idle timeout' } | { kind: 'error'; message: string }
 
 export interface Sandboxes {
   /**
@@ -220,11 +243,14 @@ export interface Sandboxes {
    * pushed before, as a parked ticket's is, continues from its pushed state, with any commits the
    * maintainer added; a new one forks `base`. `env` is the only credential its agents get: the Claude one.
    * Commits made in it are by `author`, set for the sandbox alone, never in the shared git config.
+   * `sessions`, a folder in the Run's folder, is mounted as the agents' Claude session folder, so a
+   * crash or a closed sandbox never loses a session, and a later sandbox can resume one.
    */
   create(options: {
     branch: string
     base: string
     env: Record<string, string>
     author: GitIdentity
+    sessions: string
   }): Promise<Sandbox>
 }

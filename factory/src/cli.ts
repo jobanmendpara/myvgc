@@ -6,9 +6,10 @@
 import { spawn } from 'node:child_process'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+import { setTimeout as sleep } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
 import { factory } from './factory.ts'
-import { githubForge } from './github.ts'
+import { githubForge, mintInstallationToken } from './github.ts'
 import { linearTracker } from './linear.ts'
 import { crashNotification, macNotifier } from './notify.ts'
 import { sandcastleSandboxes } from './sandcastle.ts'
@@ -36,12 +37,29 @@ try {
     repoDir,
     configDir: join(homedir(), '.config', 'myvgc-factory'),
     tracker: linearTracker,
-    forge: (app) => githubForge(app, repoDir),
+    forge: (app, token) => githubForge(app, repoDir, token),
+    mintToken: mintInstallationToken,
     sandboxes: sandcastleSandboxes(repoDir),
     notifier: macNotifier,
-    now: () => new Date(),
+    clock: {
+      now: () => new Date(),
+      sleep: async (milliseconds) => void (await sleep(milliseconds)),
+    },
+    pid: process.pid,
+    isAlive,
     print: (line) => console.log(line),
   })
 } catch (error) {
   await crash(error)
+}
+
+/** Whether a process is running: signal 0 checks without sending anything. */
+function isAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch (error) {
+    // EPERM: it runs, as another user.
+    return (error as NodeJS.ErrnoException).code === 'EPERM'
+  }
 }

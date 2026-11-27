@@ -9,6 +9,7 @@ import { afterEach, expect } from 'vitest'
 import { factory } from '../src/factory.ts'
 import type {
   AgentStep,
+  AgentStop,
   Comment,
   ExecResult,
   Forge,
@@ -136,6 +137,19 @@ export interface Script {
   trackerThrows?: string
   /** The files the Reviewer's `pnpm screenshots` left in the sandbox, by path; none by default. */
   screenshots?: Record<string, Buffer>
+  /**
+   * How agent steps stop short, by step name: each run of that step takes the next entry, and
+   * `null` (or none left) means it finishes. A stopped step prints nothing.
+   */
+  stops?: Record<string, (AgentStop | null)[]>
+  /** How many minutes each run of an agent step takes on the clock, by step name. */
+  minutes?: Record<string, number>
+  /**
+   * Where the host dies: the first time the Run reaches this agent step (by name), host command,
+   * Tracker or Forge method, it never comes back. The test carries on as the maintainer would,
+   * with again().
+   */
+  crashAt?: string
 }
 
 /** A PNG file's bytes: its signature, then `text`, so each fake screenshot is told apart. */
@@ -310,6 +324,8 @@ export type Event =
       args: unknown[]
       /** For waitForChecks: the branch of the PR it waits on. */
       branch?: string
+      /** The installation token the call was made with. */
+      token?: string
     }
   | { port: 'sandboxes'; method: 'create'; options: Parameters<Sandboxes['create']>[0] }
   | {
@@ -323,13 +339,28 @@ export type Event =
       /** The ticket's branch the sandbox was made on. */
       branch: string
     }
-  | { port: 'sandbox'; method: 'runAgent'; step: AgentStep; branch: string }
+  | {
+      port: 'sandbox'
+      method: 'runAgent'
+      step: AgentStep
+      branch: string
+      /** When it started. */
+      at: Date
+    }
   | { port: 'sandbox'; method: 'close'; branch: string }
   | { port: 'notifier'; method: 'notify'; notification: Notification }
+  | { port: 'clock'; method: 'sleep'; ms: number; at: Date }
+  | { port: 'github'; method: 'mintToken'; token: string; at: Date }
 
 export const WORKTREE = '/host/repo/.sandcastle/worktrees/ticket'
 export const NOW = new Date(2026, 10, 27, 14, 5)
 export const RUN_ID = `2026-11-27-1405-${SPEC}`
+
+/** How long the fake GitHub's installation tokens last: an hour, as GitHub's do. */
+export const TOKEN_LIFETIME_MS = 60 * 60_000
+
+/** The host process of the first Run; each again() is a new process, one higher. */
+export const FIRST_PID = 1000
 
 /**
  * A step a test holds open: the first port call `match` picks waits, once it is made, until the
@@ -373,30 +404,61 @@ export async function run(args: string[], issues: Issue[], options: Options = {}
   return start(args, issues, options).done()
 }
 
+/** What a later command in the same checkout changes: by default the same arguments and tickets. */
+export interface Again {
+  args?: string[]
+  tickets?: Ticket[]
+  script?: Script
+  /** Whether the earlier Run's host process is still alive; it died by default. */
+  earlierAlive?: boolean
+}
+
+/** The checkout and Linear a later command finds, after an earlier one's host died. */
+interface Earlier {
+  repoDir: string
+  configDir: string
+  /** The comments the factory wrote to Linear, which Linear keeps. */
+  comments: Comment[]
+  pid: number
+  /** Where the clock had got to. */
+  time: number
+  earlierAlive: boolean
+}
+
 /**
  * Starts factory() the way run() does, without waiting for it: `events` and `lines` grow as it
  * goes, and `settle()` waits until it can go no further without a held step. `done()` settles it
  * and gives what run() returns, failing when the Run stalled, as a deadlock would, rather than
  * waiting on it for ever.
  */
-export function start(
-  args: string[],
-  issues: Issue[],
-  { layout = {}, tickets = [], script = {}, holds = [] }: Options = {},
-) {
-  const { appKey, config, sandcastleEnv } = { ...COMPLETE, ...layout }
-  const root = mkdtempSync(join(tmpdir(), 'factory-'))
-  folders.push(root)
-  const repoDir = join(root, 'repo')
-  const configDir = join(root, 'config')
-  mkdirSync(join(repoDir, '.sandcastle'), { recursive: true })
-  mkdirSync(configDir)
-  if (appKey) writeFileSync(join(configDir, 'app.pem'), '-----BEGIN RSA PRIVATE KEY-----\n')
-  if (Object.keys(config).length > 0) writeFileSync(join(configDir, 'config.env'), envFile(config))
-  if (sandcastleEnv) writeFileSync(join(repoDir, '.sandcastle', '.env'), envFile(sandcastleEnv))
-  writeWorkspace(repoDir)
+export function start(args: string[], issues: Issue[], options: Options = {}, earlier?: Earlier) {
+  const { layout = {}, tickets = [], script = {}, holds = [] } = options
+  const { repoDir, configDir } = earlier ?? layOut(layout)
+  const comments = earlier?.comments ?? []
+  const pid = earlier ? earlier.pid + 1 : FIRST_PID
+  const isAlive = (other: number) =>
+    other === pid || (earlier?.earlierAlive === true && other === earlier.pid)
 
   const events: Event[] = []
+  // A second passes between one reading of the clock and the next, so the Run's times differ.
+  // Sleeping, and an agent step's scripted minutes, move it on further. A later command comes an
+  // hour after the host died.
+  let time = earlier ? earlier.time + 60 * 60_000 : NOW.getTime()
+  const clock = {
+    now: () => new Date((time += 1000) - 1000),
+    async sleep(ms: number) {
+      events.push({ port: 'clock', method: 'sleep', ms, at: new Date(time) })
+      time += ms
+    },
+  }
+  // Where the host dies: that call, and any call after it, never returns, so no ticket's turn goes
+  // any further.
+  let crashed = false
+  const dies = async (at: string) => {
+    if (!crashed && script.crashAt !== at) return
+    crashed = true
+    await new Promise(() => {})
+  }
   /** Records a port call, and holds it open when a hold picks it. */
   const note = async (event: Event) => {
     events.push(event)
@@ -424,9 +486,14 @@ export function start(
       async (...callArgs: unknown[]) => {
         await note({ port: 'tracker', method, args: callArgs })
         if (method === script.trackerThrows) throw new Error(`Linear answered 500 to ${method}`)
+        // Linear keeps what the factory wrote, so a later command in the checkout reads it.
+        if (method === 'comment') {
+          comments.push({ body: String(callArgs[1]), createdAt: new Date(time).toISOString() })
+        }
+        await dies(method)
         if (method === 'getIssue') return issues.find((issue) => issue.id === callArgs[0]) ?? null
         if (method === 'getSubIssues') return callArgs[0] === SPEC ? subIssues() : []
-        if (method === 'getComments') return script.comments ?? []
+        if (method === 'getComments') return [...(script.comments ?? []), ...comments]
         if (method === 'createIssue') {
           return { id: 'DEV-900', url: 'https://linear.app/mendpara/issue/DEV-900' }
         }
@@ -453,7 +520,20 @@ export function start(
   let nextPr = 41
   // One PR per branch, as on GitHub: opening it again brings the open one up to date.
   const prs = new Map<string, number>()
+  let minted = 0
+  const mintToken = async () => {
+    const token = `token-${pid}-${++minted}`
+    events.push({ port: 'github', method: 'mintToken', token, at: new Date(time) })
+    return { token, expiresAt: new Date(time + TOKEN_LIFETIME_MS) }
+  }
+  let token: () => Promise<string> = async () => ''
+  /** Records a GitHub call with the token the Forge asked for just before making it. */
+  const call = async (event: Extract<Event, { port: 'forge' }>) => {
+    await note({ ...event, token: await token() })
+    await dies(event.method)
+  }
   const forge: Forge = {
+    // Asked with the App's own JWT, as the real one is, so it needs no installation token.
     async botIdentity() {
       await note({ port: 'forge', method: 'botIdentity', args: [] })
       return {
@@ -462,7 +542,7 @@ export function start(
       }
     },
     async push(cwd, branch, options) {
-      await note({
+      await call({
         port: 'forge',
         method: 'push',
         args: options ? [cwd, branch, options] : [cwd, branch],
@@ -470,13 +550,13 @@ export function start(
       return script.workflowsRefused ? 'workflows refused' : 'pushed'
     },
     async openPr(pr) {
-      await note({ port: 'forge', method: 'openPr', args: [pr] })
+      await call({ port: 'forge', method: 'openPr', args: [pr] })
       const number = prs.get(pr.branch) ?? (nextPr += 1)
       prs.set(pr.branch, number)
       return { number, url: `https://github.com/o/r/pull/${number}` }
     },
     async failedCheckLogs(pr) {
-      await note({ port: 'forge', method: 'failedCheckLogs', args: [pr] })
+      await call({ port: 'forge', method: 'failedCheckLogs', args: [pr] })
       return (
         script.ciLog ?? 'check: FAIL test/a.test.ts > refuses\nAssertionError: expected 1 to be 2'
       )
@@ -485,19 +565,19 @@ export function start(
       return 'jobanmendpara'
     },
     async commentOnPr(pr, body) {
-      await note({ port: 'forge', method: 'commentOnPr', args: [pr, body] })
+      await call({ port: 'forge', method: 'commentOnPr', args: [pr, body] })
     },
     async queueAutoMerge(pr) {
-      await note({ port: 'forge', method: 'queueAutoMerge', args: [pr] })
+      await call({ port: 'forge', method: 'queueAutoMerge', args: [pr] })
     },
     async waitForChecks(pr) {
       const branch = [...prs].find(([, number]) => number === pr)?.[0]
-      await note({ port: 'forge', method: 'waitForChecks', args: [pr], branch })
+      await call({ port: 'forge', method: 'waitForChecks', args: [pr], branch })
       const own = waitsOf.get(tickets.find((each) => each.branch === branch)?.id ?? '')
       return (own ? own.shift() : waits.shift()) ?? 0
     },
     async pushFiles(branch, files) {
-      await note({ port: 'forge', method: 'pushFiles', args: [branch, files] })
+      await call({ port: 'forge', method: 'pushFiles', args: [branch, files] })
       return files.map(({ path }) => `https://raw.githubusercontent.com/o/r/${branch}/${path}`)
     },
   }
@@ -505,51 +585,67 @@ export function start(
   const sandboxes: Sandboxes = {
     async create(options) {
       await note({ port: 'sandboxes', method: 'create', options })
-      return fakeSandbox(script, note, options.branch)
+      return fakeSandbox(script, note, options.branch, {
+        dies,
+        advance: (minutes) => {
+          time += minutes * 60_000
+        },
+        time: () => new Date(time),
+      })
     },
   }
 
   const lines: string[] = []
-  // A second passes between one reading of the clock and the next, so the Run's times differ.
-  let ticks = 0
   // What factory() threw, if it did: a test of a crash still reads what it printed and wrote.
   let thrown: unknown
   const finished = factory(args, {
     repoDir,
     configDir,
     tracker: () => tracker,
-    forge: () => forge,
+    mintToken,
+    forge: (_, current) => {
+      token = current
+      return forge
+    },
     sandboxes,
     notifier: {
       async notify(notification) {
         await note({ port: 'notifier', method: 'notify', notification })
       },
     },
-    now: () => new Date(NOW.getTime() + 1000 * ticks++),
+    clock,
+    pid,
+    isAlive,
     print: (line) => lines.push(line),
   })
     .catch((error: unknown) => {
       thrown = error
       return null
     })
-    .then((code) => {
-      const trackerCalls = events
-        .filter((event) => event.port === 'tracker')
-        .map((event) => `${event.method} ${event.args.join(' ')}`)
-      return {
-        code,
-        thrown,
-        output: lines.join('\n'),
-        lines,
-        events,
-        trackerCalls,
-        notifications: events.flatMap((event) =>
-          event.port === 'notifier' ? [event.notification] : [],
-        ),
-        repoDir,
-        runDir: join(repoDir, '.factory', 'runs', RUN_ID),
-      }
-    })
+    .then((code) => result(code))
+  const result = (code: number | null): Result => ({
+    code,
+    thrown,
+    crashed,
+    output: lines.join('\n'),
+    lines,
+    events,
+    trackerCalls: events
+      .filter((event) => event.port === 'tracker')
+      .map((event) => `${event.method} ${event.args.join(' ')}`),
+    notifications: events.flatMap((event) =>
+      event.port === 'notifier' ? [event.notification] : [],
+    ),
+    repoDir,
+    runDir: join(repoDir, '.factory', 'runs', RUN_ID),
+    again: (next: Again = {}) =>
+      start(
+        next.args ?? args,
+        issues,
+        { ...options, tickets: next.tickets ?? tickets, script: next.script ?? {}, holds: [] },
+        { repoDir, configDir, comments, pid, time, earlierAlive: next.earlierAlive ?? false },
+      ).done(),
+  })
   /** Waits until the Run can go no further: it has finished, or only held steps keep it going. */
   const settle = async () => {
     let seen = -1
@@ -562,12 +658,51 @@ export function start(
   }
   let ended = false
   void finished.then(() => (ended = true))
-  const done = async () => {
+  const done = async (): Promise<Result> => {
     await settle()
+    // A host that died never ends its Run: what it did so far is the result.
+    if (crashed && !ended) return result(null)
     expect(ended, 'the Run stalled: it has nothing left to do, yet it has not ended').toBe(true)
     return finished
   }
   return { events, lines, finished, settle, done, ended: () => ended }
+}
+
+export interface Result {
+  /** The exit code, or null when factory() threw or the host died. */
+  code: number | null
+  thrown: unknown
+  /** Whether the host died where the script said, leaving the Run unfinished. */
+  crashed: boolean
+  output: string
+  lines: string[]
+  events: Event[]
+  trackerCalls: string[]
+  /** What the maintainer was told, in order. */
+  notifications: Notification[]
+  repoDir: string
+  runDir: string
+  /**
+   * Runs the factory again in the same checkout, as a new host process, as the maintainer does
+   * after the host died.
+   */
+  again: (next?: Again) => Promise<Result>
+}
+
+/** Makes the checkout and the maintainer's config folder, with what `layout` says they hold. */
+function layOut(layout: Layout): { repoDir: string; configDir: string } {
+  const { appKey, config, sandcastleEnv } = { ...COMPLETE, ...layout }
+  const root = mkdtempSync(join(tmpdir(), 'factory-'))
+  folders.push(root)
+  const repoDir = join(root, 'repo')
+  const configDir = join(root, 'config')
+  mkdirSync(join(repoDir, '.sandcastle'), { recursive: true })
+  mkdirSync(configDir)
+  if (appKey) writeFileSync(join(configDir, 'app.pem'), '-----BEGIN RSA PRIVATE KEY-----\n')
+  if (Object.keys(config).length > 0) writeFileSync(join(configDir, 'config.env'), envFile(config))
+  if (sandcastleEnv) writeFileSync(join(repoDir, '.sandcastle', '.env'), envFile(sandcastleEnv))
+  writeWorkspace(repoDir)
+  return { repoDir, configDir }
 }
 
 /** A small workspace: @myvgc/api depends on @myvgc/core. */
@@ -586,6 +721,11 @@ function fakeSandbox(
   script: Script,
   note: (event: Event) => Promise<void>,
   branch: string,
+  host: {
+    dies: (at: string) => Promise<void>
+    advance: (minutes: number) => void
+    time: () => Date
+  },
 ): Sandbox {
   /** The criterion whose sabotage is applied, if any. */
   let sabotaged: string | null = null
@@ -608,6 +748,10 @@ function fakeSandbox(
         checkout,
         branch,
       })
+      await host.dies(command)
+      if (command === 'git status --porcelain') {
+        return ok(script.stops ? ' M src/a.ts\n' : '')
+      }
       if (command.includes('pnpm install')) return exit(script.install ?? 0)
       // Sandcastle's exec returns text, so a screenshot comes out base64-encoded.
       const shot = /^base64 -w 0 -- '([^']+)'$/.exec(command)?.[1]
@@ -672,19 +816,29 @@ function fakeSandbox(
       return ok()
     },
     async runAgent(step) {
-      await note({ port: 'sandbox', method: 'runAgent', step, branch })
-      const answer = answerOf(step)
+      await note({ port: 'sandbox', method: 'runAgent', step, branch, at: host.time() })
+      await host.dies(step.name)
+      host.advance(script.minutes?.[step.name] ?? 0)
+      const runs = sessionRuns[step.name] ?? 0
+      sessionRuns[step.name] = runs + 1
+      const stopped = script.stops?.[step.name]?.[runs] ?? undefined
+      const answer = answerOf(step, stopped !== undefined)
       const sessions = [script.sessions?.[step.name] ?? []].flat()
-      const text = sessions[Math.min(sessionRuns[step.name] ?? 0, sessions.length - 1)]
-      sessionRuns[step.name] = (sessionRuns[step.name] ?? 0) + 1
-      return text === undefined ? answer : { ...answer, session: text }
+      const text = sessions[Math.min(runs, sessions.length - 1)]
+      return {
+        ...answer,
+        ...(text === undefined ? {} : { session: text }),
+        ...(stopped ? { stdout: '', stopped } : {}),
+      }
     },
     async close() {
       await note({ port: 'sandbox', method: 'close', branch })
     },
   }
-  function answerOf(step: AgentStep): { stdout: string; sessionId?: string } {
+  function answerOf(step: AgentStep, stopped: boolean): { stdout: string; sessionId?: string } {
     if (step.name === 'reviewer') {
+      // A stopped Reviewer gave no answer: the next one still gets the next scripted answer.
+      if (stopped) return { stdout: '', sessionId: step.resumeSession ?? 'reviewer-session' }
       // A list gives each Reviewer its own answer, the last one repeating.
       const answers = [script.reviewer ?? review()].flat()
       const answer = answers[Math.min(reviewers++, answers.length - 1)] ?? review()
@@ -693,6 +847,10 @@ function fakeSandbox(
     if (step.name.startsWith('fix-round-')) {
       const answer = script.fixRounds?.[Number(step.name.slice('fix-round-'.length)) - 1]
       return { stdout: answer ?? 'Fixed.', sessionId: step.resumeSession }
+    }
+    // A resumed Implementer, as after a usage limit, goes on in the session it was given.
+    if (step.resumeSession) {
+      return { stdout: script.implementer ?? 'Implemented.', sessionId: step.resumeSession }
     }
     return {
       stdout: script.implementer ?? 'Implemented.',

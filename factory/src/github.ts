@@ -1,6 +1,7 @@
 // The real Forge: GitHub as the `myvgc-factory` App (Give factory agents their own GitHub identity,
-// DEV-256). It mints an installation token from the App's key when the Run starts (botIdentity),
-// and passes it to `gh` as GH_TOKEN and to `git push` in an HTTP header, never on a command line.
+// DEV-256). Before every GitHub call it asks the Run for the installation token (src/tokens.ts
+// mints a new one near its expiry), and passes it to `gh` and wait-for-checks.sh as GH_TOKEN and
+// to `git push` in an HTTP header, never on a command line.
 //
 // Sandcastle mounts the repo's git folder into each sandbox, so an agent can write the repo's git
 // config and hooks. Nothing here trusts them: the repo is read once, when the Forge is made, before
@@ -15,14 +16,16 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 import { hostGit } from './hostgit.ts'
-import type { Forge, GitHubApp, GitIdentity } from './ports.ts'
+import type { Forge, GitHubApp, GitIdentity, InstallationToken } from './ports.ts'
 
 const run = promisify(execFile)
 const API = 'https://api.github.com'
 
-export function githubForge(app: GitHubApp, repoDir: string): Forge {
-  let token: Promise<string> | undefined
-  const installationToken = () => (token ??= mintInstallationToken(app))
+export function githubForge(
+  app: GitHubApp,
+  repoDir: string,
+  installationToken: () => Promise<string>,
+): Forge {
   const repo = repoOf(
     execFileSync('git', ['remote', 'get-url', 'origin'], { cwd: repoDir, encoding: 'utf8' }),
   )
@@ -66,7 +69,6 @@ export function githubForge(app: GitHubApp, repoDir: string): Forge {
   let identity: Promise<GitIdentity> | undefined
   const botIdentity = () =>
     (identity ??= (async () => {
-      await installationToken()
       const { slug } = await githubApi<{ slug: string }>('/app', `Bearer ${appJwt(app)}`)
       const name = `${slug}[bot]`
       const { id } = await githubApi<{ id: number }>(`/users/${encodeURIComponent(name)}`)
@@ -316,13 +318,14 @@ function appJwt(app: GitHubApp): string {
   return `${unsigned}.${signature}`
 }
 
-async function mintInstallationToken(app: GitHubApp): Promise<string> {
-  const { token } = await githubApi<{ token: string }>(
+/** A new installation token, which GitHub gives for an hour, with its expiry. */
+export async function mintInstallationToken(app: GitHubApp): Promise<InstallationToken> {
+  const { token, expires_at } = await githubApi<{ token: string; expires_at: string }>(
     `/app/installations/${app.installationId}/access_tokens`,
     `Bearer ${appJwt(app)}`,
     'POST',
   )
-  return token
+  return { token, expiresAt: new Date(expires_at) }
 }
 
 async function githubApi<T>(path: string, authorization?: string, method = 'GET'): Promise<T> {

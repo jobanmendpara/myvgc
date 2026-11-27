@@ -9,6 +9,12 @@
 // `pnpm accuracy` run before and after it, ahead of each push (DEV-280). A Seen criterion passes
 // the push gate only with screenshots the Reviewer judged matching, which the PR comment shows
 // (DEV-281, src/screenshots.ts).
+//
+// It survives what interrupted the spike (DEV-286): each agent's sessions live in the Run's folder;
+// a usage limit pauses every agent step until it resets, then the step continues its session; an
+// agent the idle timeout killed has its work committed by the host, which carries on to the host
+// checks; and each step that finishes saves a checkpoint, which a Run adopting the ticket after the
+// host died resumes from.
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import {
@@ -21,7 +27,10 @@ import {
 import type { Criterion } from './criteria.ts'
 import { ticketNotification } from './notify.ts'
 import {
+  type AgentResult,
   type AgentStep,
+  type Clock,
+  type Comment,
   type Forge,
   type GitIdentity,
   type Notifier,
@@ -48,7 +57,7 @@ import {
   type ReviewRow,
   type TestedRow,
 } from './review.ts'
-import type { RunLog, TicketLog } from './runlog.ts'
+import type { CheckResults, Checkpoint, RunLog, TicketLog } from './runlog.ts'
 import {
   type CopiedShots,
   copyScreenshots,
@@ -56,7 +65,8 @@ import {
   seenGate,
   seenRows,
 } from './screenshots.ts'
-import type { Settings, Step } from './settings.ts'
+import { modelName, type Settings, type Step } from './settings.ts'
+import { CONTINUE, isUsageLimit, type UsageLimit } from './usage.ts'
 
 /** Longer than any command an agent runs silently (the spike, DEV-251, lesson 6). */
 const IDLE_TIMEOUT_SECONDS = 1800
@@ -84,6 +94,9 @@ export interface RunContext {
   log: RunLog
   tracker: Tracker
   forge: Forge
+  clock: Clock
+  /** The Run-wide pause for the usage limit, which every agent step waits on. */
+  usage: UsageLimit
   sandboxes: Sandboxes
   /** Notifies an exit-5 wait or a park (src/notify.ts). */
   notifier: Notifier
@@ -119,6 +132,8 @@ interface Turn {
   /** Prints one line for a finished step and adds it to the run log. */
   say: (step: string, result: string) => void
   log: TicketLog
+  /** Runs an agent step in a sandbox, waiting out the usage limit. */
+  agent: (sandbox: Sandbox, step: AgentStep) => Promise<AgentResult>
 }
 
 /** Every comment the factory writes starts with this (DEV-259). */
@@ -128,25 +143,58 @@ const PARKED = `${FACTORY}: Parked`
 
 /**
  * Works one ticket to a merged PR, or parks it. `unstartable` says why it can't start at all, such
- * as a criterion the spec lacks: it is parked before any agent runs.
+ * as a criterion the spec lacks: it is parked before any agent runs. `resume` is the last step a
+ * Run whose host died finished: the ticket carries on from there, claimed already.
  */
 export async function workTicket(
   context: RunContext,
   brief: TicketBrief,
   unstartable?: string,
+  resume?: Checkpoint,
 ): Promise<TicketOutcome> {
   const { ticket } = brief
   const log = context.log.ticket(ticket)
-  const turn: Turn = {
-    say: (step, result) => {
-      context.print(`${ticket.id} ${ticket.title} · ${step}: ${result}`)
-      log.step(step, result)
-    },
-    log,
+  const say = (step: string, result: string) => {
+    context.print(`${ticket.id} ${ticket.title} · ${step}: ${result}`)
+    log.step(step, result)
   }
-  const outcome = await turnOf(context, brief, turn, unstartable)
+  const turn: Turn = {
+    say,
+    log,
+    agent: (sandbox, step) => runAgent(context, ticket, { say, log }, sandbox, step),
+  }
+  const outcome = await turnOf(context, brief, turn, unstartable, resume)
   log.outcome(outcome)
   return outcome
+}
+
+/**
+ * Runs an agent step once no usage-limit pause holds. A step the limit stopped pauses every agent
+ * step of the Run until the limit resets, then continues its own session with "continue"; one that
+ * captured no session runs again from its prompt. Any other error stops the ticket's turn.
+ */
+async function runAgent(
+  context: RunContext,
+  ticket: Ticket,
+  { say, log }: Pick<Turn, 'say' | 'log'>,
+  sandbox: Sandbox,
+  step: AgentStep,
+): Promise<AgentResult> {
+  let current = step
+  for (;;) {
+    await context.usage.wait()
+    const attempt = current
+    const result = await log.agent(attempt, () => sandbox.runAgent(attempt))
+    const stopped = result.stopped
+    const session = result.sessionId ?? attempt.resumeSession
+    if (stopped?.kind !== 'error') return { ...result, sessionId: session }
+    if (!isUsageLimit(stopped.message)) {
+      throw new Error(`The agent step ${step.name} failed: ${stopped.message}`)
+    }
+    const until = context.usage.pause(ticket.id, step.name, stopped.message)
+    say(step.name, `the usage limit was reached, so agent steps wait until ${until.toISOString()}`)
+    current = session ? { ...step, prompt: CONTINUE, resumeSession: session } : step
+  }
 }
 
 async function turnOf(
@@ -154,19 +202,28 @@ async function turnOf(
   brief: TicketBrief,
   turn: Turn,
   unstartable?: string,
+  resume?: Checkpoint,
 ): Promise<TicketOutcome> {
   const { tracker, forge, settings } = context
   const { ticket } = brief
   const { say, log } = turn
   const logDir = join(context.runDir, ticket.id)
   if (unstartable) return park(context, brief, turn, unstartable)
-  const previousPark = await previousParkOf(tracker, ticket.id)
+  const comments = await tracker.getComments(ticket.id)
+  const previousPark = previousParkOf(comments)
   const working: TicketBrief = previousPark ? { ...brief, previousPark } : brief
   const parkHere = (reason: string, work?: Work) => park(context, working, turn, reason, work)
 
-  await tracker.setStatus(ticket.id, 'In Progress')
-  await tracker.comment(ticket.id, `${FACTORY}: Claimed by factory Run \`${context.runId}\`.`)
-  say('claim', 'In Progress')
+  const claim = `${FACTORY}: Claimed by factory Run \`${context.runId}\`.`
+  if (resume) say('adopt', `after the host died, from ${resume.step}`)
+  // Saved before the claim, so a host that dies in the middle of it leaves a ticket the next Run
+  // adopts. That Run claims it only when the claim comment didn't get made: never twice.
+  else log.checkpoint({ step: 'claimed' })
+  if (!resume || !comments.some((comment) => comment.body === claim)) {
+    await tracker.setStatus(ticket.id, 'In Progress')
+    await tracker.comment(ticket.id, claim)
+    say('claim', 'In Progress')
+  }
 
   const open = new Set<Sandbox>()
   const newSandbox = async () => {
@@ -175,6 +232,8 @@ async function turnOf(
       base: 'origin/main',
       env: context.sandboxEnv,
       author: context.author,
+      // Outside every sandbox, so a crash or a closed sandbox never loses a session.
+      sessions: join(logDir, 'sessions'),
     })
     open.add(sandbox)
     return sandbox
@@ -199,16 +258,14 @@ async function turnOf(
     return sandbox
   }
 
-  // What the ticket's work has come to so far, across sandboxes and pushes.
-  let round = 0
-  let session: string | undefined
+  // What the ticket's work has come to so far, across sandboxes and pushes, and Runs.
+  const resumed = resumedFrom(resume)
+  let { round, session, pr } = resumed
   // The last review, kept so a park in a later round still reports it.
-  let review: Review | undefined
-  let replays: Map<string, boolean> | undefined
+  let { review, replays } = resumed
   // The last review's Seen screenshots, as the host copied them to the run log.
   let shots = new Map<string, CopiedShots>()
   let commits = 0
-  let pr: { number: number; url: string } | undefined
   /** The work as it stands, for a park; `sandbox` when the branch's last commits aren't pushed. */
   const work = (sandbox?: Sandbox, more: Partial<Work> = {}): Work => ({
     sandbox,
@@ -222,11 +279,10 @@ async function turnOf(
   const fixRound = (sandbox: Sandbox, promptFor: (round: number, model: string) => string) => {
     round += 1
     log.fixRound(round)
-    const fix = `fix-round-${round}` as Step
+    const fix = fixStep(round)
     const prompt = promptFor(round, settings[fix].model)
     // Without a session captured, the round starts afresh, told the ticket as well.
-    return loggedAgent(
-      log,
+    return turn.agent(
       sandbox,
       session
         ? { ...agentStep(settings, fix, prompt), resumeSession: session }
@@ -242,36 +298,53 @@ async function turnOf(
    * From the agent's last step to a passing push gate: the host checks, a fresh Reviewer and the
    * replays, then a fix round while the gate fails and rounds are left. Parks it otherwise.
    */
-  const untilGatePasses = async (
-    sandbox: Sandbox,
-    agent: { stdout: string },
-  ): Promise<'passed' | 'parked'> => {
+  const untilGatePasses = async (sandbox: Sandbox, start: From): Promise<'passed' | 'parked'> => {
+    let from = start
     for (;;) {
-      const who = round === 0 ? 'the Implementer' : `fix round ${round}`
-      commits = Number((await sandbox.exec('git rev-list --count origin/main..HEAD')).stdout)
-      say(
-        round === 0 ? 'Implementer' : `fix round ${round}`,
-        `finished, ${commits} commit${commits === 1 ? '' : 's'}`,
-      )
-      const parkSignal = lastTag(agent.stdout, 'park')
-      if (parkSignal) return parkHere(`${who} parked it: ${parkSignal}`, work(sandbox))
-
-      // Each round keeps its own logs and screenshots: the first in checks/ and screenshots/, then
-      // in fix-round-n/.
-      const checks = await hostChecks(sandbox, roundDir(logDir, round))
-      say('host checks', checks.passed ? 'all passed' : `failed: ${checks.failed.join(', ')}`)
-
-      const read = await readableReview(
-        sandbox,
-        settings,
-        reviewerPrompt(working, checks.summary),
-        turn,
-        round,
-      )
-      if (!read) {
-        return parkHere("the Reviewer's answer couldn't be read, twice", work(sandbox))
+      const label = round === 0 ? 'Implementer' : `fix round ${round}`
+      const who = round === 0 ? 'the Implementer' : label
+      if (from.kind === 'agent' && from.agent.stopped?.kind === 'idle timeout') {
+        // Its work is in the worktree, uncommitted: keep it, and judge it as it stands.
+        const kept = await commitLeftWork(sandbox, context, ticket, settings[fixStep(round)].model)
+        say(
+          label,
+          kept
+            ? 'stopped by the idle timeout, so the host committed its work'
+            : 'stopped by the idle timeout, with nothing left uncommitted',
+        )
       }
-      review = read
+      commits = Number((await sandbox.exec('git rev-list --count origin/main..HEAD')).stdout)
+      let checks: CheckResults
+      if (from.kind === 'replays') {
+        checks = from.checks
+        review = from.review
+      } else {
+        if (from.kind === 'agent') {
+          say(label, `finished, ${commits} commit${commits === 1 ? '' : 's'}`)
+          const parkSignal = lastTag(from.agent.stdout, 'park')
+          if (parkSignal) return parkHere(`${who} parked it: ${parkSignal}`, work(sandbox))
+          log.checkpoint({ step: 'implemented', round, session: session ?? null })
+        }
+
+        // Each round keeps its own logs and screenshots: the first in checks/ and screenshots/,
+        // then in fix-round-n/.
+        checks = await hostChecks(sandbox, roundDir(logDir, round))
+        say('host checks', checks.passed ? 'all passed' : `failed: ${checks.failed.join(', ')}`)
+
+        const read = await readableReview(
+          sandbox,
+          settings,
+          reviewerPrompt(working, checks.summary),
+          turn,
+          round,
+        )
+        if (!read) {
+          return parkHere("the Reviewer's answer couldn't be read, twice", work(sandbox))
+        }
+        review = read
+        log.checkpoint({ step: 'reviewed', round, session: session ?? null, checks, review })
+      }
+      // Copied again for a review adopted after the host died: they are in the reused worktree.
       shots = await copyScreenshots(sandbox, review, roundDir(logDir, round))
       replays = await replayAll(sandbox, review)
       log.replays(round, replays)
@@ -299,9 +372,12 @@ async function turnOf(
         rows: reviewRows(review, replays),
         findings: findingLines(review),
       }
-      agent = await fixRound(sandbox, (next, model) =>
-        fixRoundPrompt(next, FIX_ROUNDS, working, failure, model),
-      )
+      from = {
+        kind: 'agent',
+        agent: await fixRound(sandbox, (next, model) =>
+          fixRoundPrompt(next, FIX_ROUNDS, working, failure, model),
+        ),
+      }
     }
   }
 
@@ -345,6 +421,14 @@ async function turnOf(
     log.pr(pr.url)
     await forge.commentOnPr(pr.number, reviewComment(review, replays, shots, urls))
     await forge.queueAutoMerge(pr.number)
+    log.checkpoint({
+      step: 'shipped',
+      round,
+      session: session ?? null,
+      pr,
+      review,
+      replays: Object.fromEntries(replays),
+    })
     await tracker.setStatus(ticket.id, 'In Review')
     say('push, PR and auto-merge', pr.url)
     await close(sandbox)
@@ -375,16 +459,28 @@ async function turnOf(
   }
 
   try {
-    const first = await installed()
-    if (!first) return await parkHere(INSTALL_FAILED)
-    const implementer = await loggedAgent(
-      log,
-      first,
-      agentStep(settings, 'implementer', implementerPrompt(working, settings.implementer.model)),
-    )
-    session = implementer.sessionId
-    if ((await untilGatePasses(first, implementer)) === 'parked') return 'parked'
-    if ((await ship(first)) === 'parked') return 'parked'
+    // Shipped already: straight to waiting on its checks.
+    if (resumed.next !== 'wait') {
+      const first = await installed()
+      if (!first) return await parkHere(INSTALL_FAILED, resume ? work() : undefined)
+      let from: From
+      if (resumed.next === 'implement') {
+        const implementer = await turn.agent(
+          first,
+          agentStep(
+            settings,
+            'implementer',
+            implementerPrompt(working, settings.implementer.model),
+          ),
+        )
+        session = implementer.sessionId
+        from = { kind: 'agent', agent: implementer }
+      } else {
+        from = resumed.next
+      }
+      if ((await untilGatePasses(first, from)) === 'parked') return 'parked'
+      if ((await ship(first)) === 'parked') return 'parked'
+    }
 
     for (;;) {
       if (!pr) throw new Error('Waiting on checks with no PR.')
@@ -422,7 +518,7 @@ async function turnOf(
       const agent = await fixRound(sandbox, (next, model) =>
         ciFixRoundPrompt(next, FIX_ROUNDS, working, lastLines(log, CI_LOG_LINES), model),
       )
-      if ((await untilGatePasses(sandbox, agent)) === 'parked') return 'parked'
+      if ((await untilGatePasses(sandbox, { kind: 'agent', agent })) === 'parked') return 'parked'
       if ((await ship(sandbox)) === 'parked') return 'parked'
     }
   } finally {
@@ -431,6 +527,85 @@ async function turnOf(
 }
 
 const INSTALL_FAILED = '`pnpm install` failed in the sandbox: see install.log in the run log'
+
+/**
+ * Where the way to a passing push gate starts: an agent step that just finished, or, for a ticket
+ * adopted after the host died, the host checks after its last agent step, or the replays of its
+ * last review.
+ */
+type From =
+  | { kind: 'agent'; agent: AgentResult }
+  | { kind: 'checks' }
+  | { kind: 'replays'; checks: CheckResults; review: Review }
+
+/** What a ticket's work had come to at its checkpoint, and where its turn goes on from. */
+interface Resumed {
+  round: number
+  /** The Implementer's session. */
+  session?: string
+  review?: Review
+  replays?: Map<string, boolean>
+  pr?: { number: number; url: string }
+  /** The Implementer's step, the way to the push gate, or the wait on a shipped PR's checks. */
+  next: 'implement' | From | 'wait'
+}
+
+function resumedFrom(resume: Checkpoint | undefined): Resumed {
+  if (!resume || resume.step === 'claimed') return { round: 0, next: 'implement' }
+  const { round } = resume
+  const session = resume.session ?? undefined
+  switch (resume.step) {
+    case 'implemented':
+      return { round, session, next: { kind: 'checks' } }
+    case 'reviewed':
+      return {
+        round,
+        session,
+        review: resume.review,
+        next: { kind: 'replays', checks: resume.checks, review: resume.review },
+      }
+    case 'shipped':
+      return {
+        round,
+        session,
+        review: resume.review,
+        replays: new Map(Object.entries(resume.replays)),
+        pr: resume.pr,
+        next: 'wait',
+      }
+  }
+}
+
+/** The agent step of a round: the Implementer's, then each fix round's. */
+const fixStep = (round: number): Step =>
+  round === 0 ? 'implementer' : (`fix-round-${round}` as Step)
+
+/**
+ * Commits what an agent the idle timeout killed left in the worktree, as the bot, so the host checks
+ * and the Reviewer judge it (the spike, DEV-251, lesson 5). False when nothing was left.
+ */
+async function commitLeftWork(
+  sandbox: Sandbox,
+  context: Pick<RunContext, 'runId' | 'specId'>,
+  ticket: Ticket,
+  model: string,
+): Promise<boolean> {
+  const status = await sandbox.exec('git status --porcelain')
+  if (status.exitCode !== 0 || status.stdout.trim() === '') return false
+  const message = [
+    `Keep the work an agent left when the idle timeout stopped it (${ticket.id})`,
+    '',
+    `The factory Run \`${context.runId}\` committed it as it stood, for the host checks and the Reviewer.`,
+    '',
+    `Part of ${context.specId}`,
+    '',
+    `Co-Authored-By: ${modelName(model)} <noreply@anthropic.com>`,
+  ].join('\n')
+  const committed = await sandbox.exec('git add -A && git commit --no-verify -F -', {
+    stdin: `${message}\n`,
+  })
+  return committed.exitCode === 0
+}
 
 /** scripts/wait-for-checks.sh's exit codes, as its comment block lists them. */
 const WAIT = {
@@ -583,8 +758,7 @@ async function park(
 }
 
 /** The ticket's last park note and the comments since that the factory didn't write, if any. */
-async function previousParkOf(tracker: Tracker, id: string): Promise<TicketBrief['previousPark']> {
-  const comments = await tracker.getComments(id)
+function previousParkOf(comments: Comment[]): TicketBrief['previousPark'] {
   const at = comments.findLastIndex((comment) => comment.body.startsWith(PARKED))
   const note = comments[at]
   if (!note) return undefined
@@ -600,10 +774,6 @@ function writeLog(logDir: string, name: string, text: string) {
   writeFileSync(join(logDir, name), text)
 }
 
-/** Runs an agent step, with its stdout, session and cost saved to the run log. */
-const loggedAgent = (log: TicketLog, sandbox: Sandbox, step: AgentStep) =>
-  log.agent(step, () => sandbox.runAgent(step))
-
 function agentStep(settings: Settings, step: Step, prompt: string): AgentStep {
   const { model, effort } = settings[step]
   return { name: step, model, effort, prompt, idleTimeoutSeconds: IDLE_TIMEOUT_SECONDS }
@@ -617,12 +787,13 @@ async function readableReview(
   sandbox: Sandbox,
   settings: Settings,
   prompt: string,
-  { say, log }: Turn,
+  { say, log, agent }: Turn,
   round: number,
 ): Promise<Review | null> {
   for (let attempt = 1; attempt <= 2; attempt += 1) {
     const step = agentStep(settings, 'reviewer', prompt)
-    const review = readReview((await loggedAgent(log, sandbox, step)).stdout)
+    // A Reviewer the idle timeout killed printed no review: it counts as unreadable.
+    const review = readReview((await agent(sandbox, step)).stdout)
     log.review(round, attempt, review)
     say('Reviewer', review ? review.verdict : 'no readable <review>')
     if (review) return review

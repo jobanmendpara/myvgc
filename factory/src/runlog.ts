@@ -4,10 +4,10 @@
 // leaves what had happened. Beside it, each ticket's folder holds its agents' stdout and session
 // JSONL (agents/), the host check logs (checks/, then fix-round-n/checks/), and its screenshots
 // (screenshots/, DEV-281).
-import { mkdirSync, renameSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { sessionCost, type StepCost } from './cost.ts'
-import type { AgentStep, Ticket } from './ports.ts'
+import type { AgentResult, AgentStep, AgentStop, Ticket } from './ports.ts'
 import type { Finding, Review } from './review.ts'
 import type { TicketOutcome } from './run.ts'
 
@@ -24,6 +24,10 @@ export interface AgentRecord {
   model: string
   effort: string
   resumed: string | null
+  /** The session it ran in, which a fix round resumes, even after the host died. */
+  sessionId: string | null
+  /** Why it didn't finish, when it didn't. */
+  stopped: AgentStop | null
   startedAt: string
   finishedAt: string
   /** Paths relative to the run folder. */
@@ -50,6 +54,54 @@ export interface TicketRecord {
     findings: Finding[]
   }[]
   replays: { round: number; criterion: string; confirmed: boolean }[]
+  /** The last step it finished that a later Run can resume from, if the host dies. */
+  checkpoint: Checkpoint | null
+}
+
+/** The host checks' results, as the Reviewer and the push gate read them. */
+export interface CheckResults {
+  passed: boolean
+  failed: string[]
+  summary: string
+}
+
+/**
+ * Where a ticket's turn can resume from (AC-29.1), each saved as its step finishes:
+ * - `claimed`: In Progress with the claim comment, so it is never claimed twice;
+ * - `implemented`: an agent step of `round` (0 for the Implementer) finished, with its work committed;
+ * - `reviewed`: the host checks and a readable review of that round, before the replays;
+ * - `shipped`: pushed, with its PR open and auto-merge queued, waiting on the checks.
+ * `session` is the Implementer's, which every fix round resumes.
+ */
+export type Checkpoint =
+  | { step: 'claimed' }
+  | { step: 'implemented'; round: number; session: string | null }
+  | {
+      step: 'reviewed'
+      round: number
+      session: string | null
+      checks: CheckResults
+      review: Review
+    }
+  | {
+      step: 'shipped'
+      round: number
+      session: string | null
+      pr: { number: number; url: string }
+      review: Review
+      replays: Record<string, boolean>
+    }
+
+/** A pause for the usage limit (AC-27.2). */
+export interface PauseRecord {
+  ticket: string
+  step: string
+  /** ISO 8601: when the step hit the limit, and when agent steps may start again. */
+  at: string
+  until: string
+  /** Whether the error gave the reset time; without it, the Run checks again every 15 minutes. */
+  resetGiven: boolean
+  message: string
 }
 
 export interface Summary {
@@ -65,12 +117,17 @@ export interface Summary {
   followUp: string | null
 }
 
-interface RunRecord {
+export interface RunRecord {
   runId: string
   specId: string
+  /** The host process running it, so a later Run can tell it died (AC-29.1). */
+  pid: number
   startedAt: string
+  /** When a later command took the Run up again after its host died. */
+  resumedAt: string[]
   finishedAt: string | null
   tickets: TicketRecord[]
+  pauses: PauseRecord[]
   summary: Summary | null
 }
 
@@ -81,24 +138,58 @@ export class RunLog {
   /** The session messages already costed, so a resumed session counts only what it added. */
   readonly #counted = new Set<string>()
 
-  constructor(dir: string, run: { runId: string; specId: string }, now: () => Date) {
+  /** A new Run's log, or with `resumed`, the record of a Run whose host died, taken up again. */
+  constructor(
+    dir: string,
+    run: { runId: string; specId: string; pid: number },
+    now: () => Date,
+    resumed?: RunRecord,
+  ) {
     this.dir = dir
     this.#now = now
     mkdirSync(dir, { recursive: true })
     // Keeps the whole of .factory/ out of `git status`, whatever the checkout's .gitignore says.
     writeFileSync(join(dir, '..', '..', '.gitignore'), '*\n')
-    this.#record = {
-      ...run,
-      startedAt: this.#time(),
-      finishedAt: null,
-      tickets: [],
-      summary: null,
+    if (resumed) {
+      this.#record = { ...resumed, pid: run.pid, finishedAt: null, summary: null }
+      this.#record.resumedAt.push(this.#time())
+      // The messages its sessions held are costed already: a resumed session adds only new ones.
+      for (const agent of resumed.tickets.flatMap((ticket) => ticket.agents)) {
+        const path = agent.session && join(dir, agent.session)
+        if (path && existsSync(path)) sessionCost(readFileSync(path, 'utf8'), this.#counted)
+      }
+    } else {
+      this.#record = {
+        ...run,
+        startedAt: this.#time(),
+        resumedAt: [],
+        finishedAt: null,
+        tickets: [],
+        pauses: [],
+        summary: null,
+      }
     }
     this.#save()
   }
 
-  /** The log of one ticket's turn, which starts now. */
+  /** The Run's record in `dir`, as run.json holds it, or null when it holds none. */
+  static read(dir: string): RunRecord | null {
+    const file = join(dir, 'run.json')
+    if (!existsSync(file)) return null
+    try {
+      return JSON.parse(readFileSync(file, 'utf8')) as RunRecord
+    } catch {
+      return null
+    }
+  }
+
+  /**
+   * The log of one ticket's turn, which starts now. A ticket the Run had already, as one adopted
+   * after its host died, carries on in its record.
+   */
   ticket(ticket: Ticket): TicketLog {
+    const existing = this.#record.tickets.find((record) => record.id === ticket.id)
+    if (existing) return new TicketLog(this, existing, this.#time())
     const record: TicketRecord = {
       id: ticket.id,
       title: ticket.title,
@@ -110,6 +201,7 @@ export class RunLog {
       agents: [],
       reviews: [],
       replays: [],
+      checkpoint: null,
     }
     this.#record.tickets.push(record)
     this.#save()
@@ -126,6 +218,12 @@ export class RunLog {
 
   get tickets(): readonly TicketRecord[] {
     return this.#record.tickets
+  }
+
+  /** A pause for the usage limit. */
+  pause(pause: PauseRecord): void {
+    this.#record.pauses.push(pause)
+    this.#save()
   }
 
   /** Ends the Run: its summary, with the follow-up issue when one was made. */
@@ -211,10 +309,7 @@ export class TicketLog {
   /**
    * Runs an agent step, saving its stdout and session JSONL to agents/ and its cost to run.json.
    */
-  async agent<T extends { stdout: string; session?: string }>(
-    step: AgentStep,
-    work: () => Promise<T>,
-  ): Promise<T> {
+  async agent(step: AgentStep, work: () => Promise<AgentResult>): Promise<AgentResult> {
     const startedAt = this.#run.time()
     const result = await work()
     const finishedAt = this.#run.time()
@@ -226,6 +321,8 @@ export class TicketLog {
       model: step.model,
       effort: step.effort,
       resumed: step.resumeSession ?? null,
+      sessionId: result.sessionId ?? null,
+      stopped: result.stopped ?? null,
       startedAt,
       finishedAt,
       stdout: this.#run.write(`${base}.stdout.txt`, result.stdout),
@@ -263,6 +360,11 @@ export class TicketLog {
 
   pr(url: string): void {
     this.#record.pr = url
+    this.#run.save()
+  }
+
+  checkpoint(checkpoint: Checkpoint): void {
+    this.#record.checkpoint = checkpoint
     this.#run.save()
   }
 
