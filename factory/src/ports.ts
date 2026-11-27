@@ -137,6 +137,11 @@ export interface AgentStep {
   effort: Effort
   prompt: string
   idleTimeoutSeconds: number
+  /**
+   * The session to continue, as a fix round continues the Implementer's. Sandcastle runs
+   * `claude --model <model> --resume <session>`, so the session can go on with another model.
+   */
+  resumeSession?: string
 }
 
 /** One ticket's Docker sandbox, on a git worktree of its branch. */
@@ -145,8 +150,8 @@ export interface Sandbox {
   worktreePath: string
   /** Runs a shell command in the sandbox's checkout. A non-zero exit is returned, not thrown. */
   exec(command: string, options?: { stdin?: string }): Promise<ExecResult>
-  /** Runs an agent in a fresh session and returns what it printed. */
-  runAgent(step: AgentStep): Promise<{ stdout: string }>
+  /** Runs an agent and returns what it printed, and its session when one was captured. */
+  runAgent(step: AgentStep): Promise<{ stdout: string; sessionId?: string }>
   close(): Promise<void>
 }
 

@@ -257,7 +257,7 @@ describe('pnpm factory --only', () => {
   test.each<[string, Script, string]>([
     ['the host checks fail', { checks: { typecheck: 1 } }, 'the host checks failed'],
     ['the Reviewer fails it', { reviewer: review('fail') }, 'the Reviewer failed it'],
-    ['the review is unreadable', { reviewer: 'no review here' }, 'no readable review'],
+    ['the review is unreadable, twice', { reviewer: 'no review here' }, "couldn't be read"],
     ['the Implementer made no commits', { commits: 0 }, 'the Implementer made no commits'],
   ])('opens no PR to merge when %s', async (_, script, reason) => {
     const result = await workDev2(script)

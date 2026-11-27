@@ -93,13 +93,17 @@ export interface Script {
   install?: number
   checks?: Partial<Record<'test' | 'typecheck' | 'lint' | 'format:check', number>>
   /** The Reviewer's stdout; by default a passing review of AC-1.1 and AC-1.2. */
-  reviewer?: string
+  reviewer?: string | string[]
   /** What the Implementer wrote to the mapping file, or null for none. */
   mapping?: string | null
   /** How each criterion's replay comes out; by default every one is caught. */
   replays?: Record<string, ReplayOutcome>
   /** What the Implementer prints. */
   implementer?: string
+  /** What each fix round prints, round by round. */
+  fixRounds?: string[]
+  /** Whether Sandcastle captures no session for the Implementer. */
+  noSession?: boolean
   /** The ticket's Linear comments, oldest first. */
   comments?: Comment[]
   /** Whether GitHub turns down the push for changing workflow files. */
@@ -318,6 +322,7 @@ function writeWorkspace(repoDir: string) {
 function fakeSandbox(script: Script, events: Event[]): Sandbox {
   /** The criterion whose sabotage is applied, if any. */
   let sabotaged: string | null = null
+  let reviewers = 0
   const ok = (stdout = ''): ExecResult => ({ exitCode: 0, stdout, stderr: '' })
   const exit = (exitCode: number, stdout = ''): ExecResult => ({ exitCode, stdout, stderr: '' })
   const outcomeOf = (id: string): ReplayOutcome => script.replays?.[id] ?? 'caught'
@@ -359,8 +364,20 @@ function fakeSandbox(script: Script, events: Event[]): Sandbox {
     },
     async runAgent(step) {
       events.push({ port: 'sandbox', method: 'runAgent', step })
-      if (step.name === 'reviewer') return { stdout: script.reviewer ?? review() }
-      return { stdout: script.implementer ?? 'Implemented.' }
+      if (step.name === 'reviewer') {
+        // A list gives each Reviewer its own answer, the last one repeating.
+        const answers = [script.reviewer ?? review()].flat()
+        const answer = answers[Math.min(reviewers++, answers.length - 1)] ?? review()
+        return { stdout: answer, sessionId: `reviewer-session-${reviewers}` }
+      }
+      if (step.name.startsWith('fix-round-')) {
+        const answer = script.fixRounds?.[Number(step.name.slice('fix-round-'.length)) - 1]
+        return { stdout: answer ?? 'Fixed.', sessionId: step.resumeSession }
+      }
+      return {
+        stdout: script.implementer ?? 'Implemented.',
+        sessionId: script.noSession ? undefined : 'implementer-session',
+      }
     },
     async close() {
       events.push({ port: 'sandbox', method: 'close' })

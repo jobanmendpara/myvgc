@@ -68,8 +68,9 @@ export function sandcastleSandboxes(repoDir: string): Sandboxes {
             agent: claudeCode(step.model, { effort: step.effort, env }),
             prompt: step.prompt,
             idleTimeoutSeconds: step.idleTimeoutSeconds,
+            ...(step.resumeSession ? { resumeSession: step.resumeSession } : {}),
           })
-          return { stdout: result.stdout }
+          return { stdout: result.stdout, sessionId: result.iterations.at(-1)?.sessionId }
         },
         async close() {
           await sandbox.close()

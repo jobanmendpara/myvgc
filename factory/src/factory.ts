@@ -12,7 +12,7 @@ import { coveredIds, criteriaOf } from './criteria.ts'
 import { frontier, whyNotTakeable } from './frontier.ts'
 import type { Forge, GitHubApp, Sandboxes, Ticket, Tracker } from './ports.ts'
 import { workTicket } from './run.ts'
-import { TICKET_PLAN } from './settings.ts'
+import { type Settings, STEP_NAMES, ticketPlan, withOverrides } from './settings.ts'
 import { describeWorkspace, workspacePackages } from './workspace.ts'
 
 export interface FactoryPorts {
@@ -34,7 +34,9 @@ const READY = 0
 const REFUSED = 1
 const USAGE_ERROR = 64
 
-const USAGE = 'Usage: pnpm factory <spec issue, such as DEV-269> [--dry-run] [--only DEV-M]'
+const USAGE =
+  'Usage: pnpm factory <spec issue, such as DEV-269> [--dry-run] [--only DEV-M] [--<step> <model>]\n' +
+  `  where <step> is ${STEP_NAMES.join(', ')} and <model> is such as opus-5-5`
 const ISSUE_ID = /^[A-Z]+-\d+$/
 
 export async function factory(args: string[], ports: FactoryPorts): Promise<number> {
@@ -51,7 +53,7 @@ export async function factory(args: string[], ports: FactoryPorts): Promise<numb
     return REFUSED
   }
 
-  const { specId, dryRun, onlyTicketId } = command
+  const { specId, dryRun, onlyTicketId, settings } = command
   const tracker = ports.tracker(setup.linearApiKey)
   const spec = await tracker.getIssue(specId)
   if (!spec) {
@@ -89,7 +91,7 @@ export async function factory(args: string[], ports: FactoryPorts): Promise<numb
     takeable = frontier(tickets)
   }
 
-  printFrontier(ports, specId, takeable)
+  printFrontier(ports, specId, takeable, settings)
   if (dryRun) {
     ports.print('Dry run: nothing was changed.')
     return READY
@@ -130,6 +132,7 @@ export async function factory(args: string[], ports: FactoryPorts): Promise<numb
       sandboxes: ports.sandboxes,
       sandboxEnv: setup.sandboxEnv,
       author,
+      settings,
       print: ports.print,
     },
     {
@@ -150,7 +153,12 @@ function stamp(date: Date): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}-${pad(date.getHours())}${pad(date.getMinutes())}`
 }
 
-function printFrontier({ print }: FactoryPorts, specId: string, tickets: Ticket[]) {
+function printFrontier(
+  { print }: FactoryPorts,
+  specId: string,
+  tickets: Ticket[],
+  settings: Settings,
+) {
   if (tickets.length === 0) {
     print(`Nothing on the frontier of ${specId}: no ticket is takeable now.`)
     return
@@ -158,7 +166,7 @@ function printFrontier({ print }: FactoryPorts, specId: string, tickets: Ticket[
   print(`The frontier of ${specId}, in Linear's order:`)
   tickets.forEach((ticket, index) => {
     print(`${index + 1}. ${ticket.id} ${ticket.title}`)
-    print(`   ${TICKET_PLAN}`)
+    print(`   ${ticketPlan(settings)}`)
   })
 }
 
@@ -167,6 +175,8 @@ interface Command {
   dryRun: boolean
   /** The one ticket to work, from `--only`. */
   onlyTicketId: string | undefined
+  /** The step settings, with any `--<step> <model>` flags applied. */
+  settings: Settings
 }
 
 /** The parsed arguments, or null when they don't fit the usage. */
@@ -176,7 +186,11 @@ function readCommand(args: string[]): Command | null {
     parsed = parseArgs({
       args,
       allowPositionals: true,
-      options: { 'dry-run': { type: 'boolean' }, only: { type: 'string' } },
+      options: {
+        'dry-run': { type: 'boolean' },
+        only: { type: 'string' },
+        ...Object.fromEntries(STEP_NAMES.map((step) => [step, { type: 'string' as const }])),
+      },
     })
   } catch {
     return null
@@ -185,7 +199,21 @@ function readCommand(args: string[]): Command | null {
   const { only } = parsed.values
   if (!spec || rest.length > 0 || !ISSUE_ID.test(spec)) return null
   if (only !== undefined && !ISSUE_ID.test(only)) return null
-  return { specId: spec, dryRun: parsed.values['dry-run'] ?? false, onlyTicketId: only }
+  const values = parsed.values as Record<string, string | boolean | undefined>
+  const settings = withOverrides(
+    Object.fromEntries(
+      STEP_NAMES.map((step) => [step, values[step]]).filter(
+        ([, model]) => typeof model === 'string',
+      ),
+    ),
+  )
+  if (!settings) return null
+  return {
+    specId: spec,
+    dryRun: parsed.values['dry-run'] === true,
+    onlyTicketId: typeof only === 'string' ? only : undefined,
+    settings,
+  }
 }
 
 /** The set-up a Run needs, or what's missing or wrong in it, each naming where it belongs. */
