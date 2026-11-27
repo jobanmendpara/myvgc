@@ -56,10 +56,10 @@ export function sandcastleSandboxes(repoDir: string): Sandboxes {
       return {
         worktreePath: sandbox.worktreePath,
         async exec(command, options) {
-          const result = await sandbox.exec(
-            command,
-            options?.stdin === undefined ? undefined : { stdin: options.stdin },
-          )
+          const { stdin, env } = options ?? {}
+          const result = env
+            ? await sandbox.exec(...withEnv(command, env, stdin))
+            : await sandbox.exec(command, stdin === undefined ? undefined : { stdin })
           return { exitCode: result.exitCode, stdout: result.stdout, stderr: result.stderr }
         },
         async runAgent(step) {
@@ -84,6 +84,31 @@ export function sandcastleSandboxes(repoDir: string): Sandboxes {
       }
     },
   }
+}
+
+/**
+ * Sandcastle's exec takes no environment, so the values go in on stdin, one per line, and the
+ * shell exports them for this command alone. They never show in the command line, so not in `ps`
+ * or a log of commands.
+ */
+function withEnv(
+  command: string,
+  env: Record<string, string>,
+  stdin: string | undefined,
+): [string, { stdin: string }] {
+  if (stdin !== undefined) throw new Error('A command given env takes no stdin of its own.')
+  const names = Object.keys(env)
+  for (const [name, value] of Object.entries(env)) {
+    if (!/^[A-Z_][A-Z0-9_]*$/.test(name) || value.includes('\n')) {
+      throw new Error(`${name} can't be passed to a sandbox command.`)
+    }
+  }
+  const exports = names.map((name) => `IFS= read -r ${name} && export ${name}`).join(' && ')
+  return [
+    // Grouped, so a command holding `;` or `||` still runs only once the exports have.
+    `${exports} && exec </dev/null && { ${command}\n}`,
+    { stdin: names.map((name) => `${env[name]}\n`).join('') },
+  ]
 }
 
 /** The git folder the checkout and all its worktrees share. */
