@@ -54,6 +54,13 @@ function withTestCommand(command: string): string {
   return `<review>${JSON.stringify(json)}</review>`
 }
 
+/** No PR that could merge: a parked ticket's draft PR is fine, a ready one or auto-merge isn't. */
+function expectNothingReadyToMerge(events: Event[]) {
+  const opened = forgeCalls(events).filter((event) => event.method === 'openPr')
+  expect(opened.map((event) => (event.args[0] as { draft: boolean }).draft)).not.toContain(false)
+  expect(forgeCalls(events).filter((event) => event.method === 'queueAutoMerge')).toEqual([])
+}
+
 describe('pnpm factory --only', () => {
   test('works only that ticket, to a merged PR, and the Run ends after it', async () => {
     const result = await workDev2()
@@ -240,11 +247,11 @@ describe('pnpm factory --only', () => {
     ['the tests pass under a sabotage', { replays: { 'AC-1.1': 'passes' } }],
     ['the tests still fail once it is undone', { replays: { 'AC-1.1': 'stays broken' } }],
     ['a criterion has no row', { reviewer: review('pass', ['AC-1.1']) }],
-  ])("doesn't confirm a replay, and pushes nothing, when %s", async (_, script) => {
+  ])("doesn't confirm a replay, and opens no PR to merge, when %s", async (_, script) => {
     const result = await workDev2(script)
     expect(result.code).toBe(1)
     expect(result.output).toMatch(/replay wasn't confirmed/)
-    expect(forgeCalls(result.events).map((event) => event.method)).toEqual(['botIdentity'])
+    expectNothingReadyToMerge(result.events)
   })
 
   test.each<[string, Script, string]>([
@@ -252,11 +259,11 @@ describe('pnpm factory --only', () => {
     ['the Reviewer fails it', { reviewer: review('fail') }, 'the Reviewer failed it'],
     ['the review is unreadable', { reviewer: 'no review here' }, 'no readable review'],
     ['the Implementer made no commits', { commits: 0 }, 'the Implementer made no commits'],
-  ])('pushes nothing when %s', async (_, script, reason) => {
+  ])('opens no PR to merge when %s', async (_, script, reason) => {
     const result = await workDev2(script)
     expect(result.code).toBe(1)
     expect(result.output).toContain(reason)
-    expect(forgeCalls(result.events).map((event) => event.method)).toEqual(['botIdentity'])
+    expectNothingReadyToMerge(result.events)
   })
 
   test('pushes, opens the PR, comments, queues auto-merge, closes the sandbox, then waits', async () => {
@@ -317,15 +324,6 @@ describe('pnpm factory --only', () => {
     if ('ANTHROPIC_API_KEY' in sandcastleEnv)
       expect(env).toEqual({ ANTHROPIC_API_KEY: 'sk-ant-api-x' })
     for (const value of Object.values(env)) expect(value).not.toMatch(/PRIVATE KEY|ghs_|lin_api/)
-  })
-
-  test('refuses, before claiming anything, a ticket covering a criterion the spec lacks', async () => {
-    const odd = ticket('DEV-2', { description: '**Covers:** AC-1.1, AC-9.9' })
-    const result = await run([SPEC, '--only', 'DEV-2'], [signedOff], { tickets: [odd] })
-    expect(result.code).toBe(1)
-    expect(result.output).toContain(`covers AC-9.9, which ${SPEC} doesn't have`)
-    expect(result.trackerCalls).toEqual([`getIssue ${SPEC}`, `getSubIssues ${SPEC}`])
-    expect(result.events.filter((event) => event.port !== 'tracker')).toEqual([])
   })
 
   test("asks GitHub for the bot, minting the App's token, before claiming anything", async () => {

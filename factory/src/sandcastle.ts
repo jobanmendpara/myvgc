@@ -15,6 +15,7 @@ import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, readdirSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { isAbsolute, join } from 'node:path'
+import { checkBranchName, continueFrom, hostGit } from './hostgit.ts'
 import { type Sandboxes, STORE_DIR } from './ports.ts'
 
 export const IMAGE = 'sandcastle:myvgc'
@@ -27,14 +28,16 @@ export function sandcastleSandboxes(repoDir: string): Sandboxes {
       requireImage()
       const gitDir = commonGitDir(repoDir)
       // So `base` is today's main, not whatever the host last fetched.
-      const [remote, ...rest] = base.split('/')
-      git(repoDir, ['fetch', remote ?? 'origin', rest.join('/')])
+      const [remote = 'origin', ...rest] = base.split('/')
+      checkBranchName(branch)
+      hostGit(repoDir, ['fetch', remote, rest.join('/')])
+      const start = continueFrom(repoDir, remote, branch) ?? base
       // The host keeps pnpm's store, so each sandbox's install reuses what the last one fetched.
       const store = join(homedir(), '.cache', 'myvgc-factory', 'pnpm-store')
       mkdirSync(store, { recursive: true })
       const sandbox = await createSandbox({
         branch,
-        baseBranch: base,
+        baseBranch: start,
         cwd: repoDir,
         sandbox: docker({
           imageName: IMAGE,
@@ -82,18 +85,9 @@ export function sandcastleSandboxes(repoDir: string): Sandboxes {
   }
 }
 
-/** Host git with the repo's hooks and fsmonitor turned off, in case an agent planted one. */
-function git(cwd: string, args: string[]): string {
-  return execFileSync(
-    'git',
-    ['-c', 'core.hooksPath=/dev/null', '-c', 'core.fsmonitor=false', ...args],
-    { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] },
-  )
-}
-
 /** The git folder the checkout and all its worktrees share. */
 function commonGitDir(repoDir: string): string {
-  const dir = git(repoDir, ['rev-parse', '--git-common-dir']).trim()
+  const dir = hostGit(repoDir, ['rev-parse', '--git-common-dir']).trim()
   return isAbsolute(dir) ? dir : join(repoDir, dir)
 }
 

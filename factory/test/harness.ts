@@ -9,6 +9,7 @@ import { afterEach } from 'vitest'
 import { factory } from '../src/factory.ts'
 import type {
   AgentStep,
+  Comment,
   ExecResult,
   Forge,
   Issue,
@@ -97,6 +98,12 @@ export interface Script {
   mapping?: string | null
   /** How each criterion's replay comes out; by default every one is caught. */
   replays?: Record<string, ReplayOutcome>
+  /** What the Implementer prints. */
+  implementer?: string
+  /** The ticket's Linear comments, oldest first. */
+  comments?: Comment[]
+  /** Whether GitHub turns down the push for changing workflow files. */
+  workflowsRefused?: boolean
   /** The Implementer's commits since origin/main; 1 by default. */
   commits?: number
   /** scripts/wait-for-checks.sh's exit codes, call by call. */
@@ -235,6 +242,7 @@ export async function run(
         events.push({ port: 'tracker', method, args: callArgs })
         if (method === 'getIssue') return issues.find((issue) => issue.id === callArgs[0]) ?? null
         if (method === 'getSubIssues') return callArgs[0] === SPEC ? tickets : []
+        if (method === 'getComments') return script.comments ?? []
       },
   })
 
@@ -250,11 +258,15 @@ export async function run(
     },
     async push(cwd, branch) {
       events.push({ port: 'forge', method: 'push', args: [cwd, branch] })
+      return script.workflowsRefused ? 'workflows refused' : 'pushed'
     },
     async openPr(pr) {
       events.push({ port: 'forge', method: 'openPr', args: [pr] })
       nextPr += 1
       return { number: nextPr, url: `https://github.com/o/r/pull/${nextPr}` }
+    },
+    maintainer() {
+      return 'jobanmendpara'
     },
     async commentOnPr(pr, body) {
       events.push({ port: 'forge', method: 'commentOnPr', args: [pr, body] })
@@ -348,7 +360,7 @@ function fakeSandbox(script: Script, events: Event[]): Sandbox {
     async runAgent(step) {
       events.push({ port: 'sandbox', method: 'runAgent', step })
       if (step.name === 'reviewer') return { stdout: script.reviewer ?? review() }
-      return { stdout: 'Implemented.' }
+      return { stdout: script.implementer ?? 'Implemented.' }
     },
     async close() {
       events.push({ port: 'sandbox', method: 'close' })

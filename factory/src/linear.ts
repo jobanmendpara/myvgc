@@ -71,6 +71,45 @@ export function linearTracker(apiKey: string): Tracker {
       )
     },
 
+    async setAgentLabel(id, label) {
+      // The "Agent" group is single-select: drop whichever of its labels the issue has.
+      const data = await query<{
+        issue: { labels: { nodes: GraphQLLabel[] } }
+        issueLabels: { nodes: GraphQLLabel[] }
+      }>(
+        apiKey,
+        `query AgentLabel($id: String!, $label: String!) {
+          issue(id: $id) { labels { nodes { id name parent { name } } } }
+          issueLabels(filter: { name: { eq: $label } }) { nodes { id name parent { name } } }
+        }`,
+        { id, label },
+      )
+      const target = data?.issueLabels.nodes.find((candidate) => candidate.parent?.name === 'Agent')
+      if (!data || !target) throw new Error(`Linear has no label ${label} in the Agent group.`)
+      const kept = data.issue.labels.nodes.filter((current) => current.parent?.name !== 'Agent')
+      await mutate(
+        apiKey,
+        `mutation SetLabels($id: String!, $labelIds: [String!]) {
+          issueUpdate(id: $id, input: { labelIds: $labelIds }) { success }
+        }`,
+        { id, labelIds: [...kept.map((current) => current.id), target.id] },
+      )
+    },
+
+    async getComments(id) {
+      const data = await query<{ issue: { comments: Page<{ body: string; createdAt: string }> } }>(
+        apiKey,
+        `query Comments($id: String!) {
+          issue(id: $id) { comments(first: 250) { pageInfo { hasNextPage } nodes { body createdAt } } }
+        }`,
+        { id },
+      )
+      if (!data) return []
+      return allOf(data.issue.comments, `comments on ${id}`).sort((a, b) =>
+        a.createdAt.localeCompare(b.createdAt),
+      )
+    },
+
     async comment(id, body) {
       await mutate(
         apiKey,
@@ -100,6 +139,12 @@ interface Page<T> {
 function allOf<T>(page: Page<T>, what: string): T[] {
   if (page.pageInfo.hasNextPage) throw new Error(`Linear has more ${what} than the factory reads.`)
   return page.nodes
+}
+
+interface GraphQLLabel {
+  id: string
+  name: string
+  parent: { name: string } | null
 }
 
 interface GraphQLIssue {

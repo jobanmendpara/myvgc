@@ -25,6 +25,8 @@ export function githubForge(app: GitHubApp, repoDir: string): Forge {
   const repo = repoOf(
     execFileSync('git', ['remote', 'get-url', 'origin'], { cwd: repoDir, encoding: 'utf8' }),
   )
+  const [owner] = repo.split('/')
+  if (!owner) throw new Error(`origin names no repo owner: ${repo}`)
   const ghEnv = async () => ({ ...process.env, GH_TOKEN: await installationToken(), GH_REPO: repo })
   const gh = async (args: string[], stdin?: string) => {
     const child = run('gh', args, { cwd: tmpdir(), env: await ghEnv() })
@@ -51,37 +53,91 @@ export function githubForge(app: GitHubApp, repoDir: string): Forge {
         ['core.hooksPath', '/dev/null'],
         ['core.fsmonitor', 'false'],
         ['credential.helper', ''],
+        ['core.sshCommand', 'ssh'],
         ['http.https://github.com/.extraHeader', `Authorization: Basic ${header}`],
       ]
-      await run(
-        'git',
-        [
-          'push',
-          '--no-verify',
-          `https://x-access-token@github.com/${repo}.git`,
-          `HEAD:refs/heads/${branch}`,
-        ],
-        {
-          cwd,
-          env: {
-            ...process.env,
-            GIT_TERMINAL_PROMPT: '0',
-            GIT_ASKPASS: '',
-            GIT_CONFIG_COUNT: String(untrusted.length),
-            ...Object.fromEntries(
-              untrusted.flatMap(([key, value], index) => [
-                [`GIT_CONFIG_KEY_${index}`, key],
-                [`GIT_CONFIG_VALUE_${index}`, value],
-              ]),
-            ),
+      try {
+        await run(
+          'git',
+          [
+            'push',
+            '--no-verify',
+            `https://x-access-token@github.com/${repo}.git`,
+            `HEAD:refs/heads/${branch}`,
+          ],
+          {
+            cwd,
+            env: {
+              ...process.env,
+              GIT_TERMINAL_PROMPT: '0',
+              // Only HTTPS, so planted config can't send the push through ext:: or a local path.
+              GIT_ALLOW_PROTOCOL: 'https',
+              GIT_ASKPASS: '',
+              GIT_CONFIG_COUNT: String(untrusted.length),
+              ...Object.fromEntries(
+                untrusted.flatMap(([key, value], index) => [
+                  [`GIT_CONFIG_KEY_${index}`, key],
+                  [`GIT_CONFIG_VALUE_${index}`, value],
+                ]),
+              ),
+            },
           },
-        },
-      )
+        )
+      } catch (error) {
+        // GitHub's answer when an App without the Workflows permission changes .github/workflows/.
+        if (
+          /refusing to allow a GitHub App to create or update workflow/.test(
+            String((error as { stderr?: string }).stderr),
+          )
+        ) {
+          return 'workflows refused'
+        }
+        throw error
+      }
+      return 'pushed'
     },
 
-    async openPr({ branch, title, body }) {
+    maintainer() {
+      return owner
+    },
+
+    async openPr({ branch, title, body, draft }) {
+      // A parked ticket's branch may have a draft PR already: the Run that takes it up again
+      // brings that one up to date, and marks it ready when the ticket is.
+      const [existing] = JSON.parse(
+        await gh([
+          'pr',
+          'list',
+          '--head',
+          branch,
+          '--state',
+          'open',
+          '--json',
+          'number,url,isDraft',
+        ]),
+      ) as { number: number; url: string; isDraft: boolean }[]
+      if (existing) {
+        await gh(
+          ['pr', 'edit', String(existing.number), '--title', title, '--body-file', '-'],
+          body,
+        )
+        if (!draft && existing.isDraft) await gh(['pr', 'ready', String(existing.number)])
+        return { number: existing.number, url: existing.url }
+      }
       const url = await gh(
-        ['pr', 'create', '--head', branch, '--base', 'main', '--title', title, '--body-file', '-'],
+        [
+          'pr',
+          'create',
+          '--head',
+          branch,
+          '--base',
+          'main',
+          '--title',
+          title,
+          '--body-file',
+          '-',
+          ...(draft ? ['--draft'] : []),
+        ],
         body,
       )
       const number = Number(/\/pull\/(\d+)/.exec(url)?.[1])
