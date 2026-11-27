@@ -1,6 +1,6 @@
 // The real Tracker: Linear's GraphQL API with the maintainer's personal API key (DEV-253). Thin on
 // purpose, and not unit-tested: the pilot's first Run proves it (DEV-269, Testing Decisions).
-import type { Issue, Tracker } from './ports.ts'
+import type { Issue, Status, StatusType, Ticket, Tracker } from './ports.ts'
 
 const API = 'https://api.linear.app/graphql'
 
@@ -16,6 +16,29 @@ export function linearTracker(apiKey: string): Tracker {
       )
       return data?.issue ? toIssue(data.issue) : null
     },
+
+    async getSubIssues(id) {
+      // A spec has far fewer than 250 tickets, and a ticket far fewer than 50 relations.
+      const data = await query<{ issue: { children: { nodes: GraphQLTicket[] } } | null }>(
+        apiKey,
+        `query SubIssues($id: String!) {
+          issue(id: $id) {
+            children(first: 250) {
+              nodes {
+                identifier title subIssueSortOrder
+                state { name type }
+                labels { nodes { name } }
+                inverseRelations(first: 50) {
+                  nodes { type issue { identifier state { name type } } }
+                }
+              }
+            }
+          }
+        }`,
+        { id },
+      )
+      return (data?.issue?.children.nodes ?? []).map(toTicket)
+    },
   }
 }
 
@@ -23,6 +46,51 @@ interface GraphQLIssue {
   identifier: string
   title: string
   labels: { nodes: { name: string }[] }
+}
+
+interface GraphQLState {
+  name: string
+  type: string
+}
+
+interface GraphQLTicket extends GraphQLIssue {
+  subIssueSortOrder: number | null
+  state: GraphQLState
+  /** Relations naming this ticket as their relatedIssue: for `blocks`, `issue` blocks this one. */
+  inverseRelations: {
+    nodes: { type: string; issue: { identifier: string; state: GraphQLState } }[]
+  }
+}
+
+function toTicket(ticket: GraphQLTicket): Ticket {
+  return {
+    ...toIssue(ticket),
+    status: toStatus(ticket.state),
+    blockedBy: ticket.inverseRelations.nodes
+      .filter((relation) => relation.type === 'blocks')
+      .map((relation) => ({
+        id: relation.issue.identifier,
+        status: toStatus(relation.issue.state),
+      })),
+    // Null only for top-level issues, which a spec's children never are.
+    order: ticket.subIssueSortOrder ?? Number.MAX_VALUE,
+  }
+}
+
+const STATUS_TYPES: readonly string[] = [
+  'triage',
+  'backlog',
+  'unstarted',
+  'started',
+  'completed',
+  'canceled',
+] satisfies StatusType[]
+
+function toStatus(state: GraphQLState): Status {
+  if (!STATUS_TYPES.includes(state.type)) {
+    throw new Error(`Linear gave a status of an unknown type: ${state.name} (${state.type}).`)
+  }
+  return { name: state.name, type: state.type as StatusType }
 }
 
 function toIssue(issue: GraphQLIssue): Issue {
