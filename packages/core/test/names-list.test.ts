@@ -27,7 +27,7 @@ describe('championsNames', () => {
   })
 
   it('holds the counts measured for the pinned Champions data', () => {
-    expect(Object.keys(names.species)).toHaveLength(392)
+    expect(Object.keys(names.species)).toHaveLength(382)
     expect(Object.keys(names.moves)).toHaveLength(515)
     expect(Object.keys(names.items)).toHaveLength(166)
     expect(Object.keys(names.abilities)).toHaveLength(317)

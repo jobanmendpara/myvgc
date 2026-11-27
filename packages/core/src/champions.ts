@@ -36,6 +36,8 @@ interface DexEntry {
   name: string
   exists: boolean
   isNonstandard?: string | null
+  /** Set on a form that exists only in battle, to the form(s) it changes from (Meloetta-Pirouette, Terapagos-Terastal, ...). */
+  battleOnly?: string | string[]
 }
 
 // Showdown keeps data for every game in the mod and marks what isn't in Champions as
@@ -43,7 +45,16 @@ interface DexEntry {
 // This says nothing about legality in a Regulation, which `legality.ts` judges (ADR 18).
 function inChampions(entry: DexEntry): Named | undefined {
   if (!entry.exists || entry.isNonstandard) return undefined
+  // A battle-only form carries no mark of its own, so it is in Champions only if the form it
+  // changes from is (Floette-Mega from Floette-Eternal), which ends at the base species.
+  if (entry.battleOnly && !battleSourceInChampions(entry.battleOnly)) {
+    return undefined
+  }
   return { id: entry.id, name: entry.name }
+}
+
+function battleSourceInChampions(battleOnly: string | string[]): boolean {
+  return [battleOnly].flat().some((name) => champions.species(name) !== undefined)
 }
 
 /** The first mod that has the entry, so a name from any Regulation counts as in Champions. */
