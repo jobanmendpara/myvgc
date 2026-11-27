@@ -12,6 +12,7 @@
     "dev:lan": "WEB_HOST=0.0.0.0 pnpm dev",
     "preview": "node scripts/preview.ts",
     "preview:stop": "node scripts/preview.ts stop",
+    "factory": "node factory/src/cli.ts",
     "screenshots": "node e2e/scripts/screenshots.ts",
     "db:up": "docker compose -f compose.yaml -f compose.dev.yaml up -d db",
     "build": "pnpm -r build",
