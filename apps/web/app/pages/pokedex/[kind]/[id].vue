@@ -7,12 +7,13 @@ const route = useRoute()
 const kind = computed(() => route.params.kind as PokedexKind)
 const id = computed(() => route.params.id as string)
 const to = usePokedexLink()
-const { variant } = usePrototypePokedexBar()
+
 </script>
 
 <template>
   <div class="flex flex-col gap-4">
-    <ListBackLink v-if="variant !== 'C'" :to="to('/pokedex').path">Pokédex</ListBackLink>
-    <PrototypePokedexEntry :kind="kind" :id="id" />
+    <ListBackLink :to="(kind as string) === 'types' ? '/pokedex/types' : to('/pokedex').path">{{ (kind as string) === 'types' ? 'Types' : 'Pokédex' }}</ListBackLink>
+    <PrototypeTypeEntry v-if="(kind as string) === 'types'" :id="(id as any)" />
+    <PrototypePokedexEntry v-else :kind="kind" :id="id" />
   </div>
 </template>

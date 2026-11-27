@@ -3,18 +3,18 @@
 // switched by `?variant=` and the floating bar.
 definePageMeta({ listDetail: true })
 useHead({ title: 'Pokédex · MyVGC' })
-const { variant } = usePrototypePokedexBar()
+
 usePrototypePokedexData()
 </script>
 
 <template>
-  <PrototypePokedexBrowse v-if="variant === 'C'"><NuxtPage /></PrototypePokedexBrowse>
-  <ListDetail v-else base="/pokedex" label="Pokédex" placeholder="Search for a Pokémon, move, item or ability">
+  
+  <ListDetail base="/pokedex" label="Pokédex" placeholder="Search for a Pokémon, move, item or ability">
     <template #list="{ wide }">
-      <PrototypePokedexGrouped v-if="variant === 'A'" :wide="wide" />
-      <PrototypePokedexTabs v-else :wide="wide" />
+      
+      <PrototypePokedexTabs :wide="wide" />
     </template>
     <NuxtPage />
   </ListDetail>
-  <PrototypePokedexBar />
+  <PrototypeTypesBar />
 </template>
