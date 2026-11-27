@@ -5,23 +5,7 @@ import { SPRITE_FILES, championsNames } from '../src'
 // The Sprite files the web app serves, written by `pnpm sprites:update` (ADR 29).
 const SPRITES = new URL('../../../apps/web/public/sprites/', import.meta.url)
 
-// Battle-only forms that core accepts but Champions lacks, so PokeAPI has no icon (DEV-173).
-const NOT_IN_CHAMPIONS = [
-  'meloettapirouette',
-  'miniormeteor',
-  'cramorantgulping',
-  'cramorantgorging',
-  'eiscuenoice',
-  'ogerpontealtera',
-  'ogerponwellspringtera',
-  'ogerponhearthflametera',
-  'ogerponcornerstonetera',
-  'terapagosterastal',
-]
-
-const speciesIds = Object.keys(championsNames().species).filter(
-  (id) => !NOT_IN_CHAMPIONS.includes(id),
-)
+const speciesIds = Object.keys(championsNames().species)
 
 describe('SPRITE_FILES', () => {
   it('has a row for every Champions species and form', () => {

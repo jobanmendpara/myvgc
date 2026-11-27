@@ -1,7 +1,6 @@
 // What `pnpm preview` puts in its throwaway database (DEV-184, DEV-197): a User with Teams, a
 // Tournament with Rounds, Games and Opponents, and the awkward cases a UI change should be looked at
-// with (long species names, the longest item names (DEV-242), a species with no Sprite file, as a
-// Team's and as a Lead (DEV-199), and
+// with (long species names, the longest item names (DEV-242), and
 // an Opponent's Team with items, abilities and moves). It goes through the app's own routes,
 // as the web app would, so whatever the routes check is checked here too. Tested by
 // test/preview-seed.test.ts.
@@ -101,14 +100,8 @@ Ability: Defiant
 - Protect
 `
 
-// Cramorant-Gulping is a battle-only form that core accepts but Champions lacks, so it has no
-// Sprite file (DEV-173) and pages show its name alone.
-const NO_SPRITE_PASTE = [WORLDS_PASTE.split('\n\n')[0], 'Cramorant-Gulping\n- Protect\n'].join(
-  '\n\n',
-)
-
 // An Opponent's Team with an item, ability, Nature and four moves on each Pokémon, so its rows run
-// to several lines (DEV-199). Cramorant-Gulping, with no Sprite file, is one of their Leads. Legal
+// to several lines (DEV-199). Legal
 // in Champions: test/preview-seed.test.ts judges it.
 const FULL_OPPONENT_PASTE = `Incineroar @ Sitrus Berry
 Ability: Intimidate
@@ -118,12 +111,12 @@ Careful Nature
 - Parting Shot
 - Will-O-Wisp
 
-Cramorant-Gulping @ Shell Bell
-Ability: Gulp Missile
-Modest Nature
-- Surf
-- Hurricane
-- Ice Beam
+Basculegion @ Choice Scarf
+Ability: Adaptability
+Adamant Nature
+- Wave Crash
+- Last Respects
+- Aqua Jet
 - Protect
 
 Whimsicott @ Focus Sash
@@ -217,7 +210,6 @@ export async function seedPreview(
 
   const worlds = await addTeam('Preview Team', WORLDS_PASTE)
   const longNames = await addTeam('Long names Team', LONG_NAMES_PASTE)
-  const noSprite = await addTeam('No Sprite Team', NO_SPRITE_PASTE)
   const longItems = await addTeam('Long items Team', LONG_ITEMS_PASTE)
 
   const tournament = await send<TournamentView>('POST', '/api/tournaments', {
@@ -341,8 +333,7 @@ export async function seedPreview(
     ],
   })
 
-  // Cramorant-Gulping, with no Sprite file, leads in both Games, so Statistics has a Lead pair
-  // with no Sprite (DEV-199).
+  // Basculegion leads in both Games, so Statistics has a Lead pair from an Opponent's Team (DEV-199).
   const full = await logRound({
     newOpponentName: 'Riley Park',
     bestOf: 3,
@@ -358,8 +349,8 @@ export async function seedPreview(
           ['floetteeternal', 'kingambit'],
         ],
         [
-          ['incineroar', 'cramorantgulping', 'whimsicott', 'archaludon'],
-          ['cramorantgulping', 'incineroar'],
+          ['incineroar', 'basculegion', 'whimsicott', 'archaludon'],
+          ['basculegion', 'incineroar'],
         ],
       ),
       game(
@@ -370,8 +361,8 @@ export async function seedPreview(
           ['floetteeternal', 'basculegion'],
         ],
         [
-          ['incineroar', 'cramorantgulping', 'pelipper', 'farigiraf'],
-          ['cramorantgulping', 'pelipper'],
+          ['incineroar', 'basculegion', 'pelipper', 'farigiraf'],
+          ['basculegion', 'pelipper'],
         ],
       ),
     ],
@@ -386,13 +377,12 @@ export async function seedPreview(
     pages: [
       { label: 'Team', path: `/teams/${worlds.id}` },
       { label: 'Team with long species names', path: `/teams/${longNames.id}` },
-      { label: 'Team with a species that has no Sprite', path: `/teams/${noSprite.id}` },
       { label: 'Team with the longest item names', path: `/teams/${longItems.id}` },
       { label: 'Tournament', path: `/tournaments/${tournament.id}` },
       { label: 'Opponent with a long name and long species names', path: opponentPath(first) },
       { label: 'Opponent', path: opponentPath(second) },
       {
-        label: 'Opponent with a full Opponent’s Team and a Lead with no Sprite',
+        label: 'Opponent with a full Opponent’s Team',
         path: opponentPath(full),
       },
       {

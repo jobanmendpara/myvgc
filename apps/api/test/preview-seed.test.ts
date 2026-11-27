@@ -30,15 +30,10 @@ it('seeds the preview through the app, with Statistics showing rows without a qu
   expect(teams.map((team: { name: string }) => team.name).sort()).toEqual([
     'Long items Team',
     'Long names Team',
-    'No Sprite Team',
     'Preview Team',
   ])
   // Legal, so a page shows the awkward case and not a legality warning.
   for (const team of teams) expect(team.legality.status, team.name).toBe('legal')
-  const noSprite = teams.find((team: { name: string }) => team.name === 'No Sprite Team')
-  expect(noSprite.pokemon.map((build: { species: string }) => build.species)).toContain(
-    'cramorantgulping',
-  )
 
   // Six different items, the longest names in Champions: the longest of all, and none shorter
   // than the sixth longest (DEV-242).
@@ -74,8 +69,7 @@ it('seeds the preview through the app, with Statistics showing rows without a qu
   const { statistics } = await json(await get(t.app, '/api/statistics', cookie))
   expect(statistics.speciesFaced.rows.length).toBeGreaterThan(0)
   expect(statistics.user.leads.rows.length).toBeGreaterThan(0)
-  // A Lead pair with a species that has no Sprite file.
   expect(
     statistics.opponent.leadPairs.rows.map((row: { species: string[] }) => row.species),
-  ).toContainEqual(['cramorantgulping', 'incineroar'])
+  ).toContainEqual(['basculegion', 'incineroar'])
 })

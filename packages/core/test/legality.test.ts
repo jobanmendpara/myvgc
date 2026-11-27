@@ -57,23 +57,33 @@ describe('judgeTeam', () => {
   })
 
   it('flags banned categories, saying which', () => {
-    expect(judgeTeam([build('meloettapirouette')], 'M-C').problems).toEqual([
+    expect(judgeTeam([build('mew')], 'M-C').problems).toEqual([
       {
         path: ['pokemon', 0, 'species'],
-        message: 'Meloetta-Pirouette is a Mythical Pokémon, banned in Reg M-C.',
+        message: 'Mew is a Mythical Pokémon, banned in Reg M-C.',
       },
     ])
-    expect(judgeTeam([build('terapagosterastal')], 'M-C').problems).toEqual([
+    expect(judgeTeam([build('mewtwo')], 'M-C').problems).toEqual([
       {
         path: ['pokemon', 0, 'species'],
-        message: 'Terapagos-Terastal is a Restricted Legendary Pokémon, banned in Reg M-C.',
+        message: 'Mewtwo is a Restricted Legendary Pokémon, banned in Reg M-C.',
       },
     ])
   })
 
-  it('does not ban Sub-Legendary Pokémon', () => {
-    expect(judgeTeam([build('ogerpontealtera')], 'M-C').status).toBe('legal')
+  it('does not ban Sub-Legendary Pokémon as a category', () => {
+    // Not in Champions, so not allowed, but not banned as a category either.
+    expect(judgeTeam([build('ogerpontealtera')], 'M-C').problems).toEqual([
+      { path: ['pokemon', 0, 'species'], message: "Ogerpon-Teal-Tera isn't allowed in Reg M-C." },
+    ])
   })
+
+  it.each(['meloettapirouette', 'terapagosterastal', 'cramorantgulping'])(
+    'judges a saved build of %s, a battle-only form that is not in Champions, illegal',
+    (species) => {
+      expect(judgeTeam([build(species)], 'M-C').status).toBe('illegal')
+    },
+  )
 
   it('flags an ID the data no longer has, rather than failing', () => {
     expect(judgeTeam([build('notapokemon', { ability: 'levitate' })], 'M-C').problems).toEqual([
