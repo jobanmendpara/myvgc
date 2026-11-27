@@ -118,7 +118,14 @@ export interface Script {
   accuracy?: Partial<Record<'base' | 'branch', string>>
   /** Which checkout for `pnpm accuracy` fails, if one does. */
   checkoutFails?: 'base' | 'branch'
+  /** The failed CI checks' logs, as the Forge reads them after an exit 1. */
+  ciLog?: string
+  /** How `git rebase origin/main` goes after an exit 4; clean by default. */
+  rebase?: 'clean' | 'conflicts'
 }
+
+/** What `git rev-parse HEAD` prints in the fake sandbox: the branch as it was pushed. */
+export const PUSHED_HEAD = '0123456789abcdef0123456789abcdef01234567'
 
 /** The commit `git merge-base origin/main HEAD` gives in the fake sandbox. */
 export const BASE_COMMIT = 'b45e0000c0ffee'
@@ -278,6 +285,8 @@ export async function run(
 
   const waits = [...(script.waits ?? [0])]
   let nextPr = 41
+  // One PR per branch, as on GitHub: opening it again brings the open one up to date.
+  const prs = new Map<string, number>()
   const forge: Forge = {
     async botIdentity() {
       events.push({ port: 'forge', method: 'botIdentity', args: [] })
@@ -286,14 +295,25 @@ export async function run(
         email: '999+myvgc-factory[bot]@users.noreply.github.com',
       }
     },
-    async push(cwd, branch) {
-      events.push({ port: 'forge', method: 'push', args: [cwd, branch] })
+    async push(cwd, branch, options) {
+      events.push({
+        port: 'forge',
+        method: 'push',
+        args: options ? [cwd, branch, options] : [cwd, branch],
+      })
       return script.workflowsRefused ? 'workflows refused' : 'pushed'
     },
     async openPr(pr) {
       events.push({ port: 'forge', method: 'openPr', args: [pr] })
-      nextPr += 1
-      return { number: nextPr, url: `https://github.com/o/r/pull/${nextPr}` }
+      const number = prs.get(pr.branch) ?? (nextPr += 1)
+      prs.set(pr.branch, number)
+      return { number, url: `https://github.com/o/r/pull/${number}` }
+    },
+    async failedCheckLogs(pr) {
+      events.push({ port: 'forge', method: 'failedCheckLogs', args: [pr] })
+      return (
+        script.ciLog ?? 'check: FAIL test/a.test.ts > refuses\nAssertionError: expected 1 to be 2'
+      )
     },
     maintainer() {
       return 'jobanmendpara'
@@ -386,6 +406,12 @@ function fakeSandbox(script: Script, events: Event[], branch: string): Sandbox {
       }
       if (command === 'git rev-list --count origin/main..HEAD')
         return ok(`${script.commits ?? 1}\n`)
+      if (command === 'git rev-parse HEAD') return ok(`${PUSHED_HEAD}\n`)
+      if (command === 'git rebase origin/main') {
+        return script.rebase === 'conflicts'
+          ? exit(1, 'CONFLICT (content): Merge conflict in src/a.ts')
+          : ok()
+      }
       const check = /^pnpm (test|typecheck|lint|format:check)$/.exec(command)?.[1]
       if (check) {
         const code = script.checks?.[check as keyof Script['checks'] & string] ?? 0
