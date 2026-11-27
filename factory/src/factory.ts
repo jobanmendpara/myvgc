@@ -10,18 +10,10 @@ import { join } from 'node:path'
 import { parseArgs, parseEnv } from 'node:util'
 import { coveredIds, criteriaOf } from './criteria.ts'
 import { frontier, whyNotTakeable } from './frontier.ts'
-import type { Forge, Sandboxes, Ticket, Tracker } from './ports.ts'
+import type { Forge, GitHubApp, Sandboxes, Ticket, Tracker } from './ports.ts'
 import { workTicket } from './run.ts'
 import { TICKET_PLAN } from './settings.ts'
 import { describeWorkspace, workspacePackages } from './workspace.ts'
-
-/** The GitHub App the factory pushes and opens PRs as (DEV-271). */
-export interface GitHubApp {
-  /** Path to the App's private key. */
-  keyPath: string
-  appId: string
-  installationId: string
-}
 
 export interface FactoryPorts {
   /** The checkout the factory runs from, which holds `.sandcastle/.env`. */
@@ -126,20 +118,27 @@ export async function factory(args: string[], ports: FactoryPorts): Promise<numb
   const runDir = join(ports.repoDir, '.factory', 'runs', runId)
   mkdirSync(runDir, { recursive: true })
   ports.print(`Run ${runId}: working ${ticket.id}. Its log is ${runDir}.`)
+  const forge = ports.forge(setup.github)
+  // Mints the installation token now, so a broken App key stops the Run before it claims anything.
+  const author = await forge.botIdentity()
   const merged = await workTicket(
     {
       runId,
       specId,
       runDir,
       tracker,
-      forge: ports.forge(setup.github),
+      forge,
       sandboxes: ports.sandboxes,
       sandboxEnv: setup.sandboxEnv,
+      author,
       print: ports.print,
     },
-    ticket,
-    covered.map((id) => criteria.get(id)!),
-    describeWorkspace(workspacePackages(ports.repoDir)),
+    {
+      ticket,
+      specId,
+      criteria: covered.flatMap((id) => criteria.get(id) ?? []),
+      workspace: describeWorkspace(workspacePackages(ports.repoDir)),
+    },
   )
   ports.print(`Run ${runId} done: ${merged ? `${ticket.id} merged` : `${ticket.id} stopped`}.`)
   return merged ? READY : REFUSED

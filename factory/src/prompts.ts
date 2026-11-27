@@ -2,6 +2,7 @@
 // the criteria it covers into each prompt (How a factory Run works, DEV-253).
 import type { Criterion } from './criteria.ts'
 import type { Ticket } from './ports.ts'
+import { modelName, STEPS } from './settings.ts'
 
 /** Where the Implementer writes the criterion → test or screenshot table: outside the worktree. */
 export const MAPPING_FILE = '/home/agent/factory/mapping.md'
@@ -36,7 +37,7 @@ The workspace's packages:
 ${brief.workspace}
 Run the tests of every package you change and of every package that depends on one you change, one test file at a time. Don't run the full \`pnpm test\`: it takes 5 to 10 minutes here, and the host runs it, with typecheck, lint and format:check, after you finish.
 
-Commit your work on the current branch. End each commit message with "Part of ${brief.specId}" and then the line "Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>". Don't push, open a PR or touch Linear: the host does that.
+Commit your work on the current branch. End each commit message with "Part of ${brief.specId}" and then the line "Co-Authored-By: ${modelName(STEPS.implementer.model)} <noreply@anthropic.com>". Don't push, open a PR or touch Linear: the host does that.
 
 Write ${MAPPING_FILE}: a Markdown table with the columns Criterion | Test file | Test name, one row per criterion you cover (for a Seen criterion, the page and options to screenshot in place of the test).`
 }

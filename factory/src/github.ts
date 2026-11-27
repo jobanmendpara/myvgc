@@ -1,14 +1,20 @@
 // The real Forge: GitHub as the `myvgc-factory` App (Give factory agents their own GitHub identity,
-// DEV-256). It mints an installation token from the App's key when the Run first needs one, and
-// passes it to `gh` as GH_TOKEN and to `git push` in an HTTP header, never on a command line.
+// DEV-256). It mints an installation token from the App's key when the Run starts (botIdentity),
+// and passes it to `gh` as GH_TOKEN and to `git push` in an HTTP header, never on a command line.
+//
+// Sandcastle mounts the repo's git folder into each sandbox, so an agent can write the repo's git
+// config and hooks. Nothing here trusts them: the repo is read once, when the Forge is made, before
+// any agent runs; `gh` and wait-for-checks.sh run outside the checkout with GH_REPO; and `git push`
+// runs with hooks, fsmonitor and credential helpers turned off, its header only for github.com.
+//
 // Thin on purpose, and not unit-tested: the pilot's first Run proves it (DEV-269).
-import { execFile, spawn } from 'node:child_process'
+import { execFile, execFileSync, spawn } from 'node:child_process'
 import { createSign } from 'node:crypto'
 import { readFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
-import type { GitHubApp } from './factory.ts'
-import type { Forge } from './ports.ts'
+import type { Forge, GitHubApp } from './ports.ts'
 
 const run = promisify(execFile)
 const API = 'https://api.github.com'
@@ -16,11 +22,12 @@ const API = 'https://api.github.com'
 export function githubForge(app: GitHubApp, repoDir: string): Forge {
   let token: Promise<string> | undefined
   const installationToken = () => (token ??= mintInstallationToken(app))
-  const repo = async () =>
-    repoOf((await run('git', ['remote', 'get-url', 'origin'], { cwd: repoDir })).stdout)
+  const repo = repoOf(
+    execFileSync('git', ['remote', 'get-url', 'origin'], { cwd: repoDir, encoding: 'utf8' }),
+  )
+  const ghEnv = async () => ({ ...process.env, GH_TOKEN: await installationToken(), GH_REPO: repo })
   const gh = async (args: string[], stdin?: string) => {
-    const env = { ...process.env, GH_TOKEN: await installationToken() }
-    const child = run('gh', [...args, '--repo', await repo()], { cwd: repoDir, env })
+    const child = run('gh', args, { cwd: tmpdir(), env: await ghEnv() })
     if (stdin !== undefined) {
       child.child.stdin?.end(stdin)
     }
@@ -29,6 +36,7 @@ export function githubForge(app: GitHubApp, repoDir: string): Forge {
 
   return {
     async botIdentity() {
+      await installationToken()
       const { slug } = await githubApi<{ slug: string }>('/app', `Bearer ${appJwt(app)}`)
       const name = `${slug}[bot]`
       const { id } = await githubApi<{ id: number }>(`/users/${encodeURIComponent(name)}`)
@@ -39,11 +47,18 @@ export function githubForge(app: GitHubApp, repoDir: string): Forge {
       // The user name in the URL keeps the host's global `insteadOf` rewrite to SSH from matching
       // (the spike, DEV-251), and the token goes in a header set through the environment.
       const header = Buffer.from(`x-access-token:${await installationToken()}`).toString('base64')
+      const untrusted = [
+        ['core.hooksPath', '/dev/null'],
+        ['core.fsmonitor', 'false'],
+        ['credential.helper', ''],
+        ['http.https://github.com/.extraHeader', `Authorization: Basic ${header}`],
+      ]
       await run(
         'git',
         [
           'push',
-          `https://x-access-token@github.com/${await repo()}.git`,
+          '--no-verify',
+          `https://x-access-token@github.com/${repo}.git`,
           `HEAD:refs/heads/${branch}`,
         ],
         {
@@ -51,9 +66,14 @@ export function githubForge(app: GitHubApp, repoDir: string): Forge {
           env: {
             ...process.env,
             GIT_TERMINAL_PROMPT: '0',
-            GIT_CONFIG_COUNT: '1',
-            GIT_CONFIG_KEY_0: 'http.extraHeader',
-            GIT_CONFIG_VALUE_0: `Authorization: Basic ${header}`,
+            GIT_ASKPASS: '',
+            GIT_CONFIG_COUNT: String(untrusted.length),
+            ...Object.fromEntries(
+              untrusted.flatMap(([key, value], index) => [
+                [`GIT_CONFIG_KEY_${index}`, key],
+                [`GIT_CONFIG_VALUE_${index}`, value],
+              ]),
+            ),
           },
         },
       )
@@ -78,15 +98,16 @@ export function githubForge(app: GitHubApp, repoDir: string): Forge {
     },
 
     async waitForChecks(pr) {
-      const env = { ...process.env, GH_TOKEN: await installationToken() }
+      const env = await ghEnv()
       return await new Promise<number>((resolve, reject) => {
         const child = spawn(join(repoDir, 'scripts', 'wait-for-checks.sh'), [String(pr)], {
-          cwd: repoDir,
+          cwd: tmpdir(),
           env,
           stdio: 'inherit',
         })
         child.on('error', reject)
-        child.on('exit', (code) => resolve(code ?? 3))
+        // Killed by a signal: not a result to wait again on.
+        child.on('exit', (code) => resolve(code ?? 1))
       })
     },
   }

@@ -1,12 +1,14 @@
 // Acceptance criteria (How specs prove themselves, DEV-252): each one is a bold `AC-n.m` under a
 // user story in the signed-off spec, and a ticket says which it covers in a "Covers:" line.
 
+/** Tested by a test that can fail, or Seen in a screenshot. Specs mark Seen ones "(Seen)". */
+export type CriterionKind = 'tested' | 'seen'
+
 export interface Criterion {
   id: string
   /** The criterion's Given/When/Then text, as the spec has it. */
   text: string
-  /** Tested by a test that can fail, or Seen in a screenshot. Specs mark Seen ones "(Seen)". */
-  kind: 'tested' | 'seen'
+  kind: CriterionKind
 }
 
 const CRITERION = /\*\*(AC-\d+\.\d+)\*\*\s*(.+)/g

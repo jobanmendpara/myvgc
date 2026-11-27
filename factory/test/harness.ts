@@ -84,7 +84,8 @@ export function listed(output: string): string[] {
 }
 
 /** How a sabotage's replay comes out. "suite error": one file fails on an assertion, another fails to load. */
-export type ReplayOutcome = 'caught' | 'load error' | 'suite error' | 'passes' | 'stays broken'
+export type ReplayOutcome =
+  'caught' | 'load error' | 'suite error' | 'hook error' | 'passes' | 'stays broken'
 
 /** What the fake sandbox and agents do. Anything not named succeeds. */
 export interface Script {
@@ -96,6 +97,8 @@ export interface Script {
   mapping?: string | null
   /** How each criterion's replay comes out; by default every one is caught. */
   replays?: Record<string, ReplayOutcome>
+  /** The Implementer's commits since origin/main; 1 by default. */
+  commits?: number
   /** scripts/wait-for-checks.sh's exit codes, call by call. */
   waits?: number[]
 }
@@ -123,21 +126,20 @@ export function review(
 
 const vitestReport = (outcome: ReplayOutcome) =>
   JSON.stringify(
-    outcome === 'suite error'
+    outcome === 'hook error'
       ? {
           numFailedTests: 1,
           testResults: [
             {
               status: 'failed',
-              message: '',
+              message: 'Error: afterAll hook threw',
               assertionResults: [
                 { status: 'failed', failureMessages: ['AssertionError: expected 1 to be 2'] },
               ],
             },
-            { status: 'failed', message: 'Failed to load y.ts', assertionResults: [] },
           ],
         }
-      : outcome === 'caught' || outcome === 'stays broken'
+      : outcome === 'suite error'
         ? {
             numFailedTests: 1,
             testResults: [
@@ -148,19 +150,33 @@ const vitestReport = (outcome: ReplayOutcome) =>
                   { status: 'failed', failureMessages: ['AssertionError: expected 1 to be 2'] },
                 ],
               },
+              { status: 'failed', message: 'Failed to load y.ts', assertionResults: [] },
             ],
           }
-        : outcome === 'load error'
+        : outcome === 'caught' || outcome === 'stays broken'
           ? {
-              numFailedTests: 0,
+              numFailedTests: 1,
               testResults: [
-                { status: 'failed', message: 'Failed to load x.ts', assertionResults: [] },
+                {
+                  status: 'failed',
+                  message: '',
+                  assertionResults: [
+                    { status: 'failed', failureMessages: ['AssertionError: expected 1 to be 2'] },
+                  ],
+                },
               ],
             }
-          : {
-              numFailedTests: 0,
-              testResults: [{ status: 'passed', message: '', assertionResults: [] }],
-            },
+          : outcome === 'load error'
+            ? {
+                numFailedTests: 0,
+                testResults: [
+                  { status: 'failed', message: 'Failed to load x.ts', assertionResults: [] },
+                ],
+              }
+            : {
+                numFailedTests: 0,
+                testResults: [{ status: 'passed', message: '', assertionResults: [] }],
+              },
   )
 
 const folders: string[] = []
@@ -298,6 +314,8 @@ function fakeSandbox(script: Script, events: Event[]): Sandbox {
     async exec(command, options) {
       events.push({ port: 'sandbox', method: 'exec', command, stdin: options?.stdin })
       if (command.includes('pnpm install')) return exit(script.install ?? 0)
+      if (command === 'git rev-list --count origin/main..HEAD')
+        return ok(`${script.commits ?? 1}\n`)
       const check = /^pnpm (test|typecheck|lint|format:check)$/.exec(command)?.[1]
       if (check) {
         const code = script.checks?.[check as keyof Script['checks'] & string] ?? 0

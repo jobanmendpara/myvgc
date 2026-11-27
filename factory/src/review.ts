@@ -1,10 +1,12 @@
 // The Reviewer's verdict and the host's replay of its sabotages (How specs prove themselves,
 // DEV-252; How a factory Run works, DEV-253).
 
+import type { CriterionKind } from './criteria.ts'
+
 export interface ReviewRow {
   /** The criterion, such as AC-3.1. */
   id: string
-  kind: 'tested' | 'seen'
+  kind: CriterionKind
   /** The test that proves it: "file › name". */
   test: string
   /** Runs that test with Vitest, such as `pnpm --filter @myvgc/core exec vitest run <file> -t '<name>'`. */
@@ -68,8 +70,8 @@ interface VitestReport {
 
 /**
  * Whether a sabotaged run's Vitest JSON report shows the sabotage caught by an assertion: at least
- * one failed test, no suite errors (a file that failed to load or compile), and an assertion
- * failure message. Matching text in the output instead was too weak in the spike (DEV-251).
+ * one failed test, no suite errors (a file that failed to load or compile, or a hook that threw),
+ * and an assertion failure message. Matching text in the output instead was too weak in the spike (DEV-251).
  */
 export function caughtByAssertion(reportJson: string): boolean {
   let report: VitestReport
@@ -79,11 +81,9 @@ export function caughtByAssertion(reportJson: string): boolean {
     return false
   }
   if (!(report.numFailedTests >= 1)) return false
+  // A file that failed to load or compile, or whose hooks threw, reports a message of its own.
   const suiteError = report.testResults.some(
-    (file) =>
-      file.status === 'failed' &&
-      Boolean(file.message) &&
-      file.assertionResults.every((test) => test.status !== 'failed'),
+    (file) => file.status === 'failed' && Boolean(file.message),
   )
   if (suiteError) return false
   return report.testResults.some((file) =>
