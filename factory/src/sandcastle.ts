@@ -105,7 +105,8 @@ function withEnv(
   }
   const exports = names.map((name) => `IFS= read -r ${name} && export ${name}`).join(' && ')
   return [
-    `${exports} && exec </dev/null && ${command}`,
+    // Grouped, so a command holding `;` or `||` still runs only once the exports have.
+    `${exports} && exec </dev/null && { ${command}\n}`,
     { stdin: names.map((name) => `${env[name]}\n`).join('') },
   ]
 }

@@ -6,7 +6,13 @@
 // changes an ADR 24 path has `pnpm accuracy` run before and after it, ahead of the push (DEV-280).
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { type Accuracy, type AccuracyRun, measureAccuracy } from './accuracy.ts'
+import {
+  type Accuracy,
+  type AccuracyKey,
+  type AccuracyRun,
+  headline,
+  measureAccuracy,
+} from './accuracy.ts'
 import type { Criterion } from './criteria.ts'
 import {
   type AgentStep,
@@ -60,7 +66,7 @@ export interface RunContext {
    * The Anthropic API key `pnpm accuracy` runs with (src/accuracy.ts), when the set-up has one, and
    * where it belongs. Only that command gets it, never the sandbox's environment.
    */
-  accuracyKey: { value: string | undefined; home: string }
+  accuracyKey: AccuracyKey
   print: (line: string) => void
 }
 
@@ -212,12 +218,7 @@ export async function workTicket(
     if (!review || !replays) throw new Error('The push gate passed with no review.')
     say('push gate', 'passed')
 
-    const accuracy = await measureAccuracy(
-      sandbox,
-      ticket.branch,
-      context.accuracyKey.value,
-      context.accuracyKey.home,
-    )
+    const accuracy = await measureAccuracy(sandbox, ticket.branch, context.accuracyKey)
     if (accuracy.kind === 'unmeasured') {
       say('accuracy', 'not measured')
       return await parkHere(accuracy.problem, { sandbox, commits, review, replays })
@@ -225,7 +226,7 @@ export async function workTicket(
     if (accuracy.kind === 'measured') {
       writeLog(logDir, 'accuracy-base.log', accuracy.before.log)
       writeLog(logDir, 'accuracy-branch.log', accuracy.after.log)
-      say('accuracy', `${firstLine(accuracy.before)} before; ${firstLine(accuracy.after)} after`)
+      say('accuracy', `${headline(accuracy.before)} before; ${headline(accuracy.after)} after`)
     }
 
     if ((await forge.push(sandbox.worktreePath, ticket.branch)) === 'workflows refused') {
@@ -485,8 +486,6 @@ function pushGate(
  * has them turned into "Related to" (CLAUDE.md, Tracking).
  */
 const CLOSING = /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)(\s+[A-Z]+-\d+)/gi
-
-const firstLine = ({ summary }: AccuracyRun) => summary.split('\n')[0] ?? ''
 
 /** Both `pnpm accuracy` summaries, for the PR body (CLAUDE.md: "pastes both summaries"). */
 function accuracySection(accuracy: Accuracy): string[] {

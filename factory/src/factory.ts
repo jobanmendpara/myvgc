@@ -8,10 +8,11 @@
 import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { parseArgs, parseEnv } from 'node:util'
+import type { AccuracyKey } from './accuracy.ts'
 import { coveredIds, criteriaOf } from './criteria.ts'
 import { frontier, whyNotTakeable } from './frontier.ts'
 import type { Forge, GitHubApp, Sandboxes, Ticket, Tracker } from './ports.ts'
-import { type RunContext, workTicket } from './run.ts'
+import { workTicket } from './run.ts'
 import { type Settings, STEP_NAMES, ticketPlan, withOverrides } from './settings.ts'
 import { describeWorkspace, workspacePackages } from './workspace.ts'
 
@@ -223,7 +224,7 @@ type Setup =
       linearApiKey: string
       github: GitHubApp
       sandboxEnv: Record<string, string>
-      accuracyKey: RunContext['accuracyKey']
+      accuracyKey: AccuracyKey
     }
   | { problems: string[] }
 

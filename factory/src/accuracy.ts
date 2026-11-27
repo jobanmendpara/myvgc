@@ -6,14 +6,26 @@
 //
 // The key comes from ANTHROPIC_API_KEY in ~/.config/myvgc-factory/config.env, never from
 // .sandcastle/.env, and reaches only the accuracy command's environment: the sandbox and its agents
-// never hold it. Only a ticket that touches an ADR 24 path needs it, so a Run starts without it and
+// never hold it. The branch's run does execute code the Implementer wrote, which is what measuring
+// it means. Only a ticket that touches an ADR 24 path needs the key, so a Run starts without it and
 // such a ticket parks when it's missing.
 //
+// The summaries are shown, not judged: a branch that makes a case worse needs the maintainer's
+// sign-off (CLAUDE.md), which the risky-path gate's `approved` label gives, since every ADR 24 path
+// is a risky path.
+//
 // ADR_24_PATHS is a subset of the risky-path gate's inline list in
-// .github/workflows/risky-change-gate.yml (DEV-250, the spec's H-6): the ADR 24 reading files, not
-// migrations, docs/adr/ or .github/. Changing either list means checking the other. This note
-// belongs in docs/wiki/factory.md once that page exists (DEV-276).
-import type { ExecResult, Sandbox } from './ports.ts'
+// .github/workflows/risky-change-gate.yml (DEV-250, the spec's H-6; the workflow comes with
+// DEV-289): the ADR 24 reading files, not migrations, docs/adr/ or .github/. Changing either list
+// means checking the other. This note belongs in docs/wiki/factory.md once that page exists
+// (DEV-276).
+import { type ExecResult, type Sandbox, STORE_DIR } from './ports.ts'
+
+/** The Anthropic API key `pnpm accuracy` runs with, when the set-up has one, and where it belongs. */
+export interface AccuracyKey {
+  value: string | undefined
+  home: string
+}
 
 /** The ADR 24 reading files: a path is one when it equals an entry or lies under one ending in /. */
 const ADR_24_PATHS = [
@@ -35,6 +47,8 @@ const touchesAdr24 = (file: string) =>
   ADR_24_PATHS.some((path) => (path.endsWith('/') ? file.startsWith(path) : file === path))
 
 const CLEAN = 'git checkout -- . && git clean -fd'
+/** Each checkout gets its own dependencies, so the base runs with the base's lockfile. */
+const INSTALL = `pnpm install --frozen-lockfile --store-dir ${STORE_DIR}`
 
 /** One `pnpm accuracy` run: on the base commit or on the branch. */
 export interface AccuracyRun {
@@ -53,22 +67,22 @@ export type Accuracy =
 
 /**
  * Runs `pnpm accuracy` on the base commit and then on the branch when the branch changes an ADR 24
- * path; otherwise runs nothing. `key` is the Anthropic API key, or undefined when the set-up has
- * none, and `keyHome` says where it belongs.
+ * path; otherwise runs nothing. The sandbox ends on the branch, unless checking it out again
+ * failed, which the result says.
  */
 export async function measureAccuracy(
   sandbox: Sandbox,
   branch: string,
-  key: string | undefined,
-  keyHome: string,
+  key: AccuracyKey,
 ): Promise<Accuracy> {
   const changed = await sandbox.exec('git diff --name-only origin/main...HEAD')
   const files = changed.stdout.split('\n').filter(Boolean)
   if (!files.some(touchesAdr24)) return { kind: 'not needed' }
-  if (!key) {
+  const { value } = key
+  if (!value) {
     return {
       kind: 'unmeasured',
-      problem: `the branch changes an ADR 24 path, so \`pnpm accuracy\` must run, and it needs ANTHROPIC_API_KEY in ${keyHome}`,
+      problem: `the branch changes an ADR 24 path, so \`pnpm accuracy\` must run, and it needs ANTHROPIC_API_KEY in ${key.home}`,
     }
   }
   const base = (await sandbox.exec('git merge-base origin/main HEAD')).stdout.trim()
@@ -79,25 +93,35 @@ export async function measureAccuracy(
     }
   }
   const accuracy = async (on: string): Promise<AccuracyRun> => {
-    const result = await sandbox.exec('pnpm accuracy', { env: { ANTHROPIC_API_KEY: key } })
+    const result = await sandbox.exec('pnpm accuracy', { env: { ANTHROPIC_API_KEY: value } })
     // Its report, under apps/api/.accuracy/, is gitignored; anything else it left is cleared.
     await sandbox.exec(CLEAN)
     return { on, summary: summaryOf(result), log: result.stdout + result.stderr }
   }
+  // The branch is committed and the replays left a clean checkout, so nothing is lost here.
+  const checkOut = async (target: string) =>
+    (await sandbox.exec(`git checkout ${target}`)).exitCode === 0 &&
+    (await sandbox.exec(INSTALL)).exitCode === 0
 
-  if ((await sandbox.exec(`git checkout --detach ${base}`)).exitCode !== 0) {
-    return { kind: 'unmeasured', problem: `the base commit ${base} couldn't be checked out` }
-  }
-  const before = await accuracy(`the base commit ${base}`)
-  if ((await sandbox.exec(`git checkout ${branch}`)).exitCode !== 0) {
+  if (!(await checkOut(`--detach ${base}`))) {
     return {
       kind: 'unmeasured',
-      problem: `the branch couldn't be checked out again after \`pnpm accuracy\``,
+      problem: `the base commit ${base} couldn't be checked out and installed for \`pnpm accuracy\``,
+    }
+  }
+  const before = await accuracy(`the base commit ${base}`)
+  if (!(await checkOut(branch))) {
+    return {
+      kind: 'unmeasured',
+      problem: `the branch couldn't be checked out and installed again after \`pnpm accuracy\``,
     }
   }
   const after = await accuracy('the branch')
   return { kind: 'measured', before, after }
 }
+
+/** A run's summary line, such as "Reading accuracy, claude-haiku-5-5: 4 of 4 passed, $0.04 in all". */
+export const headline = ({ summary }: AccuracyRun) => summary.split('\n')[0] ?? ''
 
 /**
  * The summary apps/api/test/reading.accuracy.ts prints at the end: from its "Reading accuracy, "

@@ -116,6 +116,8 @@ export interface Script {
   changedFiles?: string[]
   /** What `pnpm accuracy` prints on each checkout; by default a summary naming the checkout. */
   accuracy?: Partial<Record<'base' | 'branch', string>>
+  /** Which checkout for `pnpm accuracy` fails, if one does. */
+  checkoutFails?: 'base' | 'branch'
 }
 
 /** The commit `git merge-base origin/main HEAD` gives in the fake sandbox. */
@@ -311,7 +313,7 @@ export async function run(
   const sandboxes: Sandboxes = {
     async create(options) {
       events.push({ port: 'sandboxes', method: 'create', options })
-      return fakeSandbox(script, events)
+      return fakeSandbox(script, events, options.branch)
     },
   }
 
@@ -343,7 +345,7 @@ function writeWorkspace(repoDir: string) {
   }
 }
 
-function fakeSandbox(script: Script, events: Event[]): Sandbox {
+function fakeSandbox(script: Script, events: Event[], branch: string): Sandbox {
   /** The criterion whose sabotage is applied, if any. */
   let sabotaged: string | null = null
   let reviewers = 0
@@ -369,10 +371,12 @@ function fakeSandbox(script: Script, events: Event[]): Sandbox {
       if (command === 'git merge-base origin/main HEAD') return ok(`${BASE_COMMIT}\n`)
       const detached = /^git checkout --detach (\S+)$/.exec(command)?.[1]
       if (detached) {
+        if (script.checkoutFails === 'base') return exit(1)
         checkout = detached
         return ok()
       }
-      if (/^git checkout [\w./-]+$/.test(command) && !command.includes('--')) {
+      if (command === `git checkout ${branch}`) {
+        if (script.checkoutFails === 'branch') return exit(1)
         checkout = 'branch'
         return ok()
       }

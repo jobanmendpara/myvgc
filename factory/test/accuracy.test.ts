@@ -36,7 +36,6 @@ const prBodies = (events: Event[]) =>
       ? [(event.args[0] as { body: string }).body]
       : [],
   )
-const indexOf = (events: Event[], found: (event: Event) => boolean) => events.findIndex(found)
 
 /** The files ADR 24 names (its reader, schema, default model, image shrinking and accuracy check). */
 const ADR_24_FILES = [
@@ -57,10 +56,44 @@ describe('a diff touching an ADR 24 path', () => {
     expect(code).toBe(0)
     const runs = accuracyRuns(events)
     expect(runs.map((event) => event.checkout)).toEqual([BASE_COMMIT, 'branch'])
-    const push = indexOf(events, (event) => event.port === 'forge' && event.method === 'push')
+    const push = events.findIndex((event) => event.port === 'forge' && event.method === 'push')
     const lastRun = events.lastIndexOf(runs.at(-1) as Event)
     expect(push).toBeGreaterThan(lastRun)
   })
+
+  test('installs each checkout before its run, and ends back on the branch', async () => {
+    const { events } = await workDev2({ changedFiles: ['packages/core/src/seen-team.ts'] })
+    const steps = execs(events)
+      .filter(
+        (event) => event.command.includes('pnpm install') || event.command === 'pnpm accuracy',
+      )
+      .map(
+        (event) =>
+          `${event.command.includes('install') ? 'install' : 'accuracy'} on ${event.checkout}`,
+      )
+    // The first install is the sandbox's own, before the Implementer.
+    expect(steps).toEqual([
+      'install on branch',
+      `install on ${BASE_COMMIT}`,
+      `accuracy on ${BASE_COMMIT}`,
+      'install on branch',
+      'accuracy on branch',
+    ])
+    expect(execs(events).at(-1)?.checkout).toBe('branch')
+  })
+
+  test.each(['base', 'branch'] as const)(
+    'parks the ticket when the %s checkout fails, and queues no merge',
+    async (checkoutFails) => {
+      const { code, events, lines } = await workDev2({
+        changedFiles: ['apps/api/src/team-reader.ts'],
+        checkoutFails,
+      })
+      expect(code).toBe(1)
+      expect(events.filter((event) => event.method === 'queueAutoMerge')).toEqual([])
+      expect(lines.find((line) => line.includes('· park:'))).toContain("couldn't be checked out")
+    },
+  )
 
   test('puts both summaries in the PR body, without the run lines or the report', async () => {
     const { events } = await workDev2({
