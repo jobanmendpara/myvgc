@@ -1,0 +1,10 @@
+{
+  "name": "sandcastle-spike",
+  "private": true,
+  "type": "module",
+  "description": "PROTOTYPE (DEV-251): throwaway Sandcastle spike, never merged to main",
+  "dependencies": {
+    "@ai-hero/sandcastle": "0.14.0",
+    "tsx": "4.20.6"
+  }
+}
