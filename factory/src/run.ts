@@ -11,6 +11,7 @@ import {
   type Sandbox,
   type Sandboxes,
   STORE_DIR,
+  type Ticket,
   type Tracker,
 } from './ports.ts'
 import { implementerPrompt, MAPPING_FILE, reviewerPrompt, type TicketBrief } from './prompts.ts'
@@ -48,8 +49,10 @@ export interface RunContext {
 /** How a ticket's turn in a Run ended. */
 export type TicketOutcome = 'merged' | 'parked' | 'stopped'
 
+/** Every comment the factory writes starts with this (DEV-259). */
+const FACTORY = '🏭 Factory'
 /** The note a park leaves on the ticket starts with this, which is how a later Run finds it. */
-const PARKED = '🏭 Factory: Parked'
+const PARKED = `${FACTORY}: Parked`
 
 /**
  * Works one ticket to a merged PR, or parks it. `unstartable` says why it can't start at all, such
@@ -65,14 +68,13 @@ export async function workTicket(
   const say = (step: string, result: string) =>
     print(`${ticket.id} ${ticket.title} · ${step}: ${result}`)
   const logDir = join(context.runDir, ticket.id)
-  const parkHere = (reason: string, work?: Work) => park(context, brief, say, reason, work)
-
-  if (unstartable) return parkHere(unstartable)
+  if (unstartable) return park(context, brief, say, unstartable)
   const previousPark = await previousParkOf(tracker, ticket.id)
-  if (previousPark) brief = { ...brief, previousPark }
+  const working: TicketBrief = previousPark ? { ...brief, previousPark } : brief
+  const parkHere = (reason: string, work?: Work) => park(context, working, say, reason, work)
 
   await tracker.setStatus(ticket.id, 'In Progress')
-  await tracker.comment(ticket.id, `🏭 Factory: Claimed by factory Run \`${context.runId}\`.`)
+  await tracker.comment(ticket.id, `${FACTORY}: Claimed by factory Run \`${context.runId}\`.`)
   say('claim', 'In Progress')
 
   const sandbox = await context.sandboxes.create({
@@ -99,7 +101,7 @@ export async function workTicket(
     }
     say('worktree and install', `${ticket.branch}, installed`)
 
-    const implementer = await sandbox.runAgent(agentStep('implementer', implementerPrompt(brief)))
+    const implementer = await sandbox.runAgent(agentStep('implementer', implementerPrompt(working)))
     const commits = Number((await sandbox.exec('git rev-list --count origin/main..HEAD')).stdout)
     say('Implementer', `finished, ${commits} commit${commits === 1 ? '' : 's'}`)
     const parkSignal = lastTag(implementer.stdout, 'park')
@@ -111,7 +113,7 @@ export async function workTicket(
     say('host checks', checks.passed ? 'all passed' : `failed: ${checks.failed.join(', ')}`)
 
     const reviewer = await sandbox.runAgent(
-      agentStep('reviewer', reviewerPrompt(brief, checks.summary)),
+      agentStep('reviewer', reviewerPrompt(working, checks.summary)),
     )
     const review = readReview(reviewer.stdout)
     say('Reviewer', review ? review.verdict : 'no readable <review>')
@@ -120,7 +122,10 @@ export async function workTicket(
     const confirmed = [...replays.values()].filter(Boolean).length
     say('replay', `${confirmed} of ${replays.size} confirmed`)
 
-    const gate = pushGate({ review, replays, checksPassed: checks.passed, commits }, brief.criteria)
+    const gate = pushGate(
+      { review, replays, checksPassed: checks.passed, commits },
+      working.criteria,
+    )
     if (!review || gate.length > 0) {
       say('push gate', `failed: ${gate.join('; ')}`)
       return await parkHere(`the push gate failed: ${gate.join('; ')}`, {
@@ -138,13 +143,14 @@ export async function workTicket(
         commits,
         review,
         replays,
+        pushRefused: true,
       })
     }
     const mapping = await sandbox.exec(`cat ${MAPPING_FILE}`)
     const pr = await forge.openPr({
       branch: ticket.branch,
-      title: `${ticket.title} (${ticket.id})`,
-      body: prBody(context, brief, mapping.exitCode === 0 ? mapping.stdout.trim() : ''),
+      title: prTitle(ticket),
+      body: prBody(context, working, mapping.exitCode === 0 ? mapping.stdout.trim() : ''),
       draft: false,
     })
     await forge.commentOnPr(pr.number, reviewComment(review, replays))
@@ -174,9 +180,14 @@ export async function workTicket(
 interface Work {
   sandbox: Sandbox
   commits: number
+  /** The last review, when one ran; with the host's replays of its sabotages. */
   review?: Review | null
   replays?: Map<string, boolean>
+  /** GitHub already turned the branch's push down: don't try again. */
+  pushRefused?: boolean
 }
+
+const prTitle = (ticket: Ticket) => `${ticket.title} (${ticket.id})`
 
 const WORKFLOWS_REFUSED =
   "GitHub turned the push down because the branch changes workflow files, which the factory's App may not push. The branch stays local, and that change has to be made by hand"
@@ -189,36 +200,57 @@ async function park(
   context: RunContext,
   { ticket }: TicketBrief,
   say: (step: string, result: string) => void,
-  reason: string,
+  why: string,
   work?: Work,
 ): Promise<'parked'> {
   const { tracker, forge } = context
-  const rows = work?.review ? reviewRows(work.review, work.replays ?? new Map()) : []
-  const verdict = work?.review ? `Last verdict: **${work.review.verdict}**.` : 'No review ran.'
+  // The reason can carry an agent's words (its park signal), which mustn't close another issue.
+  const reason = why.replace(CLOSING, 'Related to$1')
+  const review = work?.review
+  const lastReview = review
+    ? [
+        `Last verdict: **${review.verdict}**.`,
+        '',
+        ...reviewRows(review, work?.replays ?? new Map()),
+        ...(review.findings.length > 0
+          ? [
+              '',
+              "The Reviewer's findings:",
+              ...review.findings.map(
+                ({ severity, file, summary }) =>
+                  `- ${severity}, ${file}: ${summary.replace(CLOSING, 'Related to$1')}`,
+              ),
+            ]
+          : []),
+      ]
+    : ['No review ran.']
   let pr: string
-  if (!work || !(work.commits > 0)) {
+  if (!work || work.commits === 0) {
     pr = 'No draft PR: the branch has no commits.'
-  } else if ((await forge.push(work.sandbox.worktreePath, ticket.branch)) === 'workflows refused') {
+  } else if (
+    work.pushRefused ||
+    (await forge.push(work.sandbox.worktreePath, ticket.branch)) === 'workflows refused'
+  ) {
     pr = `${WORKFLOWS_REFUSED}.`
   } else {
     const draft = await forge.openPr({
       branch: ticket.branch,
-      title: `${ticket.title} (${ticket.id})`,
+      title: prTitle(ticket),
       body: [
         `Parked by the factory Run \`${context.runId}\`: ${reason}.`,
         '',
-        verdict,
-        '',
-        ...rows,
+        ...lastReview,
         '',
         `Related to ${ticket.id}`,
         `Part of ${context.specId}`,
+        '',
+        GENERATED,
       ].join('\n'),
       draft: true,
     })
     await forge.commentOnPr(
       draft.number,
-      `🏭 Factory: @${forge.maintainer()} this ticket is parked and needs you: ${reason}.`,
+      `${FACTORY}: @${forge.maintainer()} this ticket is parked and needs you: ${reason}.`,
     )
     pr = `Draft PR: ${draft.url}`
   }
@@ -229,8 +261,7 @@ async function park(
     [
       `${PARKED} by factory Run \`${context.runId}\`: ${reason}.`,
       '',
-      verdict,
-      ...(rows.length > 0 ? ['', ...rows] : []),
+      ...lastReview,
       '',
       pr,
       `Run log: ${join(context.runDir, ticket.id)}`,
@@ -243,17 +274,14 @@ async function park(
 }
 
 /** The ticket's last park note and the comments since that the factory didn't write, if any. */
-async function previousParkOf(
-  tracker: Tracker,
-  id: string,
-): Promise<TicketBrief['previousPark'] | undefined> {
+async function previousParkOf(tracker: Tracker, id: string): Promise<TicketBrief['previousPark']> {
   const comments = await tracker.getComments(id)
   const at = comments.findLastIndex((comment) => comment.body.startsWith(PARKED))
   const note = comments[at]
   if (!note) return undefined
   const since = comments
     .slice(at + 1)
-    .filter((comment) => !comment.body.startsWith('🏭 Factory'))
+    .filter((comment) => !comment.body.startsWith(FACTORY))
     .map((comment) => comment.body)
   return { note: note.body, since }
 }
@@ -358,9 +386,11 @@ function prBody(context: RunContext, { ticket }: TicketBrief, mapping: string): 
     `Closes ${ticket.id}`,
     `Part of ${context.specId}`,
     '',
-    '🤖 Generated with [Claude Code](https://claude.com/claude-code)',
+    GENERATED,
   ].join('\n')
 }
+
+const GENERATED = '🤖 Generated with [Claude Code](https://claude.com/claude-code)'
 
 /** The Reviewer's rows as a Markdown table, with each replay's result. */
 function reviewRows(review: Review, replays: Map<string, boolean>): string[] {
@@ -377,7 +407,7 @@ function reviewRows(review: Review, replays: Map<string, boolean>): string[] {
 
 function reviewComment(review: Review, replays: Map<string, boolean>): string {
   return [
-    `🏭 Factory: the Reviewer's verdict is **${review.verdict}**.`,
+    `${FACTORY}: the Reviewer's verdict is **${review.verdict}**.`,
     '',
     ...reviewRows(review, replays),
   ].join('\n')

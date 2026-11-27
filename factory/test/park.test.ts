@@ -121,6 +121,45 @@ describe('parking a ticket', () => {
   })
 })
 
+describe('parking without harm', () => {
+  test("keeps closing keywords in the Implementer's reason from closing another issue", async () => {
+    const result = await workDev2({
+      implementer: '<park>this fixes DEV-12, so closes DEV-13</park>',
+    })
+    const [pr] = openedPrs(result.events)
+    const texts = [pr?.body ?? '', ...linearComments(result.events)]
+    for (const text of texts) {
+      const closing = [
+        ...text.matchAll(/\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+([A-Z]+-\d+)/gi),
+      ]
+      expect(closing).toEqual([])
+    }
+    expect(pr?.body).toContain('Related to DEV-12')
+    expect(pr?.body).toContain('🤖 Generated with [Claude Code]')
+  })
+
+  test("carries the Reviewer's findings in the park note", async () => {
+    const reviewer = review(
+      'fail',
+      ['AC-1.1', 'AC-1.2'],
+      [{ severity: 'hard', file: 'src/a.ts', summary: 'AC-1.2 refuses with the wrong exit code.' }],
+    )
+    const result = await workDev2({ reviewer })
+    expect(linearComments(result.events).at(-1)).toContain(
+      '- hard, src/a.ts: AC-1.2 refuses with the wrong exit code.',
+    )
+  })
+
+  test('parks a branch whose push GitHub turns down after the push gate passed, pushing once', async () => {
+    const result = await workDev2({ workflowsRefused: true })
+    expect(result.code).toBe(1)
+    expectParked(result.events)
+    expect(calls(result.events, 'forge', 'push')).toHaveLength(1)
+    expect(openedPrs(result.events)).toEqual([])
+    expect(linearComments(result.events).at(-1)).toContain('has to be made by hand')
+  })
+})
+
 describe('picking a parked ticket up again', () => {
   const PARKED = {
     body: '🏭 Factory: Parked by factory Run `2026-11-26-0900-DEV-269`: AC-1.2 is impossible.',

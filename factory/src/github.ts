@@ -25,6 +25,8 @@ export function githubForge(app: GitHubApp, repoDir: string): Forge {
   const repo = repoOf(
     execFileSync('git', ['remote', 'get-url', 'origin'], { cwd: repoDir, encoding: 'utf8' }),
   )
+  const [owner] = repo.split('/')
+  if (!owner) throw new Error(`origin names no repo owner: ${repo}`)
   const ghEnv = async () => ({ ...process.env, GH_TOKEN: await installationToken(), GH_REPO: repo })
   const gh = async (args: string[], stdin?: string) => {
     const child = run('gh', args, { cwd: tmpdir(), env: await ghEnv() })
@@ -51,6 +53,7 @@ export function githubForge(app: GitHubApp, repoDir: string): Forge {
         ['core.hooksPath', '/dev/null'],
         ['core.fsmonitor', 'false'],
         ['credential.helper', ''],
+        ['core.sshCommand', 'ssh'],
         ['http.https://github.com/.extraHeader', `Authorization: Basic ${header}`],
       ]
       try {
@@ -67,6 +70,8 @@ export function githubForge(app: GitHubApp, repoDir: string): Forge {
             env: {
               ...process.env,
               GIT_TERMINAL_PROMPT: '0',
+              // Only HTTPS, so planted config can't send the push through ext:: or a local path.
+              GIT_ALLOW_PROTOCOL: 'https',
               GIT_ASKPASS: '',
               GIT_CONFIG_COUNT: String(untrusted.length),
               ...Object.fromEntries(
@@ -93,7 +98,7 @@ export function githubForge(app: GitHubApp, repoDir: string): Forge {
     },
 
     maintainer() {
-      return repo.split('/')[0] ?? ''
+      return owner
     },
 
     async openPr({ branch, title, body, draft }) {
