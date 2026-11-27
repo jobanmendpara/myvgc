@@ -174,9 +174,20 @@ describe.concurrent('wait-for-checks.sh', { timeout: 20_000 }, () => {
     expect(result.output).toContain('A check failed')
   })
 
+  test('exits 4, not 5, when a PR waiting on the risky-path gate conflicts with main', async () => {
+    const result = await run({
+      GH_CHECKS: `${PASSING}fail\\trisky-change-gate\\n`,
+      GH_VIEW: DIRTY,
+    })
+    expect(result.code).toBe(4)
+    expect(result.output).toContain('conflicts with main')
+  })
+
+  // A label event starts a new gate run, which can cancel the one before it.
   test.each([
     ['the other checks are pending', `${SMOKE_PASSED}fail\\trisky-change-gate\\n`],
     ['the gate is pending', `${PASSING}pending\\trisky-change-gate\\n`],
+    ['the gate run was cancelled', `${PASSING}cancel\\trisky-change-gate\\n`],
   ])('keeps waiting, not exit 5, while %s', async (_, checks) => {
     const result = await run({ GH_CHECKS: checks })
     expect(result.code).toBe(2)
@@ -191,6 +202,15 @@ describe.concurrent('wait-for-checks.sh', { timeout: 20_000 }, () => {
     const result = await run({ GH_CHECKS: `${PASSING}pass\\trisky-change-gate\\n`, ...env })
     expect(result.code).toBe(code)
     // It got past the checks, rather than reaching the same exit while still waiting on the gate.
+    expect(result.output).toContain('Both checks passed')
+  })
+
+  test('counts a skipped risky-path gate as passed', async () => {
+    const result = await run({
+      GH_CHECKS: `${PASSING}skipping\\trisky-change-gate\\n`,
+      GH_VIEW: 'MERGED\\tfalse\\tUNKNOWN\\tabc123',
+    })
+    expect(result.code).toBe(0)
     expect(result.output).toContain('Both checks passed')
   })
 

@@ -126,10 +126,10 @@ From the claude-code-guide agent's report, 2026-11-25, citing code.claude.com/do
 
 ## Waiting on approved exits 5 (2026-11-27)
 
-- On 2026-11-27 DEV-273 taught `scripts/wait-for-checks.sh` the risky-path gate's check, `risky-change-gate`: the job that `.github/workflows/risky-change-gate.yml` will add in DEV-289, the Factory spec's set-up step H-6 ([DEV-269](https://linear.app/mendpara/issue/DEV-269)). DEV-273 picked the name, and the workflow takes it from there.
-- When `check` and `smoke / smoke` have passed and the gate is failing, the script exits 5: the PR changes a risky path and waits on the maintainer to add `approved`. Auto-merge stays queued, so adding the label is the merge. CLAUDE.md's "Shipping" section tells interactive sessions to stop waiting and tell the maintainer; the factory marks the ticket `needs-human` and moves on.
-- A failed `check` or `smoke / smoke` still exits 1 first. While the gate is pending, the script waits for it like a check. A PR on which the gate isn't reported, as on every PR before the workflow exists, behaves as before, and exits 0, 2, 3 and 4 are unchanged.
-- `gh pr checks` shows each check's latest run, which matters here: a label event starts a new gate run on the same commit, and only the newest one counts.
+- On 2026-11-27 DEV-273 (`jobanmendpara/myvgc@4069fd9`) taught `scripts/wait-for-checks.sh` the risky-path gate's check, `risky-change-gate`, part of the Factory spec ([DEV-269](https://linear.app/mendpara/issue/DEV-269)). DEV-273 picked the name. As of 2026-11-27 the gate's workflow, `.github/workflows/risky-change-gate.yml`, doesn't exist yet: DEV-289 (the spec's set-up step H-6) adds it with a job of that name.
+- When `check` and `smoke / smoke` have passed and the gate has failed, the script exits 5: the PR changes a risky path and waits on the maintainer to add `approved`. With auto-merge queued, adding the label merges it. CLAUDE.md's "Shipping" section tells interactive sessions to stop waiting and tell the maintainer; the factory is to mark the ticket `needs-human` and move on.
+- A failed `check` or `smoke / smoke` still exits 1 first, and a conflict (exit 4) comes before exit 5, since adding the label can't merge a `DIRTY` PR. A pending or cancelled gate run is waited for like a pending check, because a label event starts a new run, and a skipped one counts as passed. A PR on which the gate isn't reported, as on every PR before the workflow exists, behaves as before.
+- `gh pr checks` shows each check's latest run on the commit, so after a label event only the newest gate run counts.
 
 ## Releases
 

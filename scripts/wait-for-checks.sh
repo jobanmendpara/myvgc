@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Waits up to 170 seconds for a PR's `check` and `smoke / smoke` to finish and, when auto-merge is
-# queued (`gh pr merge <n> --auto --merge --delete-branch`), for GitHub to merge it.
+# Waits up to 170 seconds for a PR's `check` and `smoke / smoke`, and the risky-path gate when it
+# runs, to finish and, when auto-merge is queued (`gh pr merge <n> --auto --merge --delete-branch`),
+# for GitHub to merge it.
 #
 #   scripts/wait-for-checks.sh <pr number>
 #
@@ -15,17 +16,18 @@
 #       only when the retry fails too.
 #   4   the PR conflicts with main (`mergeStateStatus` is `DIRTY`), so auto-merge can't land: rebase
 #       onto origin/main, push with `--force-with-lease`, and call it again.
-#   5   both checks passed but the risky-path gate (`risky-change-gate`) is failing: the PR changes a
+#   5   both checks passed but the risky-path gate (`risky-change-gate`) failed: the PR changes a
 #       risky path and is waiting on the maintainer to add `approved` (DEV-273). Don't call it
-#       again: tell the maintainer. Auto-merge stays queued, so adding the label is the merge.
+#       again: tell the maintainer. With auto-merge queued, adding the label merges it.
 #   64  a bad PR number or setting.
-# A failed check is reported before a conflict or a waiting gate. The gate counts only once it is
-# reported: on a PR that runs no gate, as before the gate's workflow exists, the script behaves as
-# it did without it. While the gate is pending, the script waits for it like a check. While checks are pending, and while auto-merge is
-# queued, it also asks `gh pr view` whether the PR has gone `DIRTY`, as when another PR merged first
-# (DEV-181).
+# A failed check is reported first, then a conflict, then a waiting gate. The gate counts only once
+# it is reported: on a PR that runs no gate, as before its workflow exists, the script behaves as it
+# did without one. A pending or cancelled gate run is waited for like a pending check (a label event
+# starts a new run), and a skipped one counts as passed. While checks are pending, and while
+# auto-merge is queued, it also asks `gh pr view` whether the PR has gone `DIRTY`, as when another
+# PR merged first (DEV-181).
 #
-# Agents run it in the foreground, again and again, until it exits 0 or 1. A Monitor or a
+# Agents run it in the foreground, again and again, until it exits 0, 1 or 5. A Monitor or a
 # background `gh pr checks --watch` lets the agent's turn end, which the harness takes as its
 # hand-back, and the harness moves any foreground command to the background after 180 seconds,
 # whatever its Bash timeout: a 10-minute timeout didn't change that on 2026-11-25 (DEV-240;
@@ -122,8 +124,9 @@ pause() {
 
 # Prints one "<state><tab><check>" line per named check, where the state is pass, fail or pending.
 # A check that isn't reported yet is pending, and so is every check when gh hasn't answered by the
-# deadline. Then, when the gate is reported, one "gate-<state><tab><gate>" line for it. Exits its subshell with 3 when gh fails for any reason other than having no checks to
-# report, which ends the script with 3 too.
+# deadline. Then, when the gate is reported, one "gate-<state><tab><gate>" line for it. Exits its
+# subshell with 3 when gh fails for any reason other than having no checks to report, which ends
+# the script with 3 too.
 poll() {
   local output errors status=0
   errors=$(mktemp)
@@ -144,20 +147,24 @@ poll() {
   rm -f "$errors"
 
   local name bucket
+  # The bucket gh reported for the check named $1, or nothing when it isn't reported.
+  bucket_of() {
+    printf '%s\n' "$output" | awk -F '\t' -v name="$1" '$2 == name { print $1; exit }'
+  }
   for name in "${CHECKS[@]}"; do
-    bucket=$(printf '%s\n' "$output" | awk -F '\t' -v name="$name" '$2 == name { print $1; exit }')
+    bucket=$(bucket_of "$name")
     case $bucket in
       pass) printf 'pass\t%s\n' "$name" ;;
       pending | '') printf 'pending\t%s\n' "$name" ;;
       *) printf 'fail\t%s (%s)\n' "$name" "$bucket" ;;
     esac
   done
-  bucket=$(printf '%s\n' "$output" | awk -F '\t' -v name="$GATE" '$2 == name { print $1; exit }')
+  bucket=$(bucket_of "$GATE")
   case $bucket in
     '') ;;
-    pass) printf 'gate-pass\t%s\n' "$GATE" ;;
-    pending) printf 'gate-pending\t%s\n' "$GATE" ;;
-    *) printf 'gate-fail\t%s (%s)\n' "$GATE" "$bucket" ;;
+    pass | skipping) printf 'gate-pass\t%s\n' "$GATE" ;;
+    fail) printf 'gate-fail\t%s\n' "$GATE" ;;
+    *) printf 'gate-pending\t%s (%s)\n' "$GATE" "$bucket" ;;
   esac
 }
 
@@ -203,8 +210,11 @@ while true; do
   fi
   if ! grep -q '^pending' <<<"$states"; then
     if grep -q '^gate-fail' <<<"$states"; then
+      # A conflict comes first: adding the label can't merge a DIRTY PR.
+      view "gh pr view didn't answer, so the PR may conflict with main"
       echo "Both checks passed on PR #$pr, but it changes a risky path: it's waiting on the maintainer"
-      echo "to add \`approved\` (the $GATE check). Tell the maintainer; adding the label merges it."
+      echo "to add \`approved\` (the $GATE check). Don't run this script again: tell the"
+      echo "maintainer."
       exit 5
     fi
     if ! grep -q '^gate-pending' <<<"$states"; then
