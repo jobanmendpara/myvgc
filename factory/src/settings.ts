@@ -18,3 +18,26 @@ export const STEPS: Record<Step, StepSettings> = {
   // A fresh session every time.
   reviewer: { model: 'claude-opus-5-5', effort: 'high' },
 }
+
+const model = (step: Step) => `${STEPS[step].model}, ${STEPS[step].effort}`
+
+/**
+ * The steps a Run takes for one ticket (How a factory Run works, DEV-253), with each agent step's
+ * model, as `--dry-run` prints them.
+ */
+export const TICKET_PLAN =
+  [
+    'claim',
+    'worktree and install',
+    `Implementer (${model('implementer')})`,
+    'host checks',
+    `Reviewer (${model('reviewer')})`,
+    'replay',
+    'push gate',
+    'pnpm accuracy before and after if an ADR 24 path changed',
+    'push, PR, Reviewer comment and auto-merge',
+    'close sandbox',
+    'wait for checks',
+  ].join(' → ') +
+  `; when the push gate fails: fix round 1 (${model('fixRound1')}), then fix round 2 ` +
+  `(${model('fixRound2')}), each back to host checks, then park`
