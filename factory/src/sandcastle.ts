@@ -8,23 +8,35 @@
 // commands would then run. So the commit author is set in the sandbox's environment, never with
 // `git config`, and closing a sandbox refuses loudly if the config or a hook changed while it ran.
 // Sandcastle has no memory limit, only `cpus` (the spike, DEV-251).
-import { claudeCode, createSandbox } from '@ai-hero/sandcastle'
+//
+// Each ticket's Claude session folder is a folder of the Run's, mounted in the sandbox as Claude's
+// projects folder and used by Sandcastle as its host store, so a session outlives the sandbox and
+// the host process (DEV-286). An agent that stops short, killed by the idle timeout or reporting an
+// error such as a 429, is handed back with `stopped`, with its session found in that folder.
+import {
+  claudeCode,
+  claudeHostSessionPath,
+  createSandbox,
+  transferClaudeSession,
+} from '@ai-hero/sandcastle'
 import { docker } from '@ai-hero/sandcastle/sandboxes/docker'
 import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { existsSync, mkdirSync, readdirSync, readFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { isAbsolute, join } from 'node:path'
+import { basename, dirname, isAbsolute, join } from 'node:path'
 import { checkBranchName, continueFrom, hostGit } from './hostgit.ts'
-import { type Sandboxes, STORE_DIR } from './ports.ts'
+import { type AgentResult, type AgentStop, type Sandboxes, STORE_DIR } from './ports.ts'
 
 export const IMAGE = 'sandcastle:myvgc'
 /** Each sandbox's share of the Docker VM (8 CPUs, about 7.7 GiB): two run at once. */
 const CPUS = 3
+/** Claude Code's projects folder in the image, where it writes each session's JSONL. */
+const SANDBOX_PROJECTS = '/home/agent/.claude/projects'
 
 export function sandcastleSandboxes(repoDir: string): Sandboxes {
   return {
-    async create({ branch, base, env, author }) {
+    async create({ branch, base, env, author, sessions }) {
       requireImage()
       const gitDir = commonGitDir(repoDir)
       // So `base` is today's main, not whatever the host last fetched.
@@ -35,6 +47,7 @@ export function sandcastleSandboxes(repoDir: string): Sandboxes {
       // The host keeps pnpm's store, so each sandbox's install reuses what the last one fetched.
       const store = join(homedir(), '.cache', 'myvgc-factory', 'pnpm-store')
       mkdirSync(store, { recursive: true })
+      mkdirSync(sessions, { recursive: true })
       const sandbox = await createSandbox({
         branch,
         baseBranch: start,
@@ -48,7 +61,10 @@ export function sandcastleSandboxes(repoDir: string): Sandboxes {
             GIT_COMMITTER_NAME: author.name,
             GIT_COMMITTER_EMAIL: author.email,
           },
-          mounts: [{ hostPath: store, sandboxPath: STORE_DIR }],
+          mounts: [
+            { hostPath: store, sandboxPath: STORE_DIR },
+            { hostPath: sessions, sandboxPath: SANDBOX_PROJECTS },
+          ],
         }),
       })
       // Taken once Sandcastle has made the worktree, and before any agent runs.
@@ -62,14 +78,30 @@ export function sandcastleSandboxes(repoDir: string): Sandboxes {
             : await sandbox.exec(command, stdin === undefined ? undefined : { stdin })
           return { exitCode: result.exitCode, stdout: result.stdout, stderr: result.stderr }
         },
-        async runAgent(step) {
-          const result = await sandbox.run({
-            name: step.name,
-            agent: claudeCode(step.model, { effort: step.effort, env }),
-            prompt: step.prompt,
-            idleTimeoutSeconds: step.idleTimeoutSeconds,
-            ...(step.resumeSession ? { resumeSession: step.resumeSession } : {}),
-          })
+        async runAgent(step): Promise<AgentResult> {
+          const startedAt = Date.now()
+          let result
+          try {
+            result = await sandbox.run({
+              name: step.name,
+              agent: claudeCode(step.model, {
+                effort: step.effort,
+                env,
+                sessionStorage: { hostProjectsDir: sessions, sandboxProjectsDir: SANDBOX_PROJECTS },
+              }),
+              prompt: step.prompt,
+              idleTimeoutSeconds: step.idleTimeoutSeconds,
+              ...(step.resumeSession ? { resumeSession: step.resumeSession } : {}),
+            })
+          } catch (error) {
+            const stopped = stopOf(error)
+            if (!stopped) throw error
+            return {
+              stdout: '',
+              stopped,
+              ...sessionLeft(sessions, startedAt, sandbox.worktreePath, step.resumeSession),
+            }
+          }
           const last = result.iterations.at(-1)
           // Sandcastle captures the session JSONL to the host; the Run saves and costs it.
           const path = last?.sessionFilePath
@@ -137,6 +169,64 @@ function fingerprint(gitDir: string): string {
     }
   }
   return hash.digest('hex')
+}
+
+/**
+ * Why an agent stopped short, from Sandcastle's error, or undefined for any other failure.
+ * `sandbox.run()` rejects with Effect's FiberFailure, which holds the tagged error in its cause
+ * and names it "(FiberFailure) AgentError": the tag is read from either.
+ */
+function stopOf(error: unknown): AgentStop | undefined {
+  const failure = error as
+    | (Error & { _tag?: string } & Record<symbol, { _tag?: string; error?: unknown } | undefined>)
+    | null
+  if (!failure || typeof failure !== 'object') return undefined
+  const cause = failure[Symbol.for('effect/Runtime/FiberFailure/Cause')]
+  const inner = (cause?._tag === 'Fail' ? cause.error : failure) as {
+    _tag?: string
+    message?: string
+  }
+  const tag = inner._tag ?? /^\(FiberFailure\) (\w+)/.exec(failure.name)?.[1]
+  if (tag === 'AgentIdleTimeoutError') return { kind: 'idle timeout' }
+  if (tag === 'AgentError')
+    return { kind: 'error', message: String(inner.message ?? failure.message) }
+  return undefined
+}
+
+/**
+ * The session an agent that stopped short was writing, from the mounted folder: the one it resumed,
+ * or the newest written since it started. Sandcastle captures a session only when its agent
+ * finishes, so it is put where Sandcastle looks for one to resume, keyed by the host's worktree.
+ */
+function sessionLeft(
+  sessions: string,
+  since: number,
+  hostCwd: string,
+  resumed: string | undefined,
+): { sessionId?: string; session?: string } {
+  const files = readdirSync(sessions, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .flatMap((entry) =>
+      readdirSync(join(sessions, entry.name))
+        .filter((name) => name.endsWith('.jsonl'))
+        .map((name) => join(sessions, entry.name, name)),
+    )
+    .map((path) => ({ path, written: statSync(path).mtimeMs }))
+    .filter(({ path, written }) =>
+      resumed ? basename(path, '.jsonl') === resumed : written >= since,
+    )
+    .sort((a, b) => b.written - a.written)
+  const newest = files[0]
+  if (!newest) return {}
+  const sessionId = basename(newest.path, '.jsonl')
+  const session = readFileSync(newest.path, 'utf8')
+  const hostPath = claudeHostSessionPath(hostCwd, sessionId, sessions)
+  if (hostPath !== newest.path) {
+    const cwd = /"cwd":"([^"]+)"/.exec(session)?.[1]
+    mkdirSync(dirname(hostPath), { recursive: true })
+    writeFileSync(hostPath, cwd ? transferClaudeSession(session, cwd, hostCwd) : session)
+  }
+  return { sessionId, session }
 }
 
 function requireImage() {

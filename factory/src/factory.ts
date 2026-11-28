@@ -4,7 +4,9 @@
 // It checks that it may start (the set-up is complete, DEV-271 and DEV-272, and the issue is a spec
 // the maintainer signed off), then reads the spec's frontier. `--dry-run` prints the frontier and
 // each ticket's steps. Without it, the Run works the whole frontier, two tickets at a time
-// (src/slots.ts), each to a merged PR (src/run.ts); `--only DEV-M` works that one ticket.
+// (src/slots.ts), each to a merged PR (src/run.ts); `--only DEV-M` works that one ticket. When the
+// host died during an earlier Run of the spec, the same command takes that Run up again
+// (src/recovery.ts): its unfinished tickets are adopted, each resuming from its last finished step.
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { parseArgs, parseEnv } from 'node:util'
@@ -12,12 +14,24 @@ import type { AccuracyKey } from './accuracy.ts'
 import { coveredIds, criteriaOf } from './criteria.ts'
 import { frontier, whyNotTakeable } from './frontier.ts'
 import { RunCrash } from './notify.ts'
-import type { Forge, GitHubApp, Notifier, Sandboxes, Ticket, Tracker } from './ports.ts'
+import type {
+  Clock,
+  Forge,
+  GitHubApp,
+  InstallationToken,
+  Notifier,
+  Sandboxes,
+  Ticket,
+  Tracker,
+} from './ports.ts'
+import { adoption } from './recovery.ts'
 import { workTicket } from './run.ts'
 import { RunLog } from './runlog.ts'
 import { workFrontier } from './slots.ts'
 import { endRun } from './summary.ts'
 import { type Settings, STEP_NAMES, ticketPlan, withOverrides } from './settings.ts'
+import { installationTokens } from './tokens.ts'
+import { UsageLimit } from './usage.ts'
 import { describeWorkspace, workspacePackages } from './workspace.ts'
 
 export interface FactoryPorts {
@@ -27,12 +41,21 @@ export interface FactoryPorts {
   configDir: string
   /** Makes the Tracker from the Linear API key in `config.env`. */
   tracker: (linearApiKey: string) => Tracker
-  /** Makes the Forge, which mints the App's installation token when the Run starts. */
-  forge: (app: GitHubApp) => Forge
+  /**
+   * Makes the Forge. It calls `token` before every GitHub call and makes the call with what it
+   * gives: the App's current installation token, minted again when it is near its expiry.
+   */
+  forge: (app: GitHubApp, token: () => Promise<string>) => Forge
+  /** Mints an installation token from the App's key. */
+  mintToken: (app: GitHubApp) => Promise<InstallationToken>
   sandboxes: Sandboxes
   /** Interrupts the maintainer for what needs them (src/notify.ts). */
   notifier: Notifier
-  now: () => Date
+  clock: Clock
+  /** This host process, which run.json records so a later Run can tell it died. */
+  pid: number
+  /** Whether a host process is still running. */
+  isAlive: (pid: number) => boolean
   print: (line: string) => void
 }
 
@@ -81,8 +104,24 @@ export async function factory(args: string[], ports: FactoryPorts): Promise<numb
   ports.print(`${specId} (${spec.title}) is signed off, and the factory is set up.`)
 
   const tickets = await tracker.getSubIssues(specId)
+  // A Run of the spec whose host died: its unfinished tickets are adopted, not claimed again.
+  const adopted = adoption(ports.repoDir, specId, ports.isAlive, tickets, onlyTicketId)
+  const checkpoints = new Map(
+    adopted?.tickets.map(({ ticket, checkpoint }) => [ticket.id, checkpoint]),
+  )
+  for (const { ticket, checkpoint } of adopted?.tickets ?? []) {
+    ports.print(
+      `Run ${adopted?.record.runId}'s host died: adopting ${ticket.id} ${ticket.title}, from its last finished step (${checkpoint.step}).`,
+    )
+  }
   let takeable: Ticket[]
-  if (onlyTicketId) {
+  if (adopted) {
+    // Adopted first, then whatever else is takeable, as the dead Run would have gone on to.
+    const rest = onlyTicketId
+      ? []
+      : frontier(tickets).filter((ticket) => !checkpoints.has(ticket.id))
+    takeable = [...adopted.tickets.map(({ ticket }) => ticket), ...rest]
+  } else if (onlyTicketId) {
     const ticket = tickets.find((candidate) => candidate.id === onlyTicketId)
     if (!ticket) {
       ports.print(`${onlyTicketId} isn't a ticket of ${specId}.`)
@@ -106,18 +145,23 @@ export async function factory(args: string[], ports: FactoryPorts): Promise<numb
 
   const criteria = criteriaOf(spec.description)
   const workspace = describeWorkspace(workspacePackages(ports.repoDir))
-  const runId = `${stamp(ports.now())}-${specId}`
-  const runDir = join(ports.repoDir, '.factory', 'runs', runId)
-  const log = new RunLog(runDir, { runId, specId }, ports.now)
+  const now = () => ports.clock.now()
+  const runId = adopted?.record.runId ?? `${stamp(now())}-${specId}`
+  const runDir = adopted?.dir ?? join(ports.repoDir, '.factory', 'runs', runId)
+  const log = new RunLog(runDir, { runId, specId, pid: ports.pid }, now, adopted?.record)
   ports.print(
     `Run ${runId}: working ${onlyTicketId ?? `the frontier of ${specId}`}. Its log is ${runDir}.`,
   )
-  const forge = ports.forge(setup.github)
+  const token = installationTokens(() => ports.mintToken(setup.github), ports.clock)
+  const forge = ports.forge(setup.github, token)
+  // One for the whole Run: a usage limit holds back every ticket's agent steps.
+  const usage = new UsageLimit(ports.clock, log)
   /** What the Run threw, if it crashed: the first throw, from a ticket's turn or the Run's end. */
   let crashed: { error: unknown } | undefined
   let results: Awaited<ReturnType<typeof workFrontier>> = []
   try {
-    // Mints the installation token now, so a broken App key stops the Run before it claims anything.
+    // Minted now, so a broken App key stops the Run before it claims anything.
+    await token()
     const author = await forge.botIdentity()
     results = await workFrontier({
       takeable,
@@ -134,6 +178,8 @@ export async function factory(args: string[], ports: FactoryPorts): Promise<numb
             log,
             tracker,
             forge,
+            clock: ports.clock,
+            usage,
             sandboxes,
             notifier: ports.notifier,
             sandboxEnv: setup.sandboxEnv,
@@ -149,6 +195,7 @@ export async function factory(args: string[], ports: FactoryPorts): Promise<numb
             workspace,
           },
           unstartableReason(specId, covered, criteria),
+          checkpoints.get(ticket.id),
         )
       },
     })
