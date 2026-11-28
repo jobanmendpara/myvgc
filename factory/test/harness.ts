@@ -494,7 +494,7 @@ export function start(
       return (own ? own.shift() : waits.shift()) ?? 0
     },
     async pushFiles(branch, files) {
-      events.push({ port: 'forge', method: 'pushFiles', args: [branch, files] })
+      await note({ port: 'forge', method: 'pushFiles', args: [branch, files] })
       return files.map(({ path }) => `https://raw.githubusercontent.com/o/r/${branch}/${path}`)
     },
   }
