@@ -311,7 +311,9 @@ describe('the follow-up issue of judgement calls', () => {
     expect(issue?.description).toContain('DEV-2 Ticket DEV-2')
     expect(issue?.description).not.toContain('src/hard.ts')
     // It comes after the ticket's own work, and nothing marks it for an agent.
-    const last = result.events.findLastIndex((event) => event.port !== 'tracker')
+    const last = result.events.findLastIndex(
+      (event) => event.port !== 'tracker' && event.port !== 'notifier',
+    )
     expect(result.events.indexOf(calls[0] as never)).toBeGreaterThan(last)
     expect(result.trackerCalls.filter((call) => call.includes('DEV-900'))).toEqual([])
     expect(result.output).toContain(

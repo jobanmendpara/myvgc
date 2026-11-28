@@ -13,6 +13,7 @@ import type {
   ExecResult,
   Forge,
   Issue,
+  Notification,
   Sandbox,
   Sandboxes,
   Status,
@@ -75,6 +76,7 @@ export function ticket(id: string, changes: Partial<Ticket> = {}): Ticket {
     blockedBy: [],
     order: nextOrder++,
     branch: `jobanmendpara/${id.toLowerCase()}-the-refusals`,
+    url: `https://linear.app/mendpara/issue/${id}`,
     ...changes,
   }
 }
@@ -323,6 +325,7 @@ export type Event =
     }
   | { port: 'sandbox'; method: 'runAgent'; step: AgentStep; branch: string }
   | { port: 'sandbox'; method: 'close'; branch: string }
+  | { port: 'notifier'; method: 'notify'; notification: Notification }
 
 export const WORKTREE = '/host/repo/.sandcastle/worktrees/ticket'
 export const NOW = new Date(2026, 10, 27, 14, 5)
@@ -517,6 +520,11 @@ export function start(
     tracker: () => tracker,
     forge: () => forge,
     sandboxes,
+    notifier: {
+      async notify(notification) {
+        await note({ port: 'notifier', method: 'notify', notification })
+      },
+    },
     now: () => new Date(NOW.getTime() + 1000 * ticks++),
     print: (line) => lines.push(line),
   })
@@ -535,6 +543,9 @@ export function start(
         lines,
         events,
         trackerCalls,
+        notifications: events.flatMap((event) =>
+          event.port === 'notifier' ? [event.notification] : [],
+        ),
         repoDir,
         runDir: join(repoDir, '.factory', 'runs', RUN_ID),
       }

@@ -1,14 +1,15 @@
 // The end of a Run (DEV-282): one follow-up issue of the Reviewer's judgement calls, if it made
-// any, then the summary printed and saved to run.json.
+// any, then the summary printed and saved to run.json, and the end's notification (DEV-287).
 import type { FactoryPorts } from './factory.ts'
 import type { Tracker } from './ports.ts'
 import { CLOSING } from './run.ts'
 import type { RunLog, Summary, TicketRecord } from './runlog.ts'
 
 export async function endRun(
-  { print }: Pick<FactoryPorts, 'print'>,
+  { print, notifier }: Pick<FactoryPorts, 'print' | 'notifier'>,
   tracker: Tracker,
   log: RunLog,
+  { crashed }: { crashed: boolean },
 ): Promise<Summary> {
   const { runId, specId } = log
   const calls = log.tickets.flatMap((ticket) => {
@@ -51,7 +52,8 @@ export async function endRun(
     `${summary.waitingForApproval} waiting for approval`,
     ...(summary.stopped > 0 ? [`${summary.stopped} stopped`] : []),
   ]
-  print(`Run ${runId} done: ${counts.join(', ')}, ${dollars(summary.cost)}.`)
+  const done = `Run ${runId} done: ${counts.join(', ')}, ${dollars(summary.cost)}`
+  print(`${done}.`)
   for (const ticket of log.tickets) {
     print(`- ${ticket.id} ${ticket.title}: ${outcomeOf(ticket)}, ${dollars(ticket.cost)}`)
   }
@@ -67,6 +69,8 @@ export async function endRun(
     )
   }
   print(`Run log: ${log.dir}`)
+  // A crashed Run's notification is the crash's, from src/cli.ts (src/notify.ts).
+  if (!crashed) await notifier.notify({ text: `🏭 ${done}`, link: log.dir })
   return summary
 }
 

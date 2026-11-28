@@ -11,7 +11,8 @@ import { parseArgs, parseEnv } from 'node:util'
 import type { AccuracyKey } from './accuracy.ts'
 import { coveredIds, criteriaOf } from './criteria.ts'
 import { frontier, whyNotTakeable } from './frontier.ts'
-import type { Forge, GitHubApp, Sandboxes, Ticket, Tracker } from './ports.ts'
+import { RunCrash } from './notify.ts'
+import type { Forge, GitHubApp, Notifier, Sandboxes, Ticket, Tracker } from './ports.ts'
 import { workTicket } from './run.ts'
 import { RunLog } from './runlog.ts'
 import { workFrontier } from './slots.ts'
@@ -29,6 +30,8 @@ export interface FactoryPorts {
   /** Makes the Forge, which mints the App's installation token when the Run starts. */
   forge: (app: GitHubApp) => Forge
   sandboxes: Sandboxes
+  /** Interrupts the maintainer for what needs them (src/notify.ts). */
+  notifier: Notifier
   now: () => Date
   print: (line: string) => void
 }
@@ -110,10 +113,12 @@ export async function factory(args: string[], ports: FactoryPorts): Promise<numb
     `Run ${runId}: working ${onlyTicketId ?? `the frontier of ${specId}`}. Its log is ${runDir}.`,
   )
   const forge = ports.forge(setup.github)
-  // Mints the installation token now, so a broken App key stops the Run before it claims anything.
-  const author = await forge.botIdentity()
-  let results
+  /** What the Run threw, if it crashed: the first throw, from a ticket's turn or the Run's end. */
+  let crashed: { error: unknown } | undefined
+  let results: Awaited<ReturnType<typeof workFrontier>> = []
   try {
+    // Mints the installation token now, so a broken App key stops the Run before it claims anything.
+    const author = await forge.botIdentity()
     results = await workFrontier({
       takeable,
       // `--only` works that one ticket, and the Run ends after it.
@@ -130,6 +135,7 @@ export async function factory(args: string[], ports: FactoryPorts): Promise<numb
             tracker,
             forge,
             sandboxes,
+            notifier: ports.notifier,
             sandboxEnv: setup.sandboxEnv,
             accuracyKey: setup.accuracyKey,
             author,
@@ -146,10 +152,17 @@ export async function factory(args: string[], ports: FactoryPorts): Promise<numb
         )
       },
     })
-  } finally {
-    // Even when a ticket's turn throws, the Run ends with its summary: the ticket shows unfinished.
-    await endRun(ports, tracker, log)
+  } catch (error) {
+    crashed = { error }
   }
+  try {
+    // Even when a ticket's turn throws, the Run ends with its summary: the ticket shows unfinished.
+    await endRun(ports, tracker, log, { crashed: crashed !== undefined })
+  } catch (error) {
+    crashed ??= { error }
+  }
+  // Where the Run was, for src/cli.ts's crash notification, which replaces the end's.
+  if (crashed) throw new RunCrash(log, crashed.error)
   // A PR waiting on `approved` is a hand-off to the maintainer, not a failure: the Run moved on.
   return results.every(({ outcome }) => outcome === 'merged' || outcome === 'waiting for approval')
     ? READY

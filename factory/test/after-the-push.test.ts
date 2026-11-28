@@ -188,7 +188,9 @@ describe('when the PR waits on `approved`', () => {
     const waited = indexOf(events, isForge('waitForChecks'))
     expect(calls(events, 'forge', 'queueAutoMerge')).toHaveLength(1)
     expect(openedPrs(events).map((pr) => pr.draft)).toEqual([false])
-    expect(events.slice(waited + 1).filter((event) => event.port === 'forge')).toEqual([])
+    // Only the comment that @mentions the maintainer (test/notifications.test.ts).
+    const after = events.slice(waited + 1).filter((event) => event.port === 'forge')
+    expect(after.map((event) => event.method)).toEqual(['commentOnPr'])
   })
 
   test('keeps the tickets it blocks off the frontier until it merges', async () => {

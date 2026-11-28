@@ -19,10 +19,12 @@ import {
   measureAccuracy,
 } from './accuracy.ts'
 import type { Criterion } from './criteria.ts'
+import { ticketNotification } from './notify.ts'
 import {
   type AgentStep,
   type Forge,
   type GitIdentity,
+  type Notifier,
   type Sandbox,
   type Sandboxes,
   STORE_DIR,
@@ -83,6 +85,8 @@ export interface RunContext {
   tracker: Tracker
   forge: Forge
   sandboxes: Sandboxes
+  /** Notifies an exit-5 wait or a park (src/notify.ts). */
+  notifier: Notifier
   /** The environment sandboxes get: the Claude credential and nothing else. */
   sandboxEnv: Record<string, string>
   /** Who the sandbox's commits are by: the App's bot user, read when the Run started. */
@@ -391,7 +395,7 @@ async function turnOf(
         return 'merged'
       }
       if (code === WAIT.awaitingApproval) {
-        return await waitForApproval(context, ticket, pr.url, say)
+        return await waitForApproval(context, ticket, pr, say)
       }
       if (code === WAIT.conflicts) {
         const rebased = await rebase(await newSandbox())
@@ -450,14 +454,20 @@ const lastLines = (text: string, count: number) => text.split('\n').slice(-count
 
 /**
  * Leaves a PR waiting on `approved` with the maintainer: the ticket stays In Review and gets
- * `needs-human`, auto-merge stays queued, and the Run moves on.
+ * `needs-human`, auto-merge stays queued, and the Run moves on. The PR comment @mentions the
+ * maintainer, and a notification says so.
  */
 async function waitForApproval(
   context: RunContext,
   ticket: Ticket,
-  url: string,
+  { number, url }: { number: number; url: string },
   say: (step: string, result: string) => void,
 ): Promise<'waiting for approval'> {
+  const { forge } = context
+  await forge.commentOnPr(
+    number,
+    `${FACTORY}: @${forge.maintainer()} this PR changes a risky path, so it waits for you to add \`approved\`. Auto-merge stays queued, so adding the label merges it.`,
+  )
   await context.tracker.setAgentLabel(ticket.id, 'needs-human')
   await context.tracker.comment(
     ticket.id,
@@ -468,6 +478,9 @@ async function waitForApproval(
     ].join('\n'),
   )
   say('wait for checks', 'waiting for `approved`')
+  await context.notifier.notify(
+    ticketNotification(ticket, 'waiting for `approved`, since the PR changes a risky path', url),
+  )
   return 'waiting for approval'
 }
 
@@ -491,7 +504,8 @@ const WORKFLOWS_REFUSED =
 /**
  * Parks the ticket for the maintainer: its branch on a draft PR when it has commits (an open PR
  * is turned back into a draft, its auto-merge cancelled), then Todo with `needs-human` and a
- * Linear comment with the reason, the last review and the run log.
+ * Linear comment with the reason, the last review and the run log. The draft PR's comment
+ * @mentions the maintainer, and a notification links the draft PR, or the ticket without one.
  */
 async function park(
   context: RunContext,
@@ -515,6 +529,7 @@ async function park(
       ]
     : ['No review ran.']
   let pr: string
+  let draftUrl: string | undefined
   if (!work || work.commits === 0) {
     pr = 'No draft PR: the branch has no commits.'
   } else if (
@@ -545,6 +560,7 @@ async function park(
       `${FACTORY}: @${forge.maintainer()} this ticket is parked and needs you: ${reason}.`,
     )
     pr = `Draft PR: ${draft.url}`
+    draftUrl = draft.url
   }
   await tracker.setStatus(ticket.id, 'Todo')
   await tracker.setAgentLabel(ticket.id, 'needs-human')
@@ -562,6 +578,7 @@ async function park(
     ].join('\n'),
   )
   say('park', reason)
+  await context.notifier.notify(ticketNotification(ticket, `parked, as ${reason}`, draftUrl))
   return 'parked'
 }
 

@@ -34,7 +34,7 @@ export function linearTracker(apiKey: string): Tracker {
             children(first: 250) {
               pageInfo { hasNextPage }
               nodes {
-                identifier title description branchName subIssueSortOrder
+                identifier title description branchName subIssueSortOrder url
                 state { name type }
                 labels { nodes { name } }
                 inverseRelations(first: 50) {
@@ -214,6 +214,7 @@ interface GraphQLState {
 interface GraphQLTicket extends GraphQLIssue {
   branchName: string
   subIssueSortOrder: number | null
+  url: string
   state: GraphQLState
   /** Relations naming this ticket as their relatedIssue: for `blocks`, `issue` blocks this one. */
   inverseRelations: Page<{ type: string; issue: { identifier: string; state: GraphQLState } }>
@@ -232,6 +233,7 @@ function toTicket(ticket: GraphQLTicket): Ticket {
     // Null only for top-level issues, which a spec's children never are.
     order: ticket.subIssueSortOrder ?? Number.MAX_VALUE,
     branch: ticket.branchName,
+    url: ticket.url,
   }
 }
 
