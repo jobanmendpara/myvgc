@@ -11,10 +11,11 @@
 // the session JSONL files, by path only.
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { stillOpen } from './frontier.ts'
+import { isParked, stillOpen } from './frontier.ts'
 import type { Comment, Forge, Issue, Ticket, Tracker } from './ports.ts'
 import { CLAIMED, FACTORY, PARKED, REVIEWED } from './run.ts'
 import type { Summary, TicketRecord } from './runlog.ts'
+import { dollars } from './summary.ts'
 
 export interface RetroPorts {
   repoDir: string
@@ -85,7 +86,7 @@ export async function retro(specId: string, ports: RetroPorts): Promise<boolean>
 }
 
 const state = (ticket: Ticket) =>
-  ticket.labels.includes('needs-human') ? `${ticket.status.name}, parked` : ticket.status.name
+  isParked(ticket) ? `${ticket.status.name}, parked` : ticket.status.name
 
 /** A Run's record, as run.json holds it; pauses and resumes only from DEV-286 on. */
 interface LoggedRun {
@@ -108,26 +109,44 @@ interface LoggedRun {
   summary: Summary | null
 }
 
-/** Every Run of the spec in `.factory/runs/`, oldest first. */
-function runsOf(repoDir: string, specId: string): LoggedRun[] {
-  const root = join(repoDir, '.factory', 'runs')
-  if (!existsSync(root)) return []
-  return readdirSync(root)
-    .flatMap((name) => {
-      const file = join(root, name, 'run.json')
-      if (!existsSync(file)) return []
-      const record = JSON.parse(readFileSync(file, 'utf8')) as Omit<LoggedRun, 'dir'>
-      return record.specId === specId ? [{ ...record, dir: join(root, name) }] : []
-    })
-    .sort((a, b) => a.startedAt.localeCompare(b.startedAt))
+interface RunLogs {
+  /** Every Run of the spec, oldest first. */
+  runs: LoggedRun[]
+  /** The run.json files of the spec's Run folders that couldn't be read. */
+  unreadable: string[]
 }
 
-function runSections(runs: LoggedRun[]): string[] {
-  if (runs.length === 0)
-    return ['## Runs', '', 'No run log of this spec is in `.factory/runs/`.', '']
+/** The spec's Runs in `.factory/runs/`. */
+function runsOf(repoDir: string, specId: string): RunLogs {
+  const root = join(repoDir, '.factory', 'runs')
+  const logs: RunLogs = { runs: [], unreadable: [] }
+  if (!existsSync(root)) return logs
+  for (const name of readdirSync(root)) {
+    const file = join(root, name, 'run.json')
+    if (!existsSync(file)) continue
+    let record: Omit<LoggedRun, 'dir'>
+    try {
+      record = JSON.parse(readFileSync(file, 'utf8')) as Omit<LoggedRun, 'dir'>
+    } catch {
+      // A Run's folder is named after its spec, so an unreadable one still shows as the spec's.
+      if (name.endsWith(`-${specId}`)) logs.unreadable.push(file)
+      continue
+    }
+    if (record.specId === specId) logs.runs.push({ ...record, dir: join(root, name) })
+  }
+  logs.runs.sort((a, b) => a.startedAt.localeCompare(b.startedAt))
+  return logs
+}
+
+function runSections({ runs, unreadable }: RunLogs): string[] {
+  const broken = unreadable.map((file) => `- Not valid JSON, so left out: ${file}`)
+  if (runs.length === 0) {
+    return ['## Runs', '', 'No run log of this spec is in `.factory/runs/`.', ...broken, '']
+  }
   return [
     '## Runs',
     '',
+    ...(broken.length > 0 ? [...broken, ''] : []),
     ...runs.flatMap((run) => [
       `### Run ${run.runId}`,
       '',
@@ -152,7 +171,7 @@ function runSections(runs: LoggedRun[]): string[] {
               pause.step,
               pause.at,
               pause.until,
-              pause.resetGiven ? 'yes' : 'no: checked every 15 minutes',
+              pause.resetGiven ? 'yes' : 'no',
               excerpt(pause.message, 200),
             ]),
           )
@@ -258,7 +277,7 @@ async function parkSections(tracker: Tracker, tickets: Ticket[]): Promise<string
         '',
         quote(comment),
         '',
-        "The maintainer's reply:",
+        "The maintainer's reply (the comments since the park that the factory didn't write):",
         '',
         ...(replies.length > 0
           ? replies.flatMap((reply) => [quote(reply), ''])
@@ -277,12 +296,12 @@ function cameBack(ticket: Ticket, next: Comment | undefined): string {
     return `factory Run \`${run}\` took it up again at ${next.createdAt}.`
   }
   if (next) return `it was parked again at ${next.createdAt} before a Run took it up.`
-  if (ticket.labels.includes('needs-human')) return `it hasn't: it's still parked.`
+  if (isParked(ticket)) return `it hasn't: it's still parked.`
   return `without another factory Run: it's ${ticket.status.name}.`
 }
 
 /** The Reviewer's PR comments on each PR of the spec's Runs, and each Run's follow-up issue. */
-async function reviewSections({ forge, tracker }: RetroPorts, runs: LoggedRun[]) {
+async function reviewSections({ forge, tracker }: RetroPorts, { runs }: RunLogs) {
   const prs = new Map<string, string>()
   for (const ticket of runs.flatMap((run) => run.tickets)) {
     if (ticket.pr) prs.set(ticket.pr, `${ticket.id} ${ticket.title}`)
@@ -322,7 +341,7 @@ async function reviewSections({ forge, tracker }: RetroPorts, runs: LoggedRun[])
 }
 
 /** The CI failure logs after a push, and each rebase onto main, with its log when it conflicted. */
-function failureSections(runs: LoggedRun[]): string[] {
+function failureSections({ runs }: RunLogs): string[] {
   const ci: string[] = []
   const rebases: string[] = []
   for (const run of runs) {
@@ -333,11 +352,15 @@ function failureSections(runs: LoggedRun[]): string[] {
             .filter((name) => /^fix-round-\d+$/.test(name))
             .sort()
         : []
-      for (const round of rounds) {
-        const log = join(dir, round, 'ci.log')
+      // Each fix round's folder holds the CI failure it fixed; the ticket's own, the one it parked on.
+      const logs = [
+        ...rounds.map((round) => ({ log: join(dir, round, 'ci.log'), when: `before ${round}` })),
+        { log: join(dir, 'ci.log'), when: 'which parked it' },
+      ]
+      for (const { log, when } of logs) {
         if (!existsSync(log)) continue
         ci.push(
-          `- ${ticket.id}, Run ${run.runId}, before ${round}: ${log}`,
+          `- ${ticket.id}, Run ${run.runId}, ${when}: ${log}`,
           '',
           fence(lastLines(readFileSync(log, 'utf8'))),
           '',
@@ -390,7 +413,7 @@ async function bugSections(tracker: Tracker, tickets: Ticket[]): Promise<string[
   ]
 }
 
-function sessionSections(runs: LoggedRun[]): string[] {
+function sessionSections({ runs }: RunLogs): string[] {
   const sessions = runs.flatMap((run) =>
     run.tickets.flatMap((ticket) =>
       ticket.agents.flatMap((agent) =>
@@ -441,5 +464,3 @@ function took(from: string, to: string): string {
   const minutes = Math.floor(seconds / 60)
   return minutes > 0 ? `${minutes} min ${seconds % 60} s` : `${seconds} s`
 }
-
-const dollars = (usd: number) => `$${usd.toFixed(2)}`

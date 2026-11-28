@@ -508,14 +508,15 @@ async function turnOf(
       }
 
       // CI failed: a fix round, from the pushed branch, counted towards the two.
+      const log = await forge.failedCheckLogs(pr.number)
+      // The failure that parks the ticket goes in its own folder, as the retro reads it (DEV-288).
+      writeLog(round === FIX_ROUNDS ? logDir : roundDir(logDir, round + 1), 'ci.log', log)
       if (round === FIX_ROUNDS) {
         return await parkHere(
           `CI failed, and the ticket has had its ${FIX_ROUNDS} fix rounds: see ${pr.url}`,
           work(),
         )
       }
-      const log = await forge.failedCheckLogs(pr.number)
-      writeLog(roundDir(logDir, round + 1), 'ci.log', log)
       say('wait for checks', `CI failed, so fix round ${round + 1} starts`)
       const sandbox = await installed()
       if (!sandbox) return await parkHere(INSTALL_FAILED, work())

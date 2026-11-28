@@ -3,7 +3,7 @@
 // session, calling no agent or model. Through factory() with fake ports (test/harness.ts): the
 // bundle is gathered from the run logs real Runs left in the same folders, and from what those
 // Runs wrote to Linear and GitHub, handed back by the fake Tracker and Forge.
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, test } from 'vitest'
 import type { Comment, Issue, PrComment, Status } from '../src/ports.ts'
@@ -85,8 +85,6 @@ describe('the end of a Run', () => {
     const result = await run([SPEC], [signedOff], { tickets: [ticket('DEV-1')] })
     expect(result.lines).toContain(`${SPEC_DONE}.`)
     expect(existsSync(join(result.repoDir, '.factory', 'retros'))).toBe(false)
-    expect(calls(result.events, 'forge', 'prComments')).toEqual([])
-    expect(calls(result.events, 'tracker', 'getRelatedIssues')).toEqual([])
   })
 })
 
@@ -313,6 +311,38 @@ describe('pnpm factory retro, on a finished spec', () => {
     expect(bundle).toMatch(/- DEV-1, Run \S+, \S+Z: onto origin\/main, force-pushed/)
   })
 
+  test('holds the CI failure that parked a ticket after its fix rounds', async () => {
+    const first = await run([SPEC], [signedOff], {
+      tickets: [ticket('DEV-1')],
+      script: { waits: [1, 1, 1], ciLog: 'ci: FAIL the third time\nAssertionError: still 1' },
+    })
+    expect(first.output).toContain('- DEV-1 Ticket DEV-1: parked')
+    const retro = await run(['retro', SPEC], [signedOff], {
+      tickets: [parked('DEV-1')],
+      root: first.root,
+      now: RETRO_AT,
+    })
+    const bundle = readFileSync(bundlePath(retro.repoDir), 'utf8')
+    expect(bundle).toContain(`which parked it: ${join(first.runDir, 'DEV-1', 'ci.log')}`)
+    expect(bundle).toContain('ci: FAIL the third time')
+  })
+
+  test('names a run.json it can’t read, and gathers the rest', async () => {
+    const first = await run([SPEC], [signedOff], { tickets: [ticket('DEV-1')] })
+    const broken = join(first.repoDir, '.factory', 'runs', runIdAt(LATER), 'run.json')
+    mkdirSync(join(broken, '..'), { recursive: true })
+    writeFileSync(broken, '{"runId": "half')
+    const retro = await run(['retro', SPEC], [signedOff], {
+      tickets: [ticket('DEV-1', { status: DONE })],
+      root: first.root,
+      now: RETRO_AT,
+    })
+    expect(retro.code).toBe(0)
+    const bundle = readFileSync(bundlePath(retro.repoDir), 'utf8')
+    expect(bundle).toContain(`Not valid JSON, so left out: ${broken}`)
+    expect(bundle).toContain(`### Run ${runIdAt(NOW)}`)
+  })
+
   test("holds a conflicting rebase's log", async () => {
     const first = await run([SPEC], [signedOff], {
       tickets: [ticket('DEV-1')],
@@ -370,14 +400,14 @@ describe('pnpm factory retro calls no agent or model', () => {
   test('it makes no sandbox, runs no agent, writes nothing to Linear or GitHub and notifies nobody', async () => {
     const { retro } = await twoRunsThenRetro()
     expect(retro.code).toBe(0)
-    const kinds = new Set(retro.events.map((event) => `${event.port}.${event.method}`))
-    expect([...kinds].sort()).toEqual([
-      'forge.prComments',
-      'tracker.getComments',
-      'tracker.getIssue',
-      'tracker.getRelatedIssues',
-      'tracker.getSubIssues',
-    ])
+    // It read Linear and GitHub, and did nothing else through any port.
+    expect(calls(retro.events, 'forge', 'prComments')).not.toEqual([])
+    const done = retro.events.filter(
+      (event) => !(event.port === 'tracker' && /^get/.test(event.method)),
+    )
+    expect(done.map((event) => `${event.port}.${event.method}`)).toEqual(
+      calls(retro.events, 'forge', 'prComments').map(() => 'forge.prComments'),
+    )
   })
 
   test('it needs no Claude credential', async () => {

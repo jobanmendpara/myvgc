@@ -17,7 +17,7 @@ export async function endRun(
     tickets,
   }: {
     crashed: boolean
-    /** The spec's tickets, as the Run read them when it started. */
+    /** The spec's tickets, as the Run last read them. */
     tickets: Ticket[]
   },
 ): Promise<Summary> {
@@ -111,4 +111,4 @@ function judgementCalls(ticket: TicketRecord) {
     })
 }
 
-const dollars = (usd: number) => `$${usd.toFixed(2)}`
+export const dollars = (usd: number) => `$${usd.toFixed(2)}`

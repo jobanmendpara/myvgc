@@ -159,6 +159,8 @@ export async function factory(args: string[], ports: FactoryPorts): Promise<numb
   /** What the Run threw, if it crashed: the first throw, from a ticket's turn or the Run's end. */
   let crashed: { error: unknown } | undefined
   let results: Awaited<ReturnType<typeof workFrontier>> = []
+  /** The spec's tickets as last read, for the Run's end to tell whether the spec is done. */
+  let latest = tickets
   try {
     // Minted now, so a broken App key stops the Run before it claims anything.
     await token()
@@ -166,7 +168,7 @@ export async function factory(args: string[], ports: FactoryPorts): Promise<numb
     results = await workFrontier({
       takeable,
       // `--only` works that one ticket, and the Run ends after it.
-      reread: onlyTicketId ? undefined : () => tracker.getSubIssues(specId),
+      reread: onlyTicketId ? undefined : async () => (latest = await tracker.getSubIssues(specId)),
       sandboxes: ports.sandboxes,
       work: (ticket, sandboxes) => {
         const covered = coveredIds(ticket.description)
@@ -204,7 +206,7 @@ export async function factory(args: string[], ports: FactoryPorts): Promise<numb
   }
   try {
     // Even when a ticket's turn throws, the Run ends with its summary: the ticket shows unfinished.
-    await endRun(ports, tracker, log, { crashed: crashed !== undefined, tickets })
+    await endRun(ports, tracker, log, { crashed: crashed !== undefined, tickets: latest })
   } catch (error) {
     crashed ??= { error }
   }
