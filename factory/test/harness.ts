@@ -15,6 +15,7 @@ import type {
   Forge,
   Issue,
   Notification,
+  PrComment,
   Sandbox,
   Sandboxes,
   Status,
@@ -109,6 +110,12 @@ export interface Script {
   noSession?: boolean
   /** The ticket's Linear comments, oldest first. */
   comments?: Comment[]
+  /** One ticket's Linear comments, oldest first, in place of `comments`: by ticket ID. */
+  commentsOf?: Record<string, Comment[]>
+  /** The issues a relation links to each ticket, by ticket ID; none by default. */
+  related?: Record<string, Issue[]>
+  /** Each PR's conversation comments, by PR number; none by default. */
+  prComments?: Record<number, PrComment[]>
   /** Whether GitHub turns down the push for changing workflow files. */
   workflowsRefused?: boolean
   /** The Implementer's commits since origin/main; 1 by default. */
@@ -407,18 +414,25 @@ export async function run(args: string[], issues: Issue[], options: Options = {}
 /** What a later command in the same checkout changes: by default the same arguments and tickets. */
 export interface Again {
   args?: string[]
+  /** The issues Linear holds besides the tickets, such as the spec. */
+  issues?: Issue[]
   tickets?: Ticket[]
   script?: Script
   /** Whether the earlier Run's host process is still alive; it died by default. */
   earlierAlive?: boolean
 }
 
+/** A comment the factory wrote to Linear, on the issue `issue`. */
+interface LinearComment extends Comment {
+  issue: string
+}
+
 /** The checkout and Linear a later command finds, after an earlier one's host died. */
 interface Earlier {
   repoDir: string
   configDir: string
-  /** The comments the factory wrote to Linear, which Linear keeps. */
-  comments: Comment[]
+  /** The comments the factory wrote to Linear, which Linear keeps, each with its issue. */
+  comments: LinearComment[]
   pid: number
   /** Where the clock had got to. */
   time: number
@@ -434,7 +448,7 @@ interface Earlier {
 export function start(args: string[], issues: Issue[], options: Options = {}, earlier?: Earlier) {
   const { layout = {}, tickets = [], script = {}, holds = [] } = options
   const { repoDir, configDir } = earlier ?? layOut(layout)
-  const comments = earlier?.comments ?? []
+  const comments: LinearComment[] = earlier?.comments ?? []
   const pid = earlier ? earlier.pid + 1 : FIRST_PID
   const isAlive = (other: number) =>
     other === pid || (earlier?.earlierAlive === true && other === earlier.pid)
@@ -488,12 +502,25 @@ export function start(args: string[], issues: Issue[], options: Options = {}, ea
         if (method === script.trackerThrows) throw new Error(`Linear answered 500 to ${method}`)
         // Linear keeps what the factory wrote, so a later command in the checkout reads it.
         if (method === 'comment') {
-          comments.push({ body: String(callArgs[1]), createdAt: new Date(time).toISOString() })
+          comments.push({
+            issue: String(callArgs[0]),
+            body: String(callArgs[1]),
+            createdAt: new Date(time).toISOString(),
+          })
         }
         await dies(method)
         if (method === 'getIssue') return issues.find((issue) => issue.id === callArgs[0]) ?? null
         if (method === 'getSubIssues') return callArgs[0] === SPEC ? subIssues() : []
-        if (method === 'getComments') return [...(script.comments ?? []), ...comments]
+        if (method === 'getComments') {
+          const id = String(callArgs[0])
+          return [
+            ...(script.commentsOf?.[id] ?? script.comments ?? []),
+            ...comments
+              .filter((comment) => comment.issue === id)
+              .map(({ body, createdAt }) => ({ body, createdAt })),
+          ].sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+        }
+        if (method === 'getRelatedIssues') return script.related?.[String(callArgs[0])] ?? []
         if (method === 'createIssue') {
           return { id: 'DEV-900', url: 'https://linear.app/mendpara/issue/DEV-900' }
         }
@@ -580,6 +607,10 @@ export function start(args: string[], issues: Issue[], options: Options = {}, ea
       await call({ port: 'forge', method: 'pushFiles', args: [branch, files] })
       return files.map(({ path }) => `https://raw.githubusercontent.com/o/r/${branch}/${path}`)
     },
+    async prComments(pr) {
+      await call({ port: 'forge', method: 'prComments', args: [pr] })
+      return script.prComments?.[pr] ?? []
+    },
   }
 
   const sandboxes: Sandboxes = {
@@ -637,11 +668,17 @@ export function start(args: string[], issues: Issue[], options: Options = {}, ea
       event.port === 'notifier' ? [event.notification] : [],
     ),
     repoDir,
-    runDir: join(repoDir, '.factory', 'runs', RUN_ID),
+    // The Run it says it works, or the first command's.
+    runDir: join(
+      repoDir,
+      '.factory',
+      'runs',
+      lines.map((line) => /^Run (\S+): working /.exec(line)?.[1]).find(Boolean) ?? RUN_ID,
+    ),
     again: (next: Again = {}) =>
       start(
         next.args ?? args,
-        issues,
+        next.issues ?? issues,
         { ...options, tickets: next.tickets ?? tickets, script: next.script ?? {}, holds: [] },
         { repoDir, configDir, comments, pid, time, earlierAlive: next.earlierAlive ?? false },
       ).done(),

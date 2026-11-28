@@ -105,6 +105,8 @@ export interface Tracker {
   comment(id: string, body: string): Promise<void>
   /** The issue's comments, oldest first. */
   getComments(id: string): Promise<Comment[]>
+  /** The issues a relation of any kind links to this one, whichever side of it they are on. */
+  getRelatedIssues(id: string): Promise<Issue[]>
   /**
    * Creates an issue in the team and project of `relatedTo`, with this one label and no other, and
    * relates it to `relatedTo`.
@@ -146,6 +148,8 @@ export interface Forge {
   /** The maintainer's GitHub login, to @mention when a PR needs them: the repo's owner. */
   maintainer(): string
   commentOnPr(pr: number, body: string): Promise<void>
+  /** The PR's conversation comments, oldest first, each with its link. */
+  prComments(pr: number): Promise<PrComment[]>
   /** Queues the merge for when the checks pass (`gh pr merge --auto --merge --delete-branch`). */
   queueAutoMerge(pr: number): Promise<void>
   /** Runs `scripts/wait-for-checks.sh` once and returns its exit code. */
@@ -161,6 +165,15 @@ export interface Forge {
    * file's raw URL, in order, for a PR comment to embed.
    */
   pushFiles(branch: string, files: { path: string; from: string }[]): Promise<string[]>
+}
+
+/** A comment on a PR's conversation. */
+export interface PrComment {
+  body: string
+  /** Its link on GitHub. */
+  url: string
+  /** ISO 8601. */
+  createdAt: string
 }
 
 /** A notification for the maintainer (DEV-259): what needs them, and where to look. */

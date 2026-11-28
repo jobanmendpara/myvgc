@@ -137,9 +137,13 @@ interface Turn {
 }
 
 /** Every comment the factory writes starts with this (DEV-259). */
-const FACTORY = '🏭 Factory'
+export const FACTORY = '🏭 Factory'
 /** The note a park leaves on the ticket starts with this, which is how a later Run finds it. */
-const PARKED = `${FACTORY}: Parked`
+export const PARKED = `${FACTORY}: Parked`
+/** A claim's comment on the ticket starts with this, then the Run's ID in backticks. */
+export const CLAIMED = `${FACTORY}: Claimed by factory Run`
+/** The PR comment of the Reviewer's rows starts with this, which is how the retro finds it. */
+export const REVIEWED = `${FACTORY}: the Reviewer's verdict is`
 
 /**
  * Works one ticket to a merged PR, or parks it. `unstartable` says why it can't start at all, such
@@ -214,7 +218,7 @@ async function turnOf(
   const working: TicketBrief = previousPark ? { ...brief, previousPark } : brief
   const parkHere = (reason: string, work?: Work) => park(context, working, turn, reason, work)
 
-  const claim = `${FACTORY}: Claimed by factory Run \`${context.runId}\`.`
+  const claim = `${CLAIMED} \`${context.runId}\`.`
   if (resume) say('adopt', `after the host died, from ${resume.step}`)
   // Saved before the claim, so a host that dies in the middle of it leaves a ticket the next Run
   // adopts. That Run claims it only when the claim comment didn't get made: never twice.
@@ -971,10 +975,7 @@ function reviewComment(
     '',
     ...(shots.get(row.id)?.files ?? []).map((file) => `![${basename(file)}](${urls.get(file)})`),
   ])
-  return [
-    `${FACTORY}: the Reviewer's verdict is **${review.verdict}**.`,
-    '',
-    ...reviewRows(review, replays),
-    ...seen,
-  ].join('\n')
+  return [`${REVIEWED} **${review.verdict}**.`, '', ...reviewRows(review, replays), ...seen].join(
+    '\n',
+  )
 }

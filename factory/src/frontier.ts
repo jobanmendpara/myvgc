@@ -41,3 +41,26 @@ export function frontier(
 }
 
 const MERGED: Status = { name: 'Done', type: 'completed' }
+
+/**
+ * The tickets that keep a spec from being done (DEV-288): every one that is still open and not
+ * parked. Open means not Done or Canceled; parked means labelled `needs-human` and not started, as
+ * a park leaves it (a PR waiting for `approved` is In Review with `needs-human`, so it isn't).
+ * `ranInRun` is how this Run's turns ended, which Linear may not show yet: a merge counts as Done,
+ * since the PR's "Closes" closes the ticket, and a park as parked.
+ */
+export function stillOpen(
+  tickets: Ticket[],
+  ranInRun: ReadonlyMap<string, string | null> = new Map(),
+): Ticket[] {
+  return tickets
+    .filter((ticket) => {
+      const outcome = ranInRun.get(ticket.id)
+      if (outcome === 'merged' || outcome === 'parked') return false
+      if (ranInRun.has(ticket.id)) return true
+      const { status, labels } = ticket
+      if (status.type === 'completed' || status.type === 'canceled') return false
+      return !(labels.includes('needs-human') && status.type !== 'started')
+    })
+    .sort((a, b) => a.order - b.order)
+}
