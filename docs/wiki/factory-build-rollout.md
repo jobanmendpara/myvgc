@@ -121,4 +121,18 @@ The maintainer asked the chief-of-staff to run subagents for the rest. Three imp
 - Open for the maintainer on 2026-11-27: whether the 2026-11-25 decision against hosting PR images on a branch covers Factory PRs (see DEV-281 above).
 - After the round, the chief-of-staff removed the round's worktrees and their local branches. 26 older `worktree-agent-*` branches from earlier sessions were left as they were.
 
+## Retro on the DEV-284 agent (2026-11-28)
+
+The maintainer asked for a retro on the DEV-284 implementer. The sources were its transcript and its two reviewers' transcripts (subagent transcripts, 2026-11-27), and `factory/src/run.ts` and `factory/src/github.ts` as of `jobanmendpara/myvgc@79310e3`.
+
+- The run was healthy. It read for 2 minutes, stopped on the usage limit, and after the reset took 32 minutes to merge PR #476: 134 tool calls, one rebase and 5 `wait-for-checks.sh` calls.
+- Its worktree had been removed while it was paused. It had made no edits yet, so nothing was lost. It made a new worktree off `origin/main` in under a minute. Briefs from 2026-11-27 already cover this.
+- Both reviewers took about a minute. Both found the same bug: a ticket left waiting on `approved` ended the Run with a failing exit code. The agent fixed it, along with four of the Standards reviewer's other points, before pushing.
+- The rebase onto DEV-280 conflicted in all of `run.ts`, because DEV-284 had restructured `workTicket`. The agent took its own version and re-applied DEV-280's accuracy step by hand. All 141 tests passed afterwards, DEV-280's 19 included, and all 19 sabotages still failed on assertions.
+- SSH `git fetch` failed for 7 of the round's 8 implementers, each losing about a minute before the HTTPS URL worked. The maintainer's 2026-11-25 decision keeps SSH first (see [parallel agents](parallel-agents.md)).
+- Across the 8 implementers, about 110 Bash calls chained `git` with `&&` and about 27 used heredocs, against the shell-habits rule, and the worktree guard refused none of them. Several agents had moved to worktrees they made themselves, which the guard may not cover. That is too little evidence to drop the rule.
+- Two findings in the Factory's code, as of `79310e3`, for the pilot:
+  - The wait loop after the push has no limit. `wait-for-checks.sh` exits 2 (pending) and 3 (a `gh` error) are retried forever, and so is a clean rebase followed by exit 4 again. A check that never reports, or a `gh` call that always fails, would keep a Run going with no notice to the maintainer.
+  - `failedCheckLogs` in `github.ts` filters the failed checks, reads job IDs with a regex and formats the log. The adapter has no tests, so the pilot's first CI failure is the first time this code runs.
+
 Related: [shipping flow](shipping-flow.md), [parallel agents](parallel-agents.md).
