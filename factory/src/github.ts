@@ -170,6 +170,18 @@ export function githubForge(
       await gh(['pr', 'comment', String(pr), '--body-file', '-'], body)
     },
 
+    async prComments(pr) {
+      // A PR's conversation comments are its issue comments. `--slurp` gathers every page.
+      const pages = JSON.parse(
+        await gh(['api', '--paginate', '--slurp', `repos/${repo}/issues/${pr}/comments`]),
+      ) as { body: string | null; html_url: string; created_at: string }[][]
+      return pages.flat().map((comment) => ({
+        body: comment.body ?? '',
+        url: comment.html_url,
+        createdAt: comment.created_at,
+      }))
+    },
+
     async queueAutoMerge(pr) {
       await gh(['pr', 'merge', String(pr), '--auto', '--merge', '--delete-branch'])
     },

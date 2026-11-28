@@ -11,6 +11,8 @@ const TITLE = 'Show the Team page'
 const TICKET = ticket('DEV-2', { title: TITLE })
 const TICKET_URL = 'https://linear.app/mendpara/issue/DEV-2'
 const PR_URL = 'https://github.com/o/r/pull/42'
+/** Every ticket of the spec merged, so the end's notification says to run the retro. */
+const SPEC_DONE = `Spec done: run \`pnpm factory retro ${SPEC}\``
 
 function workDev2(script: Script = {}) {
   return run([SPEC, '--only', 'DEV-2'], [signedOff], { tickets: [TICKET], script })
@@ -92,7 +94,7 @@ describe("the Run's end", () => {
     expect(result.output).toContain('- DEV-2 Show the Team page: merged')
     expect(result.notifications).toEqual([
       {
-        text: `🏭 Run ${RUN_ID} done: 1 merged, 0 parked, 0 waiting for approval, $0.00`,
+        text: `🏭 Run ${RUN_ID} done: 1 merged, 0 parked, 0 waiting for approval, $0.00. ${SPEC_DONE}`,
         link: result.runDir,
       },
     ])
@@ -104,7 +106,7 @@ describe('the end of a Run of the whole frontier', () => {
     const result = await run([SPEC], [signedOff], { tickets: [ticket('DEV-1'), TICKET] })
     expect(result.notifications).toEqual([
       {
-        text: `🏭 Run ${RUN_ID} done: 2 merged, 0 parked, 0 waiting for approval, $0.00`,
+        text: `🏭 Run ${RUN_ID} done: 2 merged, 0 parked, 0 waiting for approval, $0.00. ${SPEC_DONE}`,
         link: result.runDir,
       },
     ])

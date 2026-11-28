@@ -1,5 +1,6 @@
 // A spec's frontier: the tickets a Run may take now (How a factory Run works, DEV-253).
 import type { Status, Ticket } from './ports.ts'
+import type { TicketOutcome } from './run.ts'
 
 /**
  * Why the factory may not take this ticket now, or nothing when it may. A ticket is takeable when
@@ -41,3 +42,31 @@ export function frontier(
 }
 
 const MERGED: Status = { name: 'Done', type: 'completed' }
+
+/**
+ * Whether the ticket is parked for the maintainer: labelled `needs-human` and not started, as a
+ * park leaves it. A PR waiting for `approved` is In Review with `needs-human`, so it isn't.
+ */
+export const isParked = ({ labels, status }: Ticket) =>
+  labels.includes('needs-human') && !['started', 'completed', 'canceled'].includes(status.type)
+
+/**
+ * The tickets that keep a spec from being done (DEV-288): every one that is still open (not Done
+ * or Canceled) and not parked. `ranInRun` is how this Run's turns ended, which Linear may not show
+ * yet: a merge counts as Done, since the PR's "Closes" closes the ticket, and a park as parked.
+ */
+export function stillOpen(
+  tickets: Ticket[],
+  ranInRun: ReadonlyMap<string, TicketOutcome | null> = new Map(),
+): Ticket[] {
+  return tickets
+    .filter((ticket) => {
+      if (ranInRun.has(ticket.id)) {
+        const outcome = ranInRun.get(ticket.id)
+        return outcome !== 'merged' && outcome !== 'parked'
+      }
+      const { type } = ticket.status
+      return type !== 'completed' && type !== 'canceled' && !isParked(ticket)
+    })
+    .sort((a, b) => a.order - b.order)
+}

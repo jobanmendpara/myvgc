@@ -110,6 +110,36 @@ export function linearTracker(apiKey: string): Tracker {
       )
     },
 
+    async getRelatedIssues(id) {
+      // `relations` name this issue as their `issue`; `inverseRelations`, as their `relatedIssue`.
+      const data = await query<{
+        issue: {
+          relations: Page<{ relatedIssue: GraphQLIssue }>
+          inverseRelations: Page<{ issue: GraphQLIssue }>
+        }
+      }>(
+        apiKey,
+        `query Related($id: String!) {
+          issue(id: $id) {
+            relations(first: 100) {
+              pageInfo { hasNextPage }
+              nodes { relatedIssue { identifier title description labels { nodes { name } } } }
+            }
+            inverseRelations(first: 100) {
+              pageInfo { hasNextPage }
+              nodes { issue { identifier title description labels { nodes { name } } } }
+            }
+          }
+        }`,
+        { id },
+      )
+      if (!data) return []
+      return [
+        ...allOf(data.issue.relations, `relations on ${id}`).map((each) => each.relatedIssue),
+        ...allOf(data.issue.inverseRelations, `relations on ${id}`).map((each) => each.issue),
+      ].map(toIssue)
+    },
+
     async createIssue({ title, description, label, relatedTo }) {
       // In the related issue's team and project: for a spec, team DEV and project MyVGC.
       const data = await query<{

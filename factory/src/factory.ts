@@ -7,6 +7,7 @@
 // (src/slots.ts), each to a merged PR (src/run.ts); `--only DEV-M` works that one ticket. When the
 // host died during an earlier Run of the spec, the same command takes that Run up again
 // (src/recovery.ts): its unfinished tickets are adopted, each resuming from its last finished step.
+// `pnpm factory retro <spec>` gathers a finished spec's retro bundle instead (src/retro.ts).
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { parseArgs, parseEnv } from 'node:util'
@@ -25,6 +26,7 @@ import type {
   Tracker,
 } from './ports.ts'
 import { adoption } from './recovery.ts'
+import { retro } from './retro.ts'
 import { workTicket } from './run.ts'
 import { RunLog } from './runlog.ts'
 import { workFrontier } from './slots.ts'
@@ -66,22 +68,20 @@ const USAGE_ERROR = 64
 
 const USAGE =
   'Usage: pnpm factory <spec issue, such as DEV-269> [--dry-run] [--only DEV-M] [--<step> <model>]\n' +
-  `  where <step> is ${STEP_NAMES.join(', ')} and <model> is such as opus-5-5`
+  `  where <step> is ${STEP_NAMES.join(', ')} and <model> is such as opus-5-5\n` +
+  '   or: pnpm factory retro <spec issue>, once every ticket of the spec is Done or parked'
 const ISSUE_ID = /^[A-Z]+-\d+$/
 
 export async function factory(args: string[], ports: FactoryPorts): Promise<number> {
+  if (args[0] === 'retro') return retroCommand(args.slice(1), ports)
   const command = readCommand(args)
   if (!command) {
     ports.print(USAGE)
     return USAGE_ERROR
   }
 
-  const setup = readSetup(ports)
-  if ('problems' in setup) {
-    ports.print("The factory isn't set up yet:")
-    for (const problem of setup.problems) ports.print(`- ${problem}`)
-    return REFUSED
-  }
+  const setup = readSetup(ports, { agents: true })
+  if ('problems' in setup) return notSetUp(ports, setup.problems)
 
   const { specId, dryRun, onlyTicketId, settings } = command
   const tracker = ports.tracker(setup.linearApiKey)
@@ -159,6 +159,8 @@ export async function factory(args: string[], ports: FactoryPorts): Promise<numb
   /** What the Run threw, if it crashed: the first throw, from a ticket's turn or the Run's end. */
   let crashed: { error: unknown } | undefined
   let results: Awaited<ReturnType<typeof workFrontier>> = []
+  /** The spec's tickets as last read, for the Run's end to tell whether the spec is done. */
+  let latest = tickets
   try {
     // Minted now, so a broken App key stops the Run before it claims anything.
     await token()
@@ -166,7 +168,7 @@ export async function factory(args: string[], ports: FactoryPorts): Promise<numb
     results = await workFrontier({
       takeable,
       // `--only` works that one ticket, and the Run ends after it.
-      reread: onlyTicketId ? undefined : () => tracker.getSubIssues(specId),
+      reread: onlyTicketId ? undefined : async () => (latest = await tracker.getSubIssues(specId)),
       sandboxes: ports.sandboxes,
       work: (ticket, sandboxes) => {
         const covered = coveredIds(ticket.description)
@@ -204,7 +206,7 @@ export async function factory(args: string[], ports: FactoryPorts): Promise<numb
   }
   try {
     // Even when a ticket's turn throws, the Run ends with its summary: the ticket shows unfinished.
-    await endRun(ports, tracker, log, { crashed: crashed !== undefined })
+    await endRun(ports, tracker, log, { crashed: crashed !== undefined, tickets: latest })
   } catch (error) {
     crashed ??= { error }
   }
@@ -214,6 +216,38 @@ export async function factory(args: string[], ports: FactoryPorts): Promise<numb
   return results.every(({ outcome }) => outcome === 'merged' || outcome === 'waiting for approval')
     ? READY
     : REFUSED
+}
+
+/**
+ * `pnpm factory retro <spec>`: gathers the spec's retro bundle (src/retro.ts). It reads Linear,
+ * GitHub and the run logs, and needs no Claude credential, since it calls no agent or model.
+ */
+async function retroCommand(args: string[], ports: FactoryPorts): Promise<number> {
+  const [specId, ...rest] = args
+  if (!specId || rest.length > 0 || !ISSUE_ID.test(specId)) {
+    ports.print(USAGE)
+    return USAGE_ERROR
+  }
+  const setup = readSetup(ports, { agents: false })
+  if ('problems' in setup) return notSetUp(ports, setup.problems)
+  return (await retro(specId, {
+    repoDir: ports.repoDir,
+    tracker: ports.tracker(setup.linearApiKey),
+    forge: ports.forge(
+      setup.github,
+      installationTokens(() => ports.mintToken(setup.github), ports.clock),
+    ),
+    now: () => ports.clock.now(),
+    print: ports.print,
+  }))
+    ? READY
+    : REFUSED
+}
+
+function notSetUp({ print }: FactoryPorts, problems: string[]): number {
+  print("The factory isn't set up yet:")
+  for (const problem of problems) print(`- ${problem}`)
+  return REFUSED
 }
 
 /**
@@ -310,8 +344,11 @@ type Setup =
     }
   | { problems: string[] }
 
-/** Checks the set-up from DEV-271 (the GitHub App) and DEV-272 (credentials). */
-function readSetup({ repoDir, configDir }: FactoryPorts): Setup {
+/**
+ * Checks the set-up from DEV-271 (the GitHub App) and DEV-272 (credentials). Without `agents`, as
+ * for the retro, it doesn't check `.sandcastle/.env`, which only agents read.
+ */
+function readSetup({ repoDir, configDir }: FactoryPorts, { agents }: { agents: boolean }): Setup {
   const problems: string[] = []
   const configFile = join(configDir, 'config.env')
   const sandcastleFile = join(repoDir, '.sandcastle', '.env')
@@ -328,13 +365,13 @@ function readSetup({ repoDir, configDir }: FactoryPorts): Setup {
   ] as const) {
     if (!config[name]) problems.push(`${what}: ${name} in ${configFile}`)
   }
-  if (!sandcastle.CLAUDE_CODE_OAUTH_TOKEN && !sandcastle.ANTHROPIC_API_KEY) {
+  if (agents && !sandcastle.CLAUDE_CODE_OAUTH_TOKEN && !sandcastle.ANTHROPIC_API_KEY) {
     problems.push(
       `Claude credential: CLAUDE_CODE_OAUTH_TOKEN (from \`claude setup-token\`) or ANTHROPIC_API_KEY in ${sandcastleFile}`,
     )
   }
   // It would override the effort every step sets for itself (src/settings.ts).
-  if (sandcastle.CLAUDE_CODE_EFFORT_LEVEL !== undefined) {
+  if (agents && sandcastle.CLAUDE_CODE_EFFORT_LEVEL !== undefined) {
     problems.push(
       `CLAUDE_CODE_EFFORT_LEVEL in ${sandcastleFile}: remove it, since it overrides every step's own effort`,
     )

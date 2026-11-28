@@ -1,7 +1,10 @@
 // The end of a Run (DEV-282): one follow-up issue of the Reviewer's judgement calls, if it made
-// any, then the summary printed and saved to run.json, and the end's notification (DEV-287).
+// any, then the summary printed and saved to run.json, and the end's notification (DEV-287). When
+// the Run leaves every ticket of the spec Done or parked, both say to run the spec's retro
+// (DEV-288), which the factory never starts itself.
 import type { FactoryPorts } from './factory.ts'
-import type { Tracker } from './ports.ts'
+import { stillOpen } from './frontier.ts'
+import type { Ticket, Tracker } from './ports.ts'
 import { CLOSING } from './run.ts'
 import type { RunLog, Summary, TicketRecord } from './runlog.ts'
 
@@ -9,7 +12,14 @@ export async function endRun(
   { print, notifier }: Pick<FactoryPorts, 'print' | 'notifier'>,
   tracker: Tracker,
   log: RunLog,
-  { crashed }: { crashed: boolean },
+  {
+    crashed,
+    tickets,
+  }: {
+    crashed: boolean
+    /** The spec's tickets, as the Run last read them. */
+    tickets: Ticket[]
+  },
 ): Promise<Summary> {
   const { runId, specId } = log
   const calls = log.tickets.flatMap((ticket) => {
@@ -69,8 +79,19 @@ export async function endRun(
     )
   }
   print(`Run log: ${log.dir}`)
+  const ranInRun = new Map(log.tickets.map((ticket) => [ticket.id, ticket.outcome]))
+  const specDone =
+    stillOpen(tickets, ranInRun).length === 0
+      ? `Spec done: run \`pnpm factory retro ${specId}\``
+      : undefined
+  if (specDone) print(`${specDone}.`)
   // A crashed Run's notification is the crash's, from src/cli.ts (src/notify.ts).
-  if (!crashed) await notifier.notify({ text: `🏭 ${done}`, link: log.dir })
+  if (!crashed) {
+    await notifier.notify({
+      text: specDone ? `🏭 ${done}. ${specDone}` : `🏭 ${done}`,
+      link: log.dir,
+    })
+  }
   return summary
 }
 
@@ -90,4 +111,4 @@ function judgementCalls(ticket: TicketRecord) {
     })
 }
 
-const dollars = (usd: number) => `$${usd.toFixed(2)}`
+export const dollars = (usd: number) => `$${usd.toFixed(2)}`
