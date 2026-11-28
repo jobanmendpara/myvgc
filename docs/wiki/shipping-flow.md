@@ -108,6 +108,7 @@ From the DEV-223 agent's report, 2026-11-25.
 ## Screenshots stay out of PRs (2026-11-25)
 
 - On 2026-11-25 the maintainer decided that PR bodies carry no screenshots and no GitHub branch hosts PR images: the agent looks at its own `pnpm screenshots` shots, writes what it checked in the PR's Evidence section, and attaches shots to the Linear issue when the maintainer may want them. One reason is the auto-merge above: no one reviews the PR. See [preview](preview.md), "Screenshots in PRs (2026-11-25)".
+- On 2026-11-28 the maintainer exempted Factory PRs: the Factory pushes its shots to the orphan branch `factory-screenshots` and embeds them in a PR comment (DEV-269, AC-33.1). See [Factory build rollout](factory-build-rollout.md).
 
 ## Two issues in one PR (2026-11-25)
 

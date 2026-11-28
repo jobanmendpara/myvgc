@@ -160,7 +160,7 @@ You may use one of these, you may use several, it is unlikely you will use all o
 
 Concrete evidence that the change works. Show a before and after.
 
-For a visual change, take screenshots with `pnpm screenshots`, look at them yourself, and write what you checked: the widths, themes, Sprite styles and edge cases. The PR body carries text only; host no images on a branch. When the maintainer may want to see the shots, attach them to the Linear issue. Why: PRs auto-merge with no reviewer, the maintainer reads Linear, and images hosted on a branch break once that branch is deleted.
+For a visual change, take screenshots with `pnpm screenshots`, look at them yourself, and write what you checked: the widths, themes, Sprite styles and edge cases. The PR body carries text only; host no images on a branch. When the maintainer may want to see the shots, attach them to the Linear issue. Why: PRs auto-merge with no reviewer, the maintainer reads Linear, and images hosted on a branch break once that branch is deleted. The Factory's PRs (DEV-269) are the one exception: it pushes its shots to the orphan branch `factory-screenshots`, which is never deleted.
 
 Execution-based evidence is A-tier. Test results, console output. Show the exact test that now fails and passes, using pseudocode.
 
