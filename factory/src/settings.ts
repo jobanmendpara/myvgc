@@ -68,8 +68,9 @@ export function ticketPlan(settings: Settings): string {
     `; when the push gate fails: fix round 1 (${model('fix-round-1')}), then fix round 2 ` +
     `(${model('fix-round-2')}), each back to host checks, then park; when CI fails, the next ` +
     'fix round in a new sandbox on the pushed branch, counted towards the two; when the PR ' +
-    'conflicts with main, rebase and force-push, or park on conflicts; when it waits on ' +
-    '`approved`, `needs-human` and move on'
+    'conflicts with main, rebase and force-push, or park on conflicts or after 3 rebases; ' +
+    'when it waits on `approved`, `needs-human` and move on; with no answer an hour after a ' +
+    'push, park'
   )
 }
 

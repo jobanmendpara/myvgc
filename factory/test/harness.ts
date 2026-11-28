@@ -124,6 +124,8 @@ export interface Script {
   waits?: number[]
   /** The exit codes for one ticket's PR, call by call, in place of `waits`: by ticket ID. */
   waitsOf?: Record<string, number[]>
+  /** How many minutes each wait-for-checks.sh call takes on the clock; none by default. */
+  waitMinutes?: number
   /** The files the branch changes since origin/main; none by default. */
   changedFiles?: string[]
   /** What `pnpm accuracy` prints on each checkout; by default a summary naming the checkout. */
@@ -600,6 +602,7 @@ export function start(args: string[], issues: Issue[], options: Options = {}, ea
     async waitForChecks(pr) {
       const branch = [...prs].find(([, number]) => number === pr)?.[0]
       await call({ port: 'forge', method: 'waitForChecks', args: [pr], branch })
+      time += (script.waitMinutes ?? 0) * 60_000
       const own = waitsOf.get(tickets.find((each) => each.branch === branch)?.id ?? '')
       return (own ? own.shift() : waits.shift()) ?? 0
     },
