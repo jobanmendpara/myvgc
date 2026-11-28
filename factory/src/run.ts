@@ -5,10 +5,11 @@
 // acts on what scripts/wait-for-checks.sh reports (DEV-284): a CI failure gets a fix round in a new
 // sandbox, counted towards the two; a conflict with main gets a rebase and a force-push, or a park
 // when the rebase stops on conflicts; and a PR waiting on `approved` is left with the maintainer,
-// auto-merge still queued, while the Run moves on. A branch that changes an ADR 24 path has
-// `pnpm accuracy` run before and after it, ahead of each push (DEV-280). A Seen criterion passes
-// the push gate only with screenshots the Reviewer judged matching, which the PR comment shows
-// (DEV-281, src/screenshots.ts).
+// auto-merge still queued, while the Run moves on. A PR that gets no answer for an hour after a
+// push, or still conflicts after 3 rebases, is parked rather than waited on for ever. A branch
+// that changes an ADR 24 path has `pnpm accuracy` run before and after it, ahead of each push
+// (DEV-280). A Seen criterion passes the push gate only with screenshots the Reviewer judged
+// matching, which the PR comment shows (DEV-281, src/screenshots.ts).
 //
 // It survives what interrupted the spike (DEV-286): each agent's sessions live in the Run's folder;
 // a usage limit pauses every agent step until it resets, then the step continues its session; an
@@ -208,7 +209,7 @@ async function turnOf(
   unstartable?: string,
   resume?: Checkpoint,
 ): Promise<TicketOutcome> {
-  const { tracker, forge, settings } = context
+  const { tracker, forge, clock, settings } = context
   const { ticket } = brief
   const { say, log } = turn
   const logDir = join(context.runDir, ticket.id)
@@ -486,10 +487,29 @@ async function turnOf(
       if ((await ship(first)) === 'parked') return 'parked'
     }
 
+    // The hour starts again with each push: the first, a rebase's, and a CI fix round's. A Run that
+    // adopts a ticket after the host died starts its own hour and its own count of rebases. The
+    // rebases are counted over the whole wait, fix rounds and all, so it ends within about 6 hours.
+    const now = () => clock.now().getTime()
+    let waitingSince = now()
+    let rebases = 0
     for (;;) {
       if (!pr) throw new Error('Waiting on checks with no PR.')
       const code = await forge.waitForChecks(pr.number)
-      if (code === WAIT.pending || code === WAIT.ghError) continue
+      if (code === WAIT.pending || code === WAIT.ghError) {
+        if (now() - waitingSince >= WAIT_LIMIT_MS) {
+          say('wait for checks', `no answer for an hour (exit ${code})`)
+          const why =
+            code === WAIT.ghError ? '`gh` was still failing' : "the PR's checks were still pending"
+          return await parkHere(
+            `${why} after an hour of waiting (wait-for-checks.sh exit ${code}): see ${pr.url}`,
+            work(),
+          )
+        }
+        // A `gh` error comes back at once, so it waits before asking GitHub again.
+        if (code === WAIT.ghError) await clock.sleep(GH_ERROR_PAUSE_MS)
+        continue
+      }
       if (code === WAIT.merged) {
         say('wait for checks', 'merged')
         return 'merged'
@@ -498,8 +518,17 @@ async function turnOf(
         return await waitForApproval(context, ticket, pr, say)
       }
       if (code === WAIT.conflicts) {
+        if (rebases === MAX_REBASES) {
+          say('wait for checks', `still conflicts after ${MAX_REBASES} rebases`)
+          return await parkHere(
+            `the PR still conflicts with main after ${MAX_REBASES} rebases: see ${pr.url}`,
+            work(),
+          )
+        }
+        rebases += 1
         const rebased = await rebase(await newSandbox())
         if (rebased !== 'rebased') return rebased
+        waitingSince = now()
         continue
       }
       if (code !== WAIT.checkFailed) {
@@ -525,6 +554,7 @@ async function turnOf(
       )
       if ((await untilGatePasses(sandbox, { kind: 'agent', agent })) === 'parked') return 'parked'
       if ((await ship(sandbox)) === 'parked') return 'parked'
+      waitingSince = now()
     }
   } finally {
     for (const sandbox of [...open]) await close(sandbox)
@@ -611,6 +641,13 @@ async function commitLeftWork(
   })
   return committed.exitCode === 0
 }
+
+/** How long a pushed PR may go with no answer from wait-for-checks.sh before the ticket parks. */
+const WAIT_LIMIT_MS = 60 * 60_000
+/** The pause before asking again after a `gh` error, which wait-for-checks.sh reports at once. */
+const GH_ERROR_PAUSE_MS = 30_000
+/** How many clean rebases a PR gets before a conflict with main parks it. */
+const MAX_REBASES = 3
 
 /** scripts/wait-for-checks.sh's exit codes, as its comment block lists them. */
 const WAIT = {
