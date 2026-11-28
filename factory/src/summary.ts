@@ -52,7 +52,8 @@ export async function endRun(
     `${summary.waitingForApproval} waiting for approval`,
     ...(summary.stopped > 0 ? [`${summary.stopped} stopped`] : []),
   ]
-  print(`Run ${runId} done: ${counts.join(', ')}, ${dollars(summary.cost)}.`)
+  const done = `Run ${runId} done: ${counts.join(', ')}, ${dollars(summary.cost)}`
+  print(`${done}.`)
   for (const ticket of log.tickets) {
     print(`- ${ticket.id} ${ticket.title}: ${outcomeOf(ticket)}, ${dollars(ticket.cost)}`)
   }
@@ -69,12 +70,7 @@ export async function endRun(
   }
   print(`Run log: ${log.dir}`)
   // A crashed Run's notification is the crash's, from src/cli.ts (src/notify.ts).
-  if (!crashed) {
-    await notifier.notify({
-      text: `🏭 Run ${runId} done: ${counts.join(', ')}, ${dollars(summary.cost)}`,
-      link: log.dir,
-    })
-  }
+  if (!crashed) await notifier.notify({ text: `🏭 ${done}`, link: log.dir })
   return summary
 }
 

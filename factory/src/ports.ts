@@ -154,7 +154,7 @@ export interface Forge {
   pushFiles(branch: string, files: { path: string; from: string }[]): Promise<string[]>
 }
 
-/** A macOS notification for the maintainer (DEV-259): what needs them, and where to look. */
+/** A notification for the maintainer (DEV-259): what needs them, and where to look. */
 export interface Notification {
   /** Starts with 🏭, and names a ticket by its title, never by a bare ID. */
   text: string
