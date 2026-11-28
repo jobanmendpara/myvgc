@@ -135,7 +135,11 @@ describe('a crash', () => {
 
   test('names the ticket whose turn threw, while another is in flight', async () => {
     // DEV-1 can't start, so it parks and Linear turns its label down; DEV-2, after it, merges.
-    const dev1 = ticket('DEV-1', { title: 'Read a paste', description: 'No covers line.' })
+    const dev1 = ticket('DEV-1', {
+      title: 'Read a paste',
+      description: 'No covers line.',
+      order: -1,
+    })
     const result = await run([SPEC], [signedOff], {
       tickets: [dev1, TICKET],
       script: { trackerThrows: 'setAgentLabel' },
