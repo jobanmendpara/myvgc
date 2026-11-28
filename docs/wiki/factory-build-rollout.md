@@ -80,7 +80,8 @@ The maintainer asked the chief-of-staff to run subagents for the rest. Three imp
   - Seen rows carry `screenshots`, `matches` and `judgement`.
   - A ticket parked after the push gate passes gets a draft PR without screenshots.
   - Running `pnpm screenshots` in the container is untested until the pilot.
-- DEV-281's agent noticed a conflict that is the maintainer's to settle. On 2026-11-25 the maintainer decided that no GitHub branch hosts PR images ([preview](preview.md), "Screenshots in PRs"). The signed-off AC-33.1 asks the Factory to push screenshots to the orphan branch `factory-screenshots`. PR #478 follows the AC. As of 2026-11-27 it is unsettled whether the 2026-11-25 decision covers Factory PRs.
+- DEV-281's agent noticed a conflict that is the maintainer's to settle. On 2026-11-25 the maintainer decided that no GitHub branch hosts PR images ([preview](preview.md), "Screenshots in PRs"). The signed-off AC-33.1 asks the Factory to push screenshots to the orphan branch `factory-screenshots`. PR #478 follows the AC. As of 2026-11-27 it is unsettled whether the 2026-11-25 decision covers Factory PRs. (Superseded 2026-11-28: see the next line.)
+- On 2026-11-28 the maintainer decided to keep the orphan `factory-screenshots` branch for Factory PRs. The 2026-11-25 decision covers interactive agents' PRs only. AC-33.1 stands unchanged, so the spec needs no new sign-off, and PR #478's code (as of `jobanmendpara/myvgc@1efd4bf`) already follows it. The branch is never a PR's head, so GitHub's deletion of merged branches doesn't remove it.
 - DEV-287 started in the slot DEV-281 freed.
 - On 2026-11-27 DEV-285 merged as PR #479 (`jobanmendpara/myvgc@2526421`), rebased onto DEV-282 and DEV-281. The agent's report gives these details:
   - All 12 sabotages failed on assertions.
