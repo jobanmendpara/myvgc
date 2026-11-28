@@ -5,7 +5,7 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach } from 'vitest'
+import { afterEach, expect } from 'vitest'
 import { factory } from '../src/factory.ts'
 import type {
   AgentStep,
@@ -112,6 +112,8 @@ export interface Script {
   commits?: number
   /** scripts/wait-for-checks.sh's exit codes, call by call. */
   waits?: number[]
+  /** The exit codes for one ticket's PR, call by call, in place of `waits`: by ticket ID. */
+  waitsOf?: Record<string, number[]>
   /** The files the branch changes since origin/main; none by default. */
   changedFiles?: string[]
   /** What `pnpm accuracy` prints on each checkout; by default a summary naming the checkout. */
@@ -300,7 +302,13 @@ function envFile(values: Record<string, string>): string {
 /** One thing the factory did through a port. */
 export type Event =
   | { port: 'tracker'; method: string; args: unknown[] }
-  | { port: 'forge'; method: string; args: unknown[] }
+  | {
+      port: 'forge'
+      method: string
+      args: unknown[]
+      /** For waitForChecks: the branch of the PR it waits on. */
+      branch?: string
+    }
   | { port: 'sandboxes'; method: 'create'; options: Parameters<Sandboxes['create']>[0] }
   | {
       port: 'sandbox'
@@ -310,23 +318,68 @@ export type Event =
       env?: Record<string, string>
       /** What the sandbox had checked out: the branch, or the commit a detached checkout named. */
       checkout: string
+      /** The ticket's branch the sandbox was made on. */
+      branch: string
     }
-  | { port: 'sandbox'; method: 'runAgent'; step: AgentStep }
-  | { port: 'sandbox'; method: 'close' }
+  | { port: 'sandbox'; method: 'runAgent'; step: AgentStep; branch: string }
+  | { port: 'sandbox'; method: 'close'; branch: string }
 
 export const WORKTREE = '/host/repo/.sandcastle/worktrees/ticket'
 export const NOW = new Date(2026, 10, 27, 14, 5)
 export const RUN_ID = `2026-11-27-1405-${SPEC}`
 
+/**
+ * A step a test holds open: the first port call `match` picks waits, once it is made, until the
+ * test calls `release()`. So a test can settle the Run (start's `settle()`) and look at it
+ * part-way through, as with two tickets in flight at once, without real time passing.
+ */
+export interface Hold {
+  match: (event: Event) => boolean
+  release: () => void
+  /** Whether the hold has caught its call: each hold catches one. */
+  caught: boolean
+  /** Catches the call; the call waits on what it returns. */
+  catch: () => Promise<void>
+}
+
+export function hold(match: (event: Event) => boolean): Hold {
+  let release = () => {}
+  const released = new Promise<void>((resolve) => (release = resolve))
+  const held: Hold = {
+    match,
+    release,
+    caught: false,
+    catch: () => {
+      held.caught = true
+      return released
+    },
+  }
+  return held
+}
+
+export interface Options {
+  layout?: Layout
+  tickets?: Ticket[]
+  script?: Script
+  /** Steps to hold open until the test releases them. */
+  holds?: Hold[]
+}
+
 /** Lays out the folders, runs factory() and records what it did. */
-export async function run(
+export async function run(args: string[], issues: Issue[], options: Options = {}) {
+  return start(args, issues, options).done()
+}
+
+/**
+ * Starts factory() the way run() does, without waiting for it: `events` and `lines` grow as it
+ * goes, and `settle()` waits until it can go no further without a held step. `done()` settles it
+ * and gives what run() returns, failing when the Run stalled, as a deadlock would, rather than
+ * waiting on it for ever.
+ */
+export function start(
   args: string[],
   issues: Issue[],
-  {
-    layout = {},
-    tickets = [],
-    script = {},
-  }: { layout?: Layout; tickets?: Ticket[]; script?: Script } = {},
+  { layout = {}, tickets = [], script = {}, holds = [] }: Options = {},
 ) {
   const { appKey, config, sandcastleEnv } = { ...COMPLETE, ...layout }
   const root = mkdtempSync(join(tmpdir(), 'factory-'))
@@ -341,37 +394,72 @@ export async function run(
   writeWorkspace(repoDir)
 
   const events: Event[] = []
+  /** Records a port call, and holds it open when a hold picks it. */
+  const note = async (event: Event) => {
+    events.push(event)
+    const held = holds.find((candidate) => !candidate.caught && candidate.match(event))
+    if (held) await held.catch()
+  }
+
+  // Linear as the factory leaves it: a ticket's status and Agent label follow what the factory
+  // writes, and a blocker's status is that ticket's own, so reading the tickets again shows them.
+  // Nothing else changes it: Linear closing a ticket when its PR merges is outside the factory.
+  const linear = new Map(tickets.map((each) => [each.id, structuredClone(each)]))
+  const subIssues = () =>
+    [...linear.values()].map((each) => ({
+      ...structuredClone(each),
+      blockedBy: each.blockedBy.map((blocker) => {
+        const status = linear.get(blocker.id)?.status
+        return status ? { id: blocker.id, status: { ...status } } : { ...blocker }
+      }),
+    }))
   // Records every call, including to methods later tickets add to the Tracker, so "reads the spec
   // and nothing else" keeps meaning something as the port grows.
   const tracker = new Proxy({} as Tracker, {
     get:
       (_, method: string) =>
       async (...callArgs: unknown[]) => {
-        events.push({ port: 'tracker', method, args: callArgs })
+        await note({ port: 'tracker', method, args: callArgs })
         if (method === script.trackerThrows) throw new Error(`Linear answered 500 to ${method}`)
         if (method === 'getIssue') return issues.find((issue) => issue.id === callArgs[0]) ?? null
-        if (method === 'getSubIssues') return callArgs[0] === SPEC ? tickets : []
+        if (method === 'getSubIssues') return callArgs[0] === SPEC ? subIssues() : []
         if (method === 'getComments') return script.comments ?? []
         if (method === 'createIssue') {
           return { id: 'DEV-900', url: 'https://linear.app/mendpara/issue/DEV-900' }
+        }
+        const changed = linear.get(String(callArgs[0]))
+        if (method === 'setStatus' && changed) {
+          const name = callArgs[1] as Status['name']
+          changed.status = { name, type: name === 'Todo' ? 'unstarted' : 'started' }
+        }
+        if (method === 'setAgentLabel' && changed) {
+          changed.labels = [
+            ...changed.labels.filter(
+              (label) => !['ready-for-agent', 'needs-human'].includes(label),
+            ),
+            String(callArgs[1]),
+          ]
         }
       },
   })
 
   const waits = [...(script.waits ?? [0])]
+  const waitsOf = new Map(
+    Object.entries(script.waitsOf ?? {}).map(([id, codes]) => [id, [...codes]]),
+  )
   let nextPr = 41
   // One PR per branch, as on GitHub: opening it again brings the open one up to date.
   const prs = new Map<string, number>()
   const forge: Forge = {
     async botIdentity() {
-      events.push({ port: 'forge', method: 'botIdentity', args: [] })
+      await note({ port: 'forge', method: 'botIdentity', args: [] })
       return {
         name: 'myvgc-factory[bot]',
         email: '999+myvgc-factory[bot]@users.noreply.github.com',
       }
     },
     async push(cwd, branch, options) {
-      events.push({
+      await note({
         port: 'forge',
         method: 'push',
         args: options ? [cwd, branch, options] : [cwd, branch],
@@ -379,13 +467,13 @@ export async function run(
       return script.workflowsRefused ? 'workflows refused' : 'pushed'
     },
     async openPr(pr) {
-      events.push({ port: 'forge', method: 'openPr', args: [pr] })
+      await note({ port: 'forge', method: 'openPr', args: [pr] })
       const number = prs.get(pr.branch) ?? (nextPr += 1)
       prs.set(pr.branch, number)
       return { number, url: `https://github.com/o/r/pull/${number}` }
     },
     async failedCheckLogs(pr) {
-      events.push({ port: 'forge', method: 'failedCheckLogs', args: [pr] })
+      await note({ port: 'forge', method: 'failedCheckLogs', args: [pr] })
       return (
         script.ciLog ?? 'check: FAIL test/a.test.ts > refuses\nAssertionError: expected 1 to be 2'
       )
@@ -394,25 +482,27 @@ export async function run(
       return 'jobanmendpara'
     },
     async commentOnPr(pr, body) {
-      events.push({ port: 'forge', method: 'commentOnPr', args: [pr, body] })
+      await note({ port: 'forge', method: 'commentOnPr', args: [pr, body] })
     },
     async queueAutoMerge(pr) {
-      events.push({ port: 'forge', method: 'queueAutoMerge', args: [pr] })
+      await note({ port: 'forge', method: 'queueAutoMerge', args: [pr] })
     },
     async waitForChecks(pr) {
-      events.push({ port: 'forge', method: 'waitForChecks', args: [pr] })
-      return waits.shift() ?? 0
+      const branch = [...prs].find(([, number]) => number === pr)?.[0]
+      await note({ port: 'forge', method: 'waitForChecks', args: [pr], branch })
+      const own = waitsOf.get(tickets.find((each) => each.branch === branch)?.id ?? '')
+      return (own ? own.shift() : waits.shift()) ?? 0
     },
     async pushFiles(branch, files) {
-      events.push({ port: 'forge', method: 'pushFiles', args: [branch, files] })
+      await note({ port: 'forge', method: 'pushFiles', args: [branch, files] })
       return files.map(({ path }) => `https://raw.githubusercontent.com/o/r/${branch}/${path}`)
     },
   }
 
   const sandboxes: Sandboxes = {
     async create(options) {
-      events.push({ port: 'sandboxes', method: 'create', options })
-      return fakeSandbox(script, events, options.branch)
+      await note({ port: 'sandboxes', method: 'create', options })
+      return fakeSandbox(script, note, options.branch)
     },
   }
 
@@ -421,7 +511,7 @@ export async function run(
   let ticks = 0
   // What factory() threw, if it did: a test of a crash still reads what it printed and wrote.
   let thrown: unknown
-  const code = await factory(args, {
+  const finished = factory(args, {
     repoDir,
     configDir,
     tracker: () => tracker,
@@ -429,23 +519,44 @@ export async function run(
     sandboxes,
     now: () => new Date(NOW.getTime() + 1000 * ticks++),
     print: (line) => lines.push(line),
-  }).catch((error: unknown) => {
-    thrown = error
-    return null
   })
-  const trackerCalls = events
-    .filter((event) => event.port === 'tracker')
-    .map((event) => `${event.method} ${event.args.join(' ')}`)
-  return {
-    code,
-    thrown,
-    output: lines.join('\n'),
-    lines,
-    events,
-    trackerCalls,
-    repoDir,
-    runDir: join(repoDir, '.factory', 'runs', RUN_ID),
+    .catch((error: unknown) => {
+      thrown = error
+      return null
+    })
+    .then((code) => {
+      const trackerCalls = events
+        .filter((event) => event.port === 'tracker')
+        .map((event) => `${event.method} ${event.args.join(' ')}`)
+      return {
+        code,
+        thrown,
+        output: lines.join('\n'),
+        lines,
+        events,
+        trackerCalls,
+        repoDir,
+        runDir: join(repoDir, '.factory', 'runs', RUN_ID),
+      }
+    })
+  /** Waits until the Run can go no further: it has finished, or only held steps keep it going. */
+  const settle = async () => {
+    let seen = -1
+    let quiet = 0
+    while (quiet < 5) {
+      await new Promise((resolve) => setImmediate(resolve))
+      quiet = events.length === seen ? quiet + 1 : 0
+      seen = events.length
+    }
   }
+  let ended = false
+  void finished.then(() => (ended = true))
+  const done = async () => {
+    await settle()
+    expect(ended, 'the Run stalled: it has nothing left to do, yet it has not ended').toBe(true)
+    return finished
+  }
+  return { events, lines, finished, settle, done, ended: () => ended }
 }
 
 /** A small workspace: @myvgc/api depends on @myvgc/core. */
@@ -460,7 +571,11 @@ function writeWorkspace(repoDir: string) {
   }
 }
 
-function fakeSandbox(script: Script, events: Event[], branch: string): Sandbox {
+function fakeSandbox(
+  script: Script,
+  note: (event: Event) => Promise<void>,
+  branch: string,
+): Sandbox {
   /** The criterion whose sabotage is applied, if any. */
   let sabotaged: string | null = null
   let reviewers = 0
@@ -473,13 +588,14 @@ function fakeSandbox(script: Script, events: Event[], branch: string): Sandbox {
   return {
     worktreePath: WORKTREE,
     async exec(command, options) {
-      events.push({
+      await note({
         port: 'sandbox',
         method: 'exec',
         command,
         stdin: options?.stdin,
         env: options?.env,
         checkout,
+        branch,
       })
       if (command.includes('pnpm install')) return exit(script.install ?? 0)
       // Sandcastle's exec returns text, so a screenshot comes out base64-encoded.
@@ -545,7 +661,7 @@ function fakeSandbox(script: Script, events: Event[], branch: string): Sandbox {
       return ok()
     },
     async runAgent(step) {
-      events.push({ port: 'sandbox', method: 'runAgent', step })
+      await note({ port: 'sandbox', method: 'runAgent', step, branch })
       const answer = answerOf(step)
       const sessions = [script.sessions?.[step.name] ?? []].flat()
       const text = sessions[Math.min(sessionRuns[step.name] ?? 0, sessions.length - 1)]
@@ -553,7 +669,7 @@ function fakeSandbox(script: Script, events: Event[], branch: string): Sandbox {
       return text === undefined ? answer : { ...answer, session: text }
     },
     async close() {
-      events.push({ port: 'sandbox', method: 'close' })
+      await note({ port: 'sandbox', method: 'close', branch })
     },
   }
   function answerOf(step: AgentStep): { stdout: string; sessionId?: string } {

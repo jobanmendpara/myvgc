@@ -3,8 +3,8 @@
 //
 // It checks that it may start (the set-up is complete, DEV-271 and DEV-272, and the issue is a spec
 // the maintainer signed off), then reads the spec's frontier. `--dry-run` prints the frontier and
-// each ticket's steps. `--only DEV-M` works that one ticket to a merged PR (src/run.ts); working
-// the whole frontier comes with DEV-285.
+// each ticket's steps. Without it, the Run works the whole frontier, two tickets at a time
+// (src/slots.ts), each to a merged PR (src/run.ts); `--only DEV-M` works that one ticket.
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { parseArgs, parseEnv } from 'node:util'
@@ -14,6 +14,7 @@ import { frontier, whyNotTakeable } from './frontier.ts'
 import type { Forge, GitHubApp, Sandboxes, Ticket, Tracker } from './ports.ts'
 import { workTicket } from './run.ts'
 import { RunLog } from './runlog.ts'
+import { workFrontier } from './slots.ts'
 import { endRun } from './summary.ts'
 import { type Settings, STEP_NAMES, ticketPlan, withOverrides } from './settings.ts'
 import { describeWorkspace, workspacePackages } from './workspace.ts'
@@ -99,63 +100,75 @@ export async function factory(args: string[], ports: FactoryPorts): Promise<numb
     ports.print('Dry run: nothing was changed.')
     return READY
   }
-  const [ticket] = takeable
-  if (!onlyTicketId || !ticket) {
-    ports.print(
-      "Working the whole frontier isn't built yet (DEV-285), so nothing was changed. Use --only.",
-    )
-    return REFUSED
-  }
 
   const criteria = criteriaOf(spec.description)
-  const covered = coveredIds(ticket.description)
-  const unknown = covered.filter((id) => !criteria.has(id))
-  // Parked before any agent runs (AC-14.2): the maintainer fixes the ticket or the spec.
-  const unstartable =
-    covered.length === 0
-      ? `it has no "Covers:" line naming the criteria it covers`
-      : unknown.length > 0
-        ? `it covers ${unknown.join(', ')}, which ${specId} doesn't have`
-        : undefined
-
+  const workspace = describeWorkspace(workspacePackages(ports.repoDir))
   const runId = `${stamp(ports.now())}-${specId}`
   const runDir = join(ports.repoDir, '.factory', 'runs', runId)
   const log = new RunLog(runDir, { runId, specId }, ports.now)
-  ports.print(`Run ${runId}: working ${ticket.id}. Its log is ${runDir}.`)
+  ports.print(
+    `Run ${runId}: working ${onlyTicketId ?? `the frontier of ${specId}`}. Its log is ${runDir}.`,
+  )
   const forge = ports.forge(setup.github)
   // Mints the installation token now, so a broken App key stops the Run before it claims anything.
   const author = await forge.botIdentity()
-  let outcome
+  let results
   try {
-    outcome = await workTicket(
-      {
-        runId,
-        specId,
-        runDir,
-        log,
-        tracker,
-        forge,
-        sandboxes: ports.sandboxes,
-        sandboxEnv: setup.sandboxEnv,
-        accuracyKey: setup.accuracyKey,
-        author,
-        settings,
-        print: ports.print,
+    results = await workFrontier({
+      takeable,
+      // `--only` works that one ticket, and the Run ends after it.
+      reread: onlyTicketId ? undefined : () => tracker.getSubIssues(specId),
+      sandboxes: ports.sandboxes,
+      work: (ticket, sandboxes) => {
+        const covered = coveredIds(ticket.description)
+        return workTicket(
+          {
+            runId,
+            specId,
+            runDir,
+            log,
+            tracker,
+            forge,
+            sandboxes,
+            sandboxEnv: setup.sandboxEnv,
+            accuracyKey: setup.accuracyKey,
+            author,
+            settings,
+            print: ports.print,
+          },
+          {
+            ticket,
+            specId,
+            criteria: covered.flatMap((id) => criteria.get(id) ?? []),
+            workspace,
+          },
+          unstartableReason(specId, covered, criteria),
+        )
       },
-      {
-        ticket,
-        specId,
-        criteria: covered.flatMap((id) => criteria.get(id) ?? []),
-        workspace: describeWorkspace(workspacePackages(ports.repoDir)),
-      },
-      unstartable,
-    )
+    })
   } finally {
     // Even when a ticket's turn throws, the Run ends with its summary: the ticket shows unfinished.
     await endRun(ports, tracker, log)
   }
   // A PR waiting on `approved` is a hand-off to the maintainer, not a failure: the Run moved on.
-  return outcome === 'merged' || outcome === 'waiting for approval' ? READY : REFUSED
+  return results.every(({ outcome }) => outcome === 'merged' || outcome === 'waiting for approval')
+    ? READY
+    : REFUSED
+}
+
+/**
+ * Why a ticket can't start, if it can't: it is parked before any agent runs (AC-14.2), and the
+ * maintainer fixes the ticket or the spec.
+ */
+function unstartableReason(
+  specId: string,
+  covered: string[],
+  criteria: ReadonlyMap<string, unknown>,
+): string | undefined {
+  const unknown = covered.filter((id) => !criteria.has(id))
+  if (covered.length === 0) return `it has no "Covers:" line naming the criteria it covers`
+  if (unknown.length > 0) return `it covers ${unknown.join(', ')}, which ${specId} doesn't have`
+  return undefined
 }
 
 /** The local date and time as yyyy-mm-dd-hhmm, for Run IDs. */
