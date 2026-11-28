@@ -1,6 +1,7 @@
 // Tests what the factory does after the push, on what scripts/wait-for-checks.sh reports: a fix
-// round when CI fails, a rebase when the PR conflicts with main, and leaving a PR that waits on
-// `approved` with the maintainer. Through `pnpm factory <spec> --only DEV-M` with fake ports
+// round when CI fails, a rebase when the PR conflicts with main, leaving a PR that waits on
+// `approved` with the maintainer, and parking a PR that gets no answer for an hour or keeps
+// conflicting. Through `pnpm factory <spec> --only DEV-M` with fake ports
 // (test/harness.ts).
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -56,6 +57,11 @@ const openedPrs = (events: Event[]) =>
   calls(events, 'forge', 'openPr').map((event) => event.args[0] as { draft: boolean })
 
 const FAILED = review('fail')
+
+/** wait-for-checks.sh's exit code `code`, `count` times over. */
+const times = (code: number, count: number) => Array<number>(count).fill(code)
+const sleeps = (events: Event[]) =>
+  events.flatMap((event) => (event.port === 'clock' ? [event.ms] : []))
 
 describe('when CI fails after the push', () => {
   test("starts a fix round in a new sandbox on the pushed branch, resuming the Implementer's session with the CI log", async () => {
@@ -212,11 +218,6 @@ describe('when the PR waits on `approved`', () => {
   })
 })
 
-/** wait-for-checks.sh's exit code `code`, `count` times over. */
-const times = (code: number, count: number) => Array<number>(count).fill(code)
-const sleeps = (events: Event[]) =>
-  events.flatMap((event) => (event.port === 'clock' ? [event.ms] : []))
-
 describe('when the wait gets no answer', () => {
   test('parks the ticket when the checks are still pending an hour after the push', async () => {
     // Each call waits 3 minutes, so the 20th ends the hour.
@@ -228,7 +229,7 @@ describe('when the wait gets no answer', () => {
     expect(labels(events)).toEqual([['DEV-2', 'needs-human']])
     expect(openedPrs(events).at(-1)?.draft).toBe(true)
     expect(linearComments(events).at(-1)).toContain(
-      'still pending an hour after the push (wait-for-checks.sh exit 2)',
+      "the PR's checks were still pending after an hour of waiting (wait-for-checks.sh exit 2)",
     )
   })
 
@@ -242,15 +243,15 @@ describe('when the wait gets no answer', () => {
   test('waits 30 seconds after a `gh` error, and parks when `gh` still fails an hour on', async () => {
     const result = await workDev2({ waits: [...times(3, 200), 0] })
     const { events } = result
-    // 120 waits of 30 seconds, and the harness clock's second per reading.
+    // Each wait is the 30-second pause plus the harness clock's second for each reading of it,
+    // so the hour ends on the 114th: 120 if the readings took no time.
     const waited = calls(events, 'forge', 'waitForChecks').length
-    expect(waited).toBeGreaterThan(100)
-    expect(waited).toBeLessThan(121)
+    expect(waited).toBe(114)
     expect(sleeps(events).slice(0, waited - 1)).toEqual(times(30_000, waited - 1))
     expect(result.code).toBe(1)
     expect(statuses(events).at(-1)).toBe('Todo')
     expect(linearComments(events).at(-1)).toContain(
-      'still pending an hour after the push (wait-for-checks.sh exit 3)',
+      '`gh` was still failing after an hour of waiting (wait-for-checks.sh exit 3)',
     )
   })
 
@@ -282,6 +283,15 @@ describe('when the PR keeps conflicting with main', () => {
     expect(result.code).toBe(1)
     expect(statuses(events).at(-1)).toBe('Todo')
     expect(openedPrs(events).at(-1)?.draft).toBe(true)
+    expect(linearComments(events).at(-1)).toContain('still conflicts with main after 3 rebases')
+  })
+
+  test('counts every rebase in the wait, with a CI fix round between them', async () => {
+    const result = await workDev2({ waits: [4, 1, 4, 4, 4, 0] })
+    const { events } = result
+    expect(stepNamed(events, 'fix-round-1')).toHaveLength(1)
+    expect(events.filter(isExec('git rebase origin/main'))).toHaveLength(3)
+    expect(result.code).toBe(1)
     expect(linearComments(events).at(-1)).toContain('still conflicts with main after 3 rebases')
   })
 

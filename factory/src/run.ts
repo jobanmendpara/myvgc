@@ -6,10 +6,10 @@
 // sandbox, counted towards the two; a conflict with main gets a rebase and a force-push, or a park
 // when the rebase stops on conflicts; and a PR waiting on `approved` is left with the maintainer,
 // auto-merge still queued, while the Run moves on. A PR that gets no answer for an hour after a
-// push, or still conflicts after 3 rebases, is parked rather than waited on for ever. A branch that changes an ADR 24 path has
-// `pnpm accuracy` run before and after it, ahead of each push (DEV-280). A Seen criterion passes
-// the push gate only with screenshots the Reviewer judged matching, which the PR comment shows
-// (DEV-281, src/screenshots.ts).
+// push, or still conflicts after 3 rebases, is parked rather than waited on for ever. A branch
+// that changes an ADR 24 path has `pnpm accuracy` run before and after it, ahead of each push
+// (DEV-280). A Seen criterion passes the push gate only with screenshots the Reviewer judged
+// matching, which the PR comment shows (DEV-281, src/screenshots.ts).
 //
 // It survives what interrupted the spike (DEV-286): each agent's sessions live in the Run's folder;
 // a usage limit pauses every agent step until it resets, then the step continues its session; an
@@ -487,17 +487,22 @@ async function turnOf(
       if ((await ship(first)) === 'parked') return 'parked'
     }
 
-    // The hour starts again with each push: the first, a rebase's, and a CI fix round's.
-    let pushedAt = clock.now().getTime()
+    // The hour starts again with each push: the first, a rebase's, and a CI fix round's. A Run that
+    // adopts a ticket after the host died starts its own hour and its own count of rebases. The
+    // rebases are counted over the whole wait, fix rounds and all, so it ends within about 6 hours.
+    const now = () => clock.now().getTime()
+    let waitingSince = now()
     let rebases = 0
     for (;;) {
       if (!pr) throw new Error('Waiting on checks with no PR.')
       const code = await forge.waitForChecks(pr.number)
       if (code === WAIT.pending || code === WAIT.ghError) {
-        if (clock.now().getTime() - pushedAt >= WAIT_LIMIT_MS) {
-          say('wait for checks', `no answer an hour after the push (exit ${code})`)
+        if (now() - waitingSince >= WAIT_LIMIT_MS) {
+          say('wait for checks', `no answer for an hour (exit ${code})`)
+          const why =
+            code === WAIT.ghError ? '`gh` was still failing' : "the PR's checks were still pending"
           return await parkHere(
-            `the PR's checks were still pending an hour after the push (wait-for-checks.sh exit ${code}): see ${pr.url}`,
+            `${why} after an hour of waiting (wait-for-checks.sh exit ${code}): see ${pr.url}`,
             work(),
           )
         }
@@ -523,7 +528,7 @@ async function turnOf(
         rebases += 1
         const rebased = await rebase(await newSandbox())
         if (rebased !== 'rebased') return rebased
-        pushedAt = clock.now().getTime()
+        waitingSince = now()
         continue
       }
       if (code !== WAIT.checkFailed) {
@@ -549,7 +554,7 @@ async function turnOf(
       )
       if ((await untilGatePasses(sandbox, { kind: 'agent', agent })) === 'parked') return 'parked'
       if ((await ship(sandbox)) === 'parked') return 'parked'
-      pushedAt = clock.now().getTime()
+      waitingSince = now()
     }
   } finally {
     for (const sandbox of [...open]) await close(sandbox)
