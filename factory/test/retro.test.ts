@@ -4,7 +4,7 @@
 // bundle is gathered from the run logs real Runs left in the same folders, and from what those
 // Runs wrote to Linear and GitHub, handed back by the fake Tracker and Forge.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import { describe, expect, test } from 'vitest'
 import type { Comment, Issue, PrComment, Status } from '../src/ports.ts'
 import {
@@ -12,10 +12,8 @@ import {
   DONE,
   type Event,
   IN_PROGRESS,
-  NOW,
   review,
   run,
-  runIdAt,
   type Script,
   session,
   sessionLine,
@@ -27,8 +25,6 @@ import {
 
 const IN_REVIEW: Status = { name: 'In Review', type: 'started' }
 const SPEC_DONE = 'Spec done: run `pnpm factory retro DEV-269`'
-const LATER = new Date(NOW.getTime() + 60 * 60 * 1000)
-const RETRO_AT = new Date(NOW.getTime() + 2 * 60 * 60 * 1000)
 
 /** A ticket as a park leaves it: Todo with `needs-human`. */
 const parked = (id: string) => ticket(id, { status: TODO, labels: ['needs-human', 'Chore'] })
@@ -112,13 +108,19 @@ describe('pnpm factory retro, on a spec that isn’t done', () => {
   })
 })
 
+/** The maintainer's answer to DEV-2's park: after it, and before the retro. */
+const REPLY: Comment = {
+  body: 'Use the fixture in apps/api instead.',
+  createdAt: '2026-11-28T00:00:00.000Z',
+}
+
 /**
- * Two Runs of the spec in the same folders: the first merges DEV-1 after two CI failures, each
- * with its fix round, and a clean rebase; the second parks DEV-2, whose install fails. Then the
- * retro, with DEV-1 Done and DEV-2 parked, given what the Runs wrote to Linear and GitHub, and
- * whatever `more` sets from the second Run's park note.
+ * Two Runs of the spec in the same checkout, each a later command: the first merges DEV-1 after
+ * two CI failures, each with its fix round, and a clean rebase; the second parks DEV-2, whose
+ * install fails. Then the retro, with DEV-1 Done and DEV-2 parked. Linear keeps what the Runs
+ * wrote; the PR's comments are the ones the first Run posted, and `more` adds to the script.
  */
-async function twoRunsThenRetro(more: (parkNote: string) => Script = () => ({})) {
+async function twoRunsThenRetro(more: Script = {}) {
   const findings = [{ severity: 'judgement', file: 'src/a.ts', summary: 'A clearer name.' }]
   const first = await run([SPEC, '--only', 'DEV-1'], [signedOff], {
     tickets: [ticket('DEV-1'), ticket('DEV-2')],
@@ -131,19 +133,14 @@ async function twoRunsThenRetro(more: (parkNote: string) => Script = () => ({}))
       },
     },
   })
-  const second = await run([SPEC, '--only', 'DEV-2'], [signedOff], {
+  const second = await first.again({
+    args: [SPEC, '--only', 'DEV-2'],
     tickets: [ticket('DEV-1', { status: DONE }), ticket('DEV-2')],
     script: { install: 1 },
-    root: first.root,
-    now: LATER,
   })
   const [, parkNote] = calls(second.events, 'tracker', 'comment').find(
     ([id, body]) => id === 'DEV-2' && String(body).startsWith('🏭 Factory: Parked'),
   ) as [string, string]
-  const comments: Comment[] = [
-    { body: parkNote, createdAt: '2026-11-27T15:10:00.000Z' },
-    { body: 'Use the fixture in apps/api instead.', createdAt: '2026-11-27T16:00:00.000Z' },
-  ]
   const prComments: PrComment[] = [
     ...calls(first.events, 'forge', 'commentOnPr').map(([, body]) => String(body)),
     '🏭 Factory: @jobanmendpara this PR changes a risky path, so it waits for you.',
@@ -171,16 +168,16 @@ async function twoRunsThenRetro(more: (parkNote: string) => Script = () => ({}))
     labels: ['Improvement'],
     description: '',
   }
-  const retro = await run(['retro', SPEC], [signedOff, followUp], {
+  const retro = await second.again({
+    args: ['retro', SPEC],
+    issues: [signedOff, followUp],
     tickets: [ticket('DEV-1', { status: DONE }), parked('DEV-2')],
     script: {
-      commentsOf: { 'DEV-2': comments },
+      commentsOf: { 'DEV-2': [REPLY] },
       prComments: { 42: prComments },
       related: { 'DEV-1': [bug, notBug] },
-      ...more(parkNote),
+      ...more,
     },
-    root: first.root,
-    now: RETRO_AT,
   })
   return { first, second, retro, parkNote, bundle: readFileSync(bundlePath(retro.repoDir), 'utf8') }
 }
@@ -195,8 +192,9 @@ describe('pnpm factory retro, on a finished spec', () => {
 
   test("holds each Run's steps and times, cost per step, fix rounds, verdicts and replays", async () => {
     const { bundle, first, second } = await twoRunsThenRetro()
-    expect(bundle).toContain(`### Run ${runIdAt(NOW)}`)
-    expect(bundle).toContain(`### Run ${runIdAt(LATER)}`)
+    expect(second.runDir).not.toBe(first.runDir)
+    expect(bundle).toContain(`### Run ${basename(first.runDir)}`)
+    expect(bundle).toContain(`### Run ${basename(second.runDir)}`)
     expect(bundle).toContain(`Run log: ${first.runDir}`)
     expect(bundle).toContain(`Run log: ${second.runDir}`)
     // Steps, with when each started and finished.
@@ -243,16 +241,14 @@ describe('pnpm factory retro, on a finished spec', () => {
       }),
     )
     // A Run whose ticket's turn threw.
-    await run([SPEC, '--only', 'DEV-2'], [signedOff], {
+    const second = await first.again({
+      args: [SPEC, '--only', 'DEV-2'],
       tickets: [ticket('DEV-1', { status: DONE }), ticket('DEV-2')],
       script: { trackerThrows: 'setStatus' },
-      root: first.root,
-      now: LATER,
     })
-    const retro = await run(['retro', SPEC], [signedOff], {
+    const retro = await second.again({
+      args: ['retro', SPEC],
       tickets: [ticket('DEV-1', { status: DONE }), parked('DEV-2')],
-      root: first.root,
-      now: RETRO_AT,
     })
     const bundle = readFileSync(bundlePath(retro.repoDir), 'utf8')
     expect(bundle).toContain(
@@ -265,8 +261,8 @@ describe('pnpm factory retro, on a finished spec', () => {
 
   test("holds each park note, the maintainer's reply and how the ticket came back", async () => {
     const claim = {
-      body: '🏭 Factory: Claimed by factory Run `2026-11-27-1700-DEV-269`.',
-      createdAt: '2026-11-27T17:00:00.000Z',
+      body: '🏭 Factory: Claimed by factory Run `2026-11-27-1900-DEV-269`.',
+      createdAt: '2026-11-28T01:00:00.000Z',
     }
     const { bundle, parkNote } = await twoRunsThenRetro()
     const firstLine = parkNote.split('\n')[0] ?? ''
@@ -274,18 +270,17 @@ describe('pnpm factory retro, on a finished spec', () => {
     expect(bundle).toContain('> Use the fixture in apps/api instead.')
     expect(bundle).toContain("How it came back: it hasn't: it's still parked.")
 
-    const { bundle: cameBack } = await twoRunsThenRetro((note) => ({
+    const { bundle: cameBack } = await twoRunsThenRetro({
       commentsOf: {
         'DEV-2': [
-          { body: note, createdAt: '2026-11-27T15:10:00.000Z' },
-          { body: 'Use the fixture in apps/api instead.', createdAt: '2026-11-27T16:00:00.000Z' },
+          REPLY,
           claim,
-          { body: 'A note after it came back.', createdAt: '2026-11-27T18:00:00.000Z' },
+          { body: 'A note after it came back.', createdAt: '2026-11-28T02:00:00.000Z' },
         ],
       },
-    }))
+    })
     expect(cameBack).toContain(
-      'How it came back: factory Run `2026-11-27-1700-DEV-269` took it up again at 2026-11-27T17:00:00.000Z.',
+      'How it came back: factory Run `2026-11-27-1900-DEV-269` took it up again at 2026-11-28T01:00:00.000Z.',
     )
     expect(cameBack).not.toContain('A note after it came back.')
   })
@@ -317,11 +312,7 @@ describe('pnpm factory retro, on a finished spec', () => {
       script: { waits: [1, 1, 1], ciLog: 'ci: FAIL the third time\nAssertionError: still 1' },
     })
     expect(first.output).toContain('- DEV-1 Ticket DEV-1: parked')
-    const retro = await run(['retro', SPEC], [signedOff], {
-      tickets: [parked('DEV-1')],
-      root: first.root,
-      now: RETRO_AT,
-    })
+    const retro = await first.again({ args: ['retro', SPEC], tickets: [parked('DEV-1')] })
     const bundle = readFileSync(bundlePath(retro.repoDir), 'utf8')
     expect(bundle).toContain(`which parked it: ${join(first.runDir, 'DEV-1', 'ci.log')}`)
     expect(bundle).toContain('ci: FAIL the third time')
@@ -329,18 +320,17 @@ describe('pnpm factory retro, on a finished spec', () => {
 
   test('names a run.json it can’t read, and gathers the rest', async () => {
     const first = await run([SPEC], [signedOff], { tickets: [ticket('DEV-1')] })
-    const broken = join(first.repoDir, '.factory', 'runs', runIdAt(LATER), 'run.json')
+    const broken = join(first.repoDir, '.factory', 'runs', `2026-11-27-1600-${SPEC}`, 'run.json')
     mkdirSync(join(broken, '..'), { recursive: true })
     writeFileSync(broken, '{"runId": "half')
-    const retro = await run(['retro', SPEC], [signedOff], {
+    const retro = await first.again({
+      args: ['retro', SPEC],
       tickets: [ticket('DEV-1', { status: DONE })],
-      root: first.root,
-      now: RETRO_AT,
     })
     expect(retro.code).toBe(0)
     const bundle = readFileSync(bundlePath(retro.repoDir), 'utf8')
     expect(bundle).toContain(`Not valid JSON, so left out: ${broken}`)
-    expect(bundle).toContain(`### Run ${runIdAt(NOW)}`)
+    expect(bundle).toContain(`### Run ${basename(first.runDir)}`)
   })
 
   test("holds a conflicting rebase's log", async () => {
@@ -348,11 +338,7 @@ describe('pnpm factory retro, on a finished spec', () => {
       tickets: [ticket('DEV-1')],
       script: { waits: [4], rebase: 'conflicts' },
     })
-    const retro = await run(['retro', SPEC], [signedOff], {
-      tickets: [parked('DEV-1')],
-      root: first.root,
-      now: RETRO_AT,
-    })
+    const retro = await first.again({ args: ['retro', SPEC], tickets: [parked('DEV-1')] })
     const bundle = readFileSync(bundlePath(retro.repoDir), 'utf8')
     expect(bundle).toContain(': conflicts with origin/main')
     expect(bundle).toContain(join(first.runDir, 'DEV-1', 'rebase.log'))
@@ -375,14 +361,9 @@ describe('pnpm factory retro, on a finished spec', () => {
 
   test('holds excerpts, not whole comments', async () => {
     const long = `${'The fixture is wrong. '.repeat(100)}THE END`
-    const { bundle } = await twoRunsThenRetro((note) => ({
-      commentsOf: {
-        'DEV-2': [
-          { body: note, createdAt: '2026-11-27T15:10:00.000Z' },
-          { body: long, createdAt: '2026-11-27T16:00:00.000Z' },
-        ],
-      },
-    }))
+    const { bundle } = await twoRunsThenRetro({
+      commentsOf: { 'DEV-2': [{ ...REPLY, body: long }] },
+    })
     expect(bundle).toContain('> The fixture is wrong. The fixture is wrong.')
     expect(bundle).not.toContain('THE END')
   })
@@ -400,14 +381,13 @@ describe('pnpm factory retro calls no agent or model', () => {
   test('it makes no sandbox, runs no agent, writes nothing to Linear or GitHub and notifies nobody', async () => {
     const { retro } = await twoRunsThenRetro()
     expect(retro.code).toBe(0)
-    // It read Linear and GitHub, and did nothing else through any port.
+    // It read Linear and GitHub, with the App's token for GitHub, and did nothing else.
     expect(calls(retro.events, 'forge', 'prComments')).not.toEqual([])
-    const done = retro.events.filter(
-      (event) => !(event.port === 'tracker' && /^get/.test(event.method)),
-    )
-    expect(done.map((event) => `${event.port}.${event.method}`)).toEqual(
-      calls(retro.events, 'forge', 'prComments').map(() => 'forge.prComments'),
-    )
+    const reads = (event: Event) =>
+      (event.port === 'tracker' && /^get/.test(event.method)) ||
+      (event.port === 'forge' && event.method === 'prComments') ||
+      (event.port === 'github' && event.method === 'mintToken')
+    expect(retro.events.filter((event) => !reads(event))).toEqual([])
   })
 
   test('it needs no Claude credential', async () => {

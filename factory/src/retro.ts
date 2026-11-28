@@ -14,7 +14,7 @@ import { join } from 'node:path'
 import { isParked, stillOpen } from './frontier.ts'
 import type { Comment, Forge, Issue, Ticket, Tracker } from './ports.ts'
 import { CLAIMED, FACTORY, PARKED, REVIEWED } from './run.ts'
-import type { Summary, TicketRecord } from './runlog.ts'
+import { RunLog, type RunRecord, type TicketRecord } from './runlog.ts'
 import { dollars } from './summary.ts'
 
 export interface RetroPorts {
@@ -88,26 +88,12 @@ export async function retro(specId: string, ports: RetroPorts): Promise<boolean>
 const state = (ticket: Ticket) =>
   isParked(ticket) ? `${ticket.status.name}, parked` : ticket.status.name
 
-/** A Run's record, as run.json holds it; pauses and resumes only from DEV-286 on. */
-interface LoggedRun {
-  dir: string
-  runId: string
-  specId: string
-  startedAt: string
-  finishedAt: string | null
-  /** When a later command took the Run up again after its host died. */
-  resumedAt?: string[]
-  pauses?: {
-    ticket: string
-    step: string
-    at: string
-    until: string
-    resetGiven: boolean
-    message: string
-  }[]
-  tickets: TicketRecord[]
-  summary: Summary | null
-}
+/**
+ * A Run's record and its folder. A run.json written before DEV-286 has no `pauses` or
+ * `resumedAt`, so they are read as possibly missing.
+ */
+type LoggedRun = Omit<RunRecord, 'pauses' | 'resumedAt'> &
+  Partial<Pick<RunRecord, 'pauses' | 'resumedAt'>> & { dir: string }
 
 interface RunLogs {
   /** Every Run of the spec, oldest first. */
@@ -122,17 +108,16 @@ function runsOf(repoDir: string, specId: string): RunLogs {
   const logs: RunLogs = { runs: [], unreadable: [] }
   if (!existsSync(root)) return logs
   for (const name of readdirSync(root)) {
-    const file = join(root, name, 'run.json')
+    const dir = join(root, name)
+    const file = join(dir, 'run.json')
     if (!existsSync(file)) continue
-    let record: Omit<LoggedRun, 'dir'>
-    try {
-      record = JSON.parse(readFileSync(file, 'utf8')) as Omit<LoggedRun, 'dir'>
-    } catch {
-      // A Run's folder is named after its spec, so an unreadable one still shows as the spec's.
+    const record: Omit<LoggedRun, 'dir'> | null = RunLog.read(dir)
+    // A Run's folder is named after its spec, so an unreadable one still shows as the spec's.
+    if (!record) {
       if (name.endsWith(`-${specId}`)) logs.unreadable.push(file)
       continue
     }
-    if (record.specId === specId) logs.runs.push({ ...record, dir: join(root, name) })
+    if (record.specId === specId) logs.runs.push({ ...record, dir })
   }
   logs.runs.sort((a, b) => a.startedAt.localeCompare(b.startedAt))
   return logs
